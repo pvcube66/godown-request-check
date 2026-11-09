@@ -29,6 +29,15 @@ export function monthsWithRequests(h: History[string] | undefined): Set<string> 
   return s;
 }
 
+/** The full requests behind a duplicate flag (real request numbers, dates, statuses and items), keyed by request number. */
+export async function loadRequestsById(c: Collections, ids: string[]) {
+  const map: Record<string, { requestId: string; requestDate: string; status: string; items: Record<string, number> }> = {};
+  if (!ids.length) return map;
+  const rows = await c.requests.find({ requestId: { $in: [...new Set(ids)] } }, { projection: { requestId: 1, requestDate: 1, status: 1, items: 1 } }).toArray();
+  for (const r of rows) map[r.requestId] = { requestId: r.requestId, requestDate: r.requestDate, status: r.status, items: r.items };
+  return map;
+}
+
 /** Items that belong to a whole-order finding, keyed by "godownId|hostel|month". */
 export async function loadOrderItems(c: Collections, orders: { godownId: number; hostelCode: string; month: string }[]) {
   const map = new Map<string, import('@anomaly/core').AnomalyDoc[]>();

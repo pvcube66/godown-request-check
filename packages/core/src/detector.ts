@@ -67,7 +67,8 @@ function severity(ratio: number, method: 'own-history' | 'peers' | 'blend', z: n
  *  against hostels of a similar size; without it the size is estimated from the order itself. */
 export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: DetectorConfig = DEFAULT_CONFIG, sizes: Map<string, number> = new Map()): Candidate[] {
   // 0. duplicate requests: two live requests from one hostel in one month that are almost identical.
-  //    The later copy is flagged and then left out of the totals, so it does not also show up as a fake "double order".
+  //    The later copy is flagged. It is still counted in the totals, because if nobody cancels it the hostel really does receive
+  //    everything twice (or three times), and the amounts should be judged as they would actually be delivered.
   const dropped = new Set<Req>();
   const dupFlags: Candidate[] = [];
   {
@@ -107,7 +108,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
   const agg = new Map<string, { meta: Req; items: Record<string, number> }>();
   const perRequest = new Map<string, Record<string, number>[]>();
   for (const r of reqs) {
-    if (/^reject/i.test(r.status) || dropped.has(r)) continue;
+    if (/^reject/i.test(r.status)) continue;
     const k = `${r.godownId}|${r.hostelCode}|${r.month}`;
     const e = agg.get(k) ?? { meta: r, items: {} };
     for (const [it, q] of Object.entries(r.items)) e.items[it] = (e.items[it] ?? 0) + q;
@@ -396,7 +397,7 @@ export function defaultEvalMonths(now = new Date()): string[] {
 export async function runDetection(c: Collections, evalMonths = defaultEvalMonths()): Promise<{ found: number; created: number }> {
   const saved = await c.settings.findOne({ _id: 'detector' });
   const cfg = { ...DEFAULT_CONFIG, ...((saved?.value as Partial<DetectorConfig>) ?? {}) };
-  const reqs = await c.requests.find({}, { projection: { items: 1, godownId: 1, hostelCode: 1, hostelName: 1, districtName: 1, month: 1, status: 1 } }).toArray();
+  const reqs = await c.requests.find({}, { projection: { items: 1, godownId: 1, hostelCode: 1, hostelName: 1, districtName: 1, month: 1, status: 1, societyId: 1, requestId: 1, requestDate: 1 } }).toArray();
   const sizes = new Map((await c.hostels.find({ students: { $gt: 0 } }).toArray()).map((h) => [`${h.godownId}|${h.hostelCode}`, h.students!] as const));
   const found = detectAnomalies(reqs, evalMonths, cfg, sizes);
   const now = new Date();
@@ -408,7 +409,10 @@ export async function runDetection(c: Collections, evalMonths = defaultEvalMonth
     }, { upsert: true });
     if (r.upsertedCount) created++;
   }
-  // reopen nothing automatically; mark open ones no longer flagged as resolved
+  // A flag that disappeared was marked "resolved". If it is found again it must come back to the list; otherwise it stays
+  // hidden for good. (Anything a person decided - wrong, fine, normal - is left exactly as they set it.)
+  if (found.length) await c.anomalies.updateMany({ key: { $in: found.map((f) => f.key) }, status: 'resolved' }, { $set: { status: 'open', updatedAt: now } });
+  // mark open ones that are no longer flagged as resolved
   await c.anomalies.updateMany(
     { status: 'open', month: { $in: evalMonths }, key: { $nin: found.map((f) => f.key) } },
     { $set: { status: 'resolved', updatedAt: now } },

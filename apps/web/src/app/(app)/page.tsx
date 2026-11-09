@@ -4,7 +4,7 @@ import { PageSkeleton } from '@/components/Skeletons';
 import { getDb } from '@/lib/db';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
-import { loadHistory, loadOrderItems } from '@/lib/history';
+import { loadHistory, loadOrderItems, loadRequestsById } from '@/lib/history';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 import BarChart from './BarChart';
@@ -79,9 +79,10 @@ async function HomeContent({ sp }: { sp: SP }) {
   const offset = (pageNo - 1) * PAGE_SIZE;
   const shown = groups.slice(offset, offset + PAGE_SIZE);
   // the two lookups do not depend on each other, so they run together
-  const [{ history, months: allMonths }, orderItems] = await Promise.all([
+  const [{ history, months: allMonths }, orderItems, dupReqs] = await Promise.all([
     loadHistory(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode })), requestMonths.sort()),
     loadOrderItems(c, shown.flatMap((g) => g.filter((a) => a.kind === 'order'))),
+    loadRequestsById(c, shown.flatMap((g) => g.filter((a) => a.kind === 'duplicate').flatMap((a) => a.dup!.requestIds))),
   ]);
   const ctx = { history, months: allMonths, view };
 
@@ -179,7 +180,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         const sn = offset + hi + 1;
         const { orders, duplicates, typing, spikes } = groupFlags(g);
         const cards = [
-          ...duplicates.map((d) => ({ key: d.key, node: <DuplicateCard key={d.key} a={d} ctx={ctx} /> })),
+          ...duplicates.map((d) => ({ key: d.key, node: <DuplicateCard key={d.key} a={d} ctx={ctx} reqs={dupReqs} /> })),
           ...orders.map((o) => ({ key: o.key, node: <OrderCard key={o.key} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} /> })),
           ...typing.map((t) => ({ key: `t|${t.month}|${t.value}`, node: <TypingCard key={`t|${t.month}|${t.value}`} g={t} ctx={ctx} /> })),
           ...spikes.map((a) => ({ key: a.key, node: <SpikeCard key={a.key} a={a} ctx={ctx} /> })),

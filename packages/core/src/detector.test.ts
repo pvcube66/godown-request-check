@@ -237,9 +237,13 @@ describe('duplicate requests', () => {
     expect(d[0]!.dup!.requestIds).toEqual(['IR1', 'IR2']);
     expect(d[0]!.dup!.similarity).toBeGreaterThanOrEqual(0.98);
   });
-  it('leaves the copy out of the totals, so it does not also look like a double order', () => {
-    const res = run([req('IR1', '2026-11-03', twelve), req('IR2', '2026-11-03', twelve)]);
-    expect(res.filter((a) => a.kind !== 'duplicate')).toHaveLength(0);
+  it('still counts every copy in the totals, so a tripled order is caught as the too-big amounts it really is', () => {
+    const usual = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`D${i}`, 100 + i]));
+    const past = (m: string) => ({ ...mk('DUP', m, {}), requestId: `P${m}`, requestDate: `${m}-05`, items: usual });
+    const copy = (id: string) => ({ ...mk('DUP', '2026-11', {}), requestId: id, requestDate: '2026-11-03', items: usual });
+    const res = detectAnomalies([...world([]), past('2026-09'), past('2026-10'), copy('IR1'), copy('IR2'), copy('IR3')], ['2026-11']).filter((a) => a.hostelCode === 'DUP');
+    expect(res.some((a) => a.kind === 'duplicate')).toBe(true);
+    expect(res.some((a) => a.kind === 'spike' || a.kind === 'order')).toBe(true);      // 3x the usual amounts are no longer hidden
   });
   it('does not call two different requests duplicates', () => {
     const other = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`E${i}`, 20 + i]));

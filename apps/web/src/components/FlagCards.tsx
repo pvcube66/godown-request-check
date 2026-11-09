@@ -188,12 +188,26 @@ export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: Anomaly
   );
 }
 
-/** Two requests from the same hostel and month that are almost identical: one may have been raised twice by mistake. */
-export function DuplicateCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string }) {
+type ReqInfo = { requestId: string; requestDate: string; status: string; items: Record<string, number> };
+
+/** Two requests from the same hostel and month that are almost identical: one may have been raised twice by mistake.
+ *  Shows the real request numbers, dates and statuses, and what is actually in each order. */
+export function DuplicateCard({ a, ctx, no, reqs = {} }: { a: AnomalyDoc; ctx: Ctx; no?: string; reqs?: Record<string, ReqInfo> }) {
   const sev = SEVERITY[a.severity];
   const d = a.dup!;
   const pct = Math.round(d.similarity * 100);
-  const when = (x: string) => (x ? x.split('-').reverse().join('-') : 'date not shown');
+  const [A, B] = [reqs[d.requestIds[0]], reqs[d.requestIds[1]]];
+  const when = (x?: string) => (x ? x.split('-').reverse().join('-') : 'a date we could not read');
+  const nItems = (r?: ReqInfo) => (r ? Object.values(r.items).filter((q) => q > 0).length : d.items);
+  const status = (r?: ReqInfo) => (r ? r.status.replace(/_/g, ' ') : '');
+  // every item either request asks for, biggest first
+  const names = [...new Set([...Object.keys(A?.items ?? {}), ...Object.keys(B?.items ?? {})])]
+    .filter((n) => (A?.items[n] ?? 0) > 0 || (B?.items[n] ?? 0) > 0)
+    .sort((x, y) => Math.max(B?.items[y] ?? 0, A?.items[y] ?? 0) - Math.max(B?.items[x] ?? 0, A?.items[x] ?? 0));
+  const line = (n: string) => {
+    const x = A?.items[n] ?? 0, y = B?.items[n] ?? 0;
+    return <li key={n} className={x === y ? '' : 'differs'}><span>{itemLabel(n)}</span><b>{x > 0 ? num(x) : '–'}</b><b>{y > 0 ? num(y) : '–'}</b></li>;
+  };
   return (
     <article className={`flag sev-${sev.cls} dup`}>
       <div className="flag-text">
@@ -207,10 +221,20 @@ export function DuplicateCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: st
           Two requests from this hostel are <b>{pct}% the same</b> across <b>{d.items} items</b>. One of them may have been raised twice by mistake.
         </p>
         <dl className="compare" aria-label="The two requests">
-          <div className="cmp ok"><dt><i />First request</dt><dd><b>{d.requestIds[0]}</b><span className="mut"> placed on {when(d.dates[0])}</span></dd></div>
-          <div className="cmp bad"><dt><i />Second request</dt><dd><b>{d.requestIds[1]}</b><span className="mut"> placed on {when(d.dates[1])}. Almost every amount matches the first.</span></dd></div>
+          <div className="cmp ok"><dt><i />First request</dt><dd><b>{d.requestIds[0]}</b><span className="mut"> placed on {when(A?.requestDate || d.dates[0])}. {status(A)}. {nItems(A)} items.</span></dd></div>
+          <div className="cmp bad"><dt><i />Second request</dt><dd><b>{d.requestIds[1]}</b><span className="mut"> placed on {when(B?.requestDate || d.dates[1])}. {status(B)}. {nItems(B)} items.</span></dd></div>
         </dl>
-        <p className="hint"><Icon name="info" size={16} /><span>If it is a duplicate, the second request can be cancelled before it is delivered. We have left it out of this hostel's totals so it does not also look like an oversized order.</span></p>
+        {names.length > 0 && (
+          <div className="dup-order">
+            <p className="dup-title">What is in the two orders <span className="mut">(amounts that differ are highlighted)</span></p>
+            <div className="dup-head"><span>Item</span><b>First</b><b>Second</b></div>
+            <ul className="dup-items">{names.slice(0, 8).map(line)}</ul>
+            {names.length > 8 && (
+              <details className="dup-more"><summary><Icon name="chevron" size={16} />Show the other {names.length - 8} items</summary><ul className="dup-items">{names.slice(8).map(line)}</ul></details>
+            )}
+          </div>
+        )}
+        <p className="hint"><Icon name="info" size={16} /><span>If it is a duplicate, the second request can be cancelled before it is delivered. Until then, both are counted in this hostel's totals, because that is what it would receive, so some items may also be flagged as too high.</span></p>
         {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} />}
       </div>
     </article>
