@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/', label: 'Unusual requests', icon: 'alert' },
   { href: '/accounts', label: 'Godowns', icon: 'warehouse' },
   { href: '/runs', label: 'Past checks', icon: 'clock' },
+  { href: '/accuracy', label: 'Accuracy', icon: 'check' },
 ] as const;
 
 export default function Sidebar({
@@ -53,7 +54,7 @@ export default function Sidebar({
             title="Godown Request Check"
           >
             <Logo size={28} />
-            {!collapsed && <span className="sidebar-brand-text">Godown Request Check</span>}
+            <span className="sidebar-brand-text">Godown Request Check</span>
           </Link>
 
           {/* Desktop collapse toggle */}
@@ -98,7 +99,7 @@ export default function Sidebar({
                 <span className="sidebar-icon">
                   <Icon name={icon} size={20} />
                 </span>
-                {!collapsed && <span className="sidebar-label">{label}</span>}
+                <span className="sidebar-label">{label}</span>
               </Link>
             );
           })}
@@ -115,7 +116,7 @@ export default function Sidebar({
               <span className="sidebar-icon">
                 <Icon name="signout" size={20} />
               </span>
-              {!collapsed && <span className="sidebar-label">Sign out</span>}
+              <span className="sidebar-label">Sign out</span>
             </button>
           </form>
         </div>

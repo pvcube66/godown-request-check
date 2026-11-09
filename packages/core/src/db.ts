@@ -14,7 +14,8 @@ export interface AccountDoc {
   createdAt: Date;
 }
 
-export type RequestDoc = ParsedRequest & { firstSeenAt: Date; updatedAt: Date };
+/** cancelReason: the reason written by the person who cancelled (rejected) the request, when there is one. */
+export type RequestDoc = ParsedRequest & { firstSeenAt: Date; updatedAt: Date; cancelReason?: string | null };
 
 export interface AnomalyDoc {
   key: string;                      // godownId|hostelCode|month|item (unique)
@@ -34,7 +35,9 @@ export interface AnomalyDoc {
   /** Number of students in this hostel, from the portal (absent when unknown). */
   students?: number;
   /** 'typing' = the same number was entered for several items and is far above each item's usual. */
-  kind: 'spike' | 'typing' | 'order';
+  kind: 'spike' | 'typing' | 'order' | 'duplicate';
+  /** kind 'duplicate': two requests from the same hostel and month that are almost identical. */
+  dup?: { requestIds: [string, string]; dates: [string, string]; similarity: number; items: number; total: number };
   /** kind 'order': the whole order is out of proportion to the number of students (ratio = typical item ratio). */
   order?: { itemsCompared: number; /** the same whole-order measure for every month on record (1 = normal for the hostel's size) */ history?: { month: string; ratio: number }[] };
   /** True for item flags that belong to a whole-order finding for the same hostel and month (shown under it, not separately). */

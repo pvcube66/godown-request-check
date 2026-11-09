@@ -1,7 +1,7 @@
 import { getToken } from './accounts.js';
 import { AccountDoc, Collections, RunDoc } from './db.js';
 import { parseGodownRows } from './parser.js';
-import { fetchGodownMonth, fetchHostelStudents, PortalAuthError } from './portalClient.js';
+import { fetchGodownMonth, fetchHostelStudents, fetchRequestRemark, PortalAuthError } from './portalClient.js';
 
 export const MONTH_NAMES = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
 
@@ -43,6 +43,7 @@ export async function syncAccount(c: Collections, acct: AccountDoc, months: stri
       await sleep(300);                                    // be gentle with the portal
     }
   }
+  try { await syncCancelReasons(c, acct, token); } catch (e) { console.error('cancel reasons failed:', e instanceof Error ? e.message : e); }
   try { await syncHostelSizes(c, acct, token); } catch (e) { console.error('hostel size refresh failed:', e instanceof Error ? e.message : e); }
   await c.accounts.updateOne({ username: acct.username }, { $set: { lastSyncAt: new Date(), lastError: null } });
   return total;
@@ -93,4 +94,16 @@ export async function syncHostelSizes(c: Collections, acct: AccountDoc, token: s
     }
   }
   return done;
+}
+
+/** For requests that people cancelled, keep the reason they wrote. These are real, human-labelled mistakes, used to check the detector. */
+export async function syncCancelReasons(c: Collections, acct: AccountDoc, token: string): Promise<number> {
+  const todo = await c.requests.find({ godownId: { $in: acct.godowns.map((g) => g.id) }, status: /^reject/i, cancelReason: { $exists: false } }).limit(40).toArray();
+  let n = 0;
+  for (const r of todo) {
+    const reason = await fetchRequestRemark(token, r.requestId);
+    await c.requests.updateOne({ godownId: r.godownId, requestId: r.requestId }, { $set: { cancelReason: reason } });
+    n++; await sleep(200);
+  }
+  return n;
 }

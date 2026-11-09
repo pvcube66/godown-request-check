@@ -187,3 +187,32 @@ export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: Anomaly
     </article>
   );
 }
+
+/** Two requests from the same hostel and month that are almost identical: one may have been raised twice by mistake. */
+export function DuplicateCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string }) {
+  const sev = SEVERITY[a.severity];
+  const d = a.dup!;
+  const pct = Math.round(d.similarity * 100);
+  const when = (x: string) => (x ? x.split('-').reverse().join('-') : 'date not shown');
+  return (
+    <article className={`flag sev-${sev.cls} dup`}>
+      <div className="flag-text">
+        <header className="flag-head">
+          {no && <span className="no" title="Reference number for this flag">{no}</span>}
+          <h3>Possible duplicate request</h3>
+          <span className={`pill ${sev.cls}`}><Icon name="alert" size={14} />{sev.label}</span>
+          <span className="when">for {monthLabel(a.month)}</span>
+        </header>
+        <p className="sentence">
+          Two requests from this hostel are <b>{pct}% the same</b> across <b>{d.items} items</b>. One of them may have been raised twice by mistake.
+        </p>
+        <dl className="compare" aria-label="The two requests">
+          <div className="cmp ok"><dt><i />First request</dt><dd><b>{d.requestIds[0]}</b><span className="mut"> placed on {when(d.dates[0])}</span></dd></div>
+          <div className="cmp bad"><dt><i />Second request</dt><dd><b>{d.requestIds[1]}</b><span className="mut"> placed on {when(d.dates[1])}. Almost every amount matches the first.</span></dd></div>
+        </dl>
+        <p className="hint"><Icon name="info" size={16} /><span>If it is a duplicate, the second request can be cancelled before it is delivered. We have left it out of this hostel's totals so it does not also look like an oversized order.</span></p>
+        {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} />}
+      </div>
+    </article>
+  );
+}

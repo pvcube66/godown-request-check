@@ -56,10 +56,10 @@ describe('detector', () => {
     expect(find(res, 'R')).toBeUndefined();
   });
 
-  it('adds up several requests from the same hostel in one month', () => {
+  it('adds up several different requests from the same hostel in one month', () => {
+    const part = (id: string, q: number) => ({ ...mk('H', '2026-11', {}), requestId: id, requestDate: '2026-11-03', items: { IddliRavva: q } });   // one item each: not duplicates
     const res = detectAnomalies(world([
-      mk('H', '2026-09', {}), mk('H', '2026-10', {}),
-      mk('H', '2026-11', { IddliRavva: 150 }), mk('H', '2026-11', { IddliRavva: 150 }),
+      mk('H', '2026-09', {}), mk('H', '2026-10', {}), part('IR1', 150), part('IR2', 150),
     ]), ['2026-11']);
     expect(find(res, 'H')?.requested).toBe(300);
   });
@@ -220,5 +220,35 @@ describe('hostels with no student count are compared with the same kind of hoste
   it('does not flag a hostel that asks what its own kind normally asks', () => {
     const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20)], ['2026-11']);
     expect(res.filter((a) => a.hostelCode === 'X')).toHaveLength(0);
+  });
+});
+
+describe('duplicate requests', () => {
+  const twelve = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`D${i}`, 10 + i]));
+  const req = (id: string, date: string, items: Record<string, number>, status = 'Pending') =>
+    ({ ...mk('DUP', '2026-11', {}), requestId: id, requestDate: date, status, items });
+  const run = (extra: ReturnType<typeof req>[]) => detectAnomalies([...world([]), ...extra], ['2026-11']).filter((a) => a.hostelCode === 'DUP');
+
+  it('flags two almost identical requests from one hostel in one month', () => {
+    const res = run([req('IR1', '2026-11-03', twelve), req('IR2', '2026-11-03', twelve)]);
+    const d = res.filter((a) => a.kind === 'duplicate');
+    expect(d).toHaveLength(1);
+    expect(d[0]!.severity).toBe('high');
+    expect(d[0]!.dup!.requestIds).toEqual(['IR1', 'IR2']);
+    expect(d[0]!.dup!.similarity).toBeGreaterThanOrEqual(0.98);
+  });
+  it('leaves the copy out of the totals, so it does not also look like a double order', () => {
+    const res = run([req('IR1', '2026-11-03', twelve), req('IR2', '2026-11-03', twelve)]);
+    expect(res.filter((a) => a.kind !== 'duplicate')).toHaveLength(0);
+  });
+  it('does not call two different requests duplicates', () => {
+    const other = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`E${i}`, 20 + i]));
+    expect(run([req('IR1', '2026-11-03', twelve), req('IR2', '2026-11-05', other)]).filter((a) => a.kind === 'duplicate')).toHaveLength(0);
+  });
+  it('ignores a twin that was already cancelled', () => {
+    expect(run([req('IR1', '2026-11-03', twelve), req('IR2', '2026-11-03', twelve, 'Rejected')]).filter((a) => a.kind === 'duplicate')).toHaveLength(0);
+  });
+  it('does not call tiny requests duplicates', () => {
+    expect(run([req('IR1', '2026-11-03', { A: 5, B: 5 }), req('IR2', '2026-11-03', { A: 5, B: 5 })]).filter((a) => a.kind === 'duplicate')).toHaveLength(0);
   });
 });

@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { reviewStats, type ReviewGroup } from '@anomaly/core';
+import { cancellationCheck, reviewStats, type ReviewGroup } from '@anomaly/core';
+import { hostelLabel, monthLabel, num } from '@/lib/format';
+import { Icon } from '@/components/Icons';
 import { getDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +22,9 @@ function Row({ g }: { g: ReviewGroup }) {
 }
 
 export default async function Accuracy() {
-  const r = await reviewStats(await getDb());
+  const c = await getDb();
+  const [r, cancelled] = await Promise.all([reviewStats(c), cancellationCheck(c)]);
+  const caught = cancelled.filter((x) => x.flagged).length;
   const pct = Math.round((100 * r.realProblems) / Math.max(1, r.reviewed));
   return (
     <>
@@ -29,6 +33,30 @@ export default async function Accuracy() {
         <p className="lede">Every time someone marks a flag as <b>“This looks wrong”</b> or <b>“This is fine”</b>, we learn whether it was a real problem. This page turns those clicks into an accuracy figure.</p>
       </div>
 
+      {cancelled.length > 0 && (
+        <section aria-labelledby="real-cancellations" style={{ marginBottom: 32 }}>
+          <h2 className="sub" id="real-cancellations" style={{ marginTop: 0 }}>Checked against real cancellations</h2>
+          <p className="lede small">The portal itself records requests that hostel staff cancelled, with the reason they wrote. These are real mistakes. We re-ran the detector as if each one were still waiting to be delivered, to see whether it would have been flagged in time.</p>
+          <div className="summary" style={{ marginBottom: 14 }}>
+            <h2>{caught} of {cancelled.length} cancelled requests would have been flagged</h2>
+            <p className="sub-lede">Some cancellations are for reasons that have nothing to do with the amounts, so a miss is not always a mistake by the detector.</p>
+          </div>
+          <div className="list">
+            {cancelled.map((x) => (
+              <div className="row cancel" key={x.requestId}>
+                <div>
+                  <h3>{hostelLabel(x.hostelName)}</h3>
+                  <p className="meta">{x.requestId}, {monthLabel(x.month)}. {x.items} items, total {num(x.total)}.</p>
+                  <p className="reason">{x.reason ? <>Reason given: “{x.reason.length > 150 ? `${x.reason.slice(0, 150)}…` : x.reason}”</> : 'No reason was written.'}</p>
+                </div>
+                <span className={`state ${x.flagged ? 'ok' : 'bad'}`}>{x.flagged ? <><Icon name="check" size={15} />Would have been flagged</> : 'Not flagged'}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <h2 className="sub" style={{ marginTop: cancelled.length ? 8 : 0 }}>From people's review clicks</h2>
       {r.reviewed < ENOUGH_OVERALL ? (
         <div className="empty">
           <h2>Not enough reviews yet</h2>

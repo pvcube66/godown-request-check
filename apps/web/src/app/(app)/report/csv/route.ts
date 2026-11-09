@@ -12,7 +12,9 @@ export async function GET(req: Request) {
   const head = ['S.No', 'Hostel ID', 'Hostel', 'District', 'Month', 'Item', 'Asked for', 'Usually about', 'How much more', 'How important', 'How we compared'];
   const lines = rows.map((a, i) => [
     i + 1, a.hostelCode,
-    ...(a.kind === 'order'
+    ...(a.kind === 'duplicate'
+      ? [hostelLabel(a.hostelName), a.districtName, monthLabel(a.month), `Possible duplicate: ${a.dup?.requestIds.join(' and ')}`, '', '', `${Math.round((a.dup?.similarity ?? 0) * 100)}% the same`, IMPORTANCE[a.severity], `Two requests that match across ${a.dup?.items} items`]
+      : a.kind === 'order'
       ? [hostelLabel(a.hostelName), a.districtName, monthLabel(a.month), 'Whole order', '', '', timesMore(a.ratio).replace(' more', ''), IMPORTANCE[a.severity], `Compared per student with hostels of a similar size (${a.order?.itemsCompared} items)`]
       : [hostelLabel(a.hostelName), a.districtName, monthLabel(a.month), itemLabel(a.item), a.requested, a.expected, timesMore(a.ratio), IMPORTANCE[a.severity], METHOD_TEXT[a.method]]),
   ].map(cell).join(','));

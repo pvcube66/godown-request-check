@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db';
 import { hostelLabel, itemLabel, monthLabel, num } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
 import { hostelKey, loadHistory, loadOrderItems, monthsWithRequests } from '@/lib/history';
-import { OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
+import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const { history, months: allMonths } = await loadHistory(c, [{ godownId, hostelCode: code }]);
   const h = history[hostelKey(godownId, code)] ?? {};
   const months = [...monthsWithRequests(h)].sort();
-  const { orders, typing, spikes: spikesAll } = groupFlags(flagged);
+  const { orders, duplicates, typing, spikes: spikesAll } = groupFlags(flagged);
   const spikes = spikesAll.filter((a) => !a.partOfOrder);
   const orderItems = await loadOrderItems(c, orders);
   const ctx = { history, months: allMonths, view: 'open' as const };
@@ -45,7 +45,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const items = Object.keys(h).filter((it) => Object.values(h[it]!).some((q) => q > 0))
     .sort((a, b) => Number(flaggedItems.has(b)) - Number(flaggedItems.has(a)) || a.localeCompare(b));
   const cols = { '--cols': months.length } as React.CSSProperties;
-  const nCards = orders.length + typing.length + spikes.length;
+  const nCards = duplicates.length + orders.length + typing.length + spikes.length;
 
   return (
     <>
@@ -65,9 +65,10 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         <section aria-labelledby="looks-wrong">
           <h2 className="sub" id="looks-wrong">What looks wrong</h2>
           <div className="hostel solo">
-            {orders.map((o, i) => <OrderCard key={o.key} no={`${i + 1}`} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} />)}
-            {typing.map((t, i) => <TypingCard key={`${t.month}|${t.value}`} no={`${orders.length + i + 1}`} g={t} ctx={ctx} />)}
-            {spikes.map((a, i) => <SpikeCard key={a.key} no={`${orders.length + typing.length + i + 1}`} a={a} ctx={ctx} />)}
+            {duplicates.map((d, i) => <DuplicateCard key={d.key} no={`${i + 1}`} a={d} ctx={ctx} />)}
+            {orders.map((o, i) => <OrderCard key={o.key} no={`${duplicates.length + i + 1}`} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} />)}
+            {typing.map((t, i) => <TypingCard key={`${t.month}|${t.value}`} no={`${duplicates.length + orders.length + i + 1}`} g={t} ctx={ctx} />)}
+            {spikes.map((a, i) => <SpikeCard key={a.key} no={`${duplicates.length + orders.length + typing.length + i + 1}`} a={a} ctx={ctx} />)}
           </div>
         </section>
       )}

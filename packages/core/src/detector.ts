@@ -21,6 +21,8 @@ export interface DetectorConfig {
   ownVolatile: number;     // own-history ratio needed when the hostel's own months already vary a lot
   ownAbovePeers: boolean;  // an own-history jump must also be above the normal range of similar hostels
   peersByKind: boolean;    // when the student count is unknown, compare with the same kind of hostel (same society) first
+  dupSimilarity: number;   // two requests from one hostel in one month this alike (0..1) count as a duplicate
+  dupMinItems: number;     // ... and must each ask for at least this many different items
   orderMinItems: number;   // whole-order check: needs at least this many items compared per student ...
   orderRatio: number;      // ... and the typical item at least this many times what similar-sized hostels ask
 }
@@ -28,11 +30,11 @@ export interface DetectorConfig {
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, orderMinItems: 8, orderRatio: 2.5,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
-type Req = Pick<RequestDoc, 'godownId' | 'hostelCode' | 'hostelName' | 'districtName' | 'month' | 'status' | 'items'> & { societyId?: string };
+type Req = Pick<RequestDoc, 'godownId' | 'hostelCode' | 'hostelName' | 'districtName' | 'month' | 'status' | 'items'> & { societyId?: string; requestId?: string; requestDate?: string };
 
 const median = (a: number[]) => {
   if (!a.length) return 0;
@@ -62,11 +64,48 @@ function severity(ratio: number, method: 'own-history' | 'peers' | 'blend', z: n
 /** `sizes` maps "godownId|hostelCode" to the number of students (when known). With it, requests are compared per student
  *  against hostels of a similar size; without it the size is estimated from the order itself. */
 export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: DetectorConfig = DEFAULT_CONFIG, sizes: Map<string, number> = new Map()): Candidate[] {
+  // 0. duplicate requests: two live requests from one hostel in one month that are almost identical.
+  //    The later copy is flagged and then left out of the totals, so it does not also show up as a fake "double order".
+  const dropped = new Set<Req>();
+  const dupFlags: Candidate[] = [];
+  {
+    const groups = new Map<string, Req[]>();
+    reqs.forEach((r, i) => { if (/^reject/i.test(r.status)) return; const k = `${r.godownId}|${r.hostelCode}|${r.month}`; (groups.get(k) ?? groups.set(k, []).get(k)!).push(r); void i; });
+    const idOf = (r: Req, i: number) => r.requestId ?? `#${i}`;
+    for (const [k, rs] of groups) {
+      if (rs.length < 2) continue;
+      rs.sort((a, b) => `${a.requestDate ?? ''}${a.requestId ?? ''}`.localeCompare(`${b.requestDate ?? ''}${b.requestId ?? ''}`));
+      for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
+        if (dropped.has(rs[j]!) || dropped.has(rs[i]!)) continue;
+        const a = rs[i]!, b = rs[j]!;
+        let sumMin = 0, sumMax = 0, nA = 0, nB = 0, totalB = 0;
+        for (const it of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) {
+          const x = a.items[it] ?? 0, y = b.items[it] ?? 0;
+          if (x <= 0 && y <= 0) continue;
+          sumMin += Math.min(x, y); sumMax += Math.max(x, y); if (x > 0) nA++; if (y > 0) nB++; totalB += y;
+        }
+        const sim = sumMax > 0 ? sumMin / sumMax : 0, n = Math.min(nA, nB);
+        if (sim < cfg.dupSimilarity || n < cfg.dupMinItems) continue;
+        dropped.add(b);
+        const [g, h, m] = k.split('|') as [string, string, string];
+        if (!evalMonths.includes(m)) continue;
+        const idA = idOf(a, reqs.indexOf(a)), idB = idOf(b, reqs.indexOf(b));
+        dupFlags.push({
+          key: `${g}|${h}|${m}|(duplicate)|${idB}`, godownId: Number(g), hostelCode: h, hostelName: b.hostelName, districtName: b.districtName, month: m,
+          item: '(duplicate request)', requested: round(totalB), expected: 0, ratio: round(sim * 100, 0), score: 0,
+          severity: sim >= 0.98 && n >= 10 ? 'high' : 'medium', method: 'own-history', kind: 'duplicate', partOfOrder: false,
+          dup: { requestIds: [idA, idB], dates: [a.requestDate ?? '', b.requestDate ?? ''], similarity: round(sim, 3), items: n, total: round(totalB) },
+          reason: `Two requests from this hostel for ${m} are ${Math.round(sim * 100)}% the same across ${n} items. One may have been raised twice by mistake.`,
+        });
+      }
+    }
+  }
+
   // 1. aggregate: godown|hostel|month -> item totals
   const agg = new Map<string, { meta: Req; items: Record<string, number> }>();
   const perRequest = new Map<string, Record<string, number>[]>();
   for (const r of reqs) {
-    if (/^reject/i.test(r.status)) continue;
+    if (/^reject/i.test(r.status) || dropped.has(r)) continue;
     const k = `${r.godownId}|${r.hostelCode}|${r.month}`;
     const e = agg.get(k) ?? { meta: r, items: {} };
     for (const [it, q] of Object.entries(r.items)) e.items[it] = (e.items[it] ?? 0) + q;
@@ -295,6 +334,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
       }
     }
   }
+  out.push(...dupFlags);
   return out.sort((a, b) => b.ratio - a.ratio);
 }
 

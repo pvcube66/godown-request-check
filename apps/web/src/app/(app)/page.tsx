@@ -5,7 +5,7 @@ import { getDb } from '@/lib/db';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
 import { loadHistory, loadOrderItems } from '@/lib/history';
-import { OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
+import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 import BarChart from './BarChart';
 import FilterSelect from './FilterSelect';
@@ -63,10 +63,10 @@ async function HomeContent({ sp }: { sp: SP }) {
 
   // Start-here list: one line per hostel. A typing mistake counts as one line, not five.
   const seen = new Set<string>();
-  const top: { hostel: AnomalyDoc; text: 'typing' | 'spike' | 'order'; a: AnomalyDoc; n: number }[] = [];
+  const top: { hostel: AnomalyDoc; text: 'typing' | 'spike' | 'order' | 'duplicate'; a: AnomalyDoc; n: number }[] = [];
   for (const r of topRows) {
     if (seen.has(r.hostelCode)) continue; seen.add(r.hostelCode);
-    top.push({ hostel: r, a: r, text: r.kind === 'typing' ? 'typing' : r.kind === 'order' ? 'order' : 'spike', n: r.slip?.count ?? r.order?.itemsCompared ?? 1 });
+    top.push({ hostel: r, a: r, text: r.kind === 'typing' ? 'typing' : r.kind === 'order' ? 'order' : r.kind === 'duplicate' ? 'duplicate' : 'spike', n: r.slip?.count ?? r.order?.itemsCompared ?? r.dup?.items ?? 1 });
     if (top.length === 3) break;
   }
 
@@ -113,7 +113,9 @@ async function HomeContent({ sp }: { sp: SP }) {
                 <span className="sum-icon"><Icon name={text === 'typing' ? 'pencil' : 'alert'} size={18} /></span>
                 <span>
                   <b>{hostelLabel(a.hostelName)}</b>{' '}
-                  {text === 'order'
+                  {text === 'duplicate'
+                    ? <>has two requests for {monthLabel(a.month)} that are <b>{Math.round((a.dup?.similarity ?? 0) * 100)}% the same</b> across <b>{n} items</b>. One may be a duplicate.</>
+                    : text === 'order'
                     ? <>asked for <b>{timesMore(a.ratio).replace(' more', '')}</b> what hostels with a similar number of students ask, across <b>{n} items</b> in {monthLabel(a.month)}.</>
                     : text === 'typing'
                     ? <>entered the same number, <b>{num(a.slip!.value)}</b>, for <b>{n} different items</b> in {monthLabel(a.month)}. This may be a typing mistake.</>
@@ -168,8 +170,9 @@ async function HomeContent({ sp }: { sp: SP }) {
       {shown.map((g, hi) => {
         const top1 = g[0]!;
         const sn = hi + 1;
-        const { orders, typing, spikes } = groupFlags(g);
+        const { orders, duplicates, typing, spikes } = groupFlags(g);
         const cards = [
+          ...duplicates.map((d) => ({ key: d.key, node: <DuplicateCard key={d.key} a={d} ctx={ctx} /> })),
           ...orders.map((o) => ({ key: o.key, node: <OrderCard key={o.key} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} /> })),
           ...typing.map((t) => ({ key: `t|${t.month}|${t.value}`, node: <TypingCard key={`t|${t.month}|${t.value}`} g={t} ctx={ctx} /> })),
           ...spikes.map((a) => ({ key: a.key, node: <SpikeCard key={a.key} a={a} ctx={ctx} /> })),

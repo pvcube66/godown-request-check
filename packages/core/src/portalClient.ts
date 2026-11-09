@@ -94,3 +94,14 @@ export async function fetchHostelStudents(token: string, hostelCode: string): Pr
   const total = j.data.reduce((s, row) => s + (Number(row.total_students) || 0), 0);
   return total > 0 ? total : null;
 }
+
+/** The reason written when a request was cancelled/rejected (empty when none was given). Reads only the free-text remarks. */
+export async function fetchRequestRemark(token: string, requestId: string): Promise<string | null> {
+  const r = await fetch(`${base()}Mess/api/mess/GetIndentHostelToVendorRequestItems?requestId=${encodeURIComponent(requestId)}`, { headers: authHeaders(token), signal: AbortSignal.timeout(30_000) });
+  if (r.status === 401) throw new PortalAuthError('Token rejected (401)');
+  if (!r.ok) return null;
+  const j = (await r.json()) as { data?: { remarks?: string | null; supplier_remarks?: string | null; vendor_remarks?: string | null }[] };
+  const rows = Array.isArray(j.data) ? j.data : [];
+  for (const row of rows) for (const t of [row.remarks, row.supplier_remarks, row.vendor_remarks]) if (t && t.trim()) return t.trim().slice(0, 400);
+  return null;
+}
