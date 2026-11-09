@@ -19,7 +19,11 @@ export default async function Hostel({ params, searchParams }: { params: Promise
     if (/^reject/i.test(r.status)) continue;
     for (const [it, q] of Object.entries(r.items)) { const row = (totals[it] ??= {}); row[r.month] = (row[r.month] ?? 0) + q; }
   }
-  const hit = new Set(flagged.map((a) => `${a.item}|${a.month}`));
+  // Shade a cell only when it is higher than everything this hostel asked for in earlier months.
+  const hit = new Set(flagged.filter((a) => {
+    const earlier = months.filter((m) => m < a.month).map((m) => totals[a.item]?.[m] ?? 0);
+    return a.requested > Math.max(0, ...earlier);
+  }).map((a) => `${a.item}|${a.month}`));
   const flaggedItems = new Set(flagged.map((a) => a.item));
   const items = Object.keys(totals).filter((it) => Object.values(totals[it]!).some((q) => q > 0))
     .sort((a, b) => Number(flaggedItems.has(b)) - Number(flaggedItems.has(a)) || a.localeCompare(b));

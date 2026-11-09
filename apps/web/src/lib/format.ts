@@ -50,3 +50,10 @@ export function ago(d?: Date | null): string {
 
 export const when = (d?: Date | null) =>
   d ? d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
+
+export const IMPORTANCE = { high: 'Check now', medium: 'Take a look', low: 'Minor' } as const;
+export const METHOD_TEXT = {
+  'own-history': "Compared with this hostel's earlier months.",
+  peers: 'Compared with similar hostels (no earlier months to use).',
+  blend: 'Compared with earlier months and similar hostels.',
+} as const;

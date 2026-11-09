@@ -5,7 +5,7 @@ import { logoutAction } from '../login/actions';
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <>
-      <header className="top">
+      <header className="top noprint">
         <Link href="/" className="brand-link">Godown Request Check</Link>
         <nav aria-label="Main">
           <Link href="/">Unusual requests</Link>
