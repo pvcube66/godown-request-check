@@ -6,3 +6,4 @@ export * from './portalClient.js';
 export * from './db.js';
 export * from './accounts.js';
 export * from './sync.js';
+export * from './detector.js';

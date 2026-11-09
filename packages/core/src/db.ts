@@ -24,7 +24,7 @@ export interface AnomalyDoc {
   severity: 'low' | 'medium' | 'high';
   method: 'own-history' | 'peers' | 'blend';
   reason: string;
-  status: 'open' | 'confirmed' | 'ignored' | 'expected';
+  status: 'open' | 'confirmed' | 'ignored' | 'expected' | 'resolved';
   detectedAt: Date; updatedAt: Date; lastSeenAt: Date;
 }
 
