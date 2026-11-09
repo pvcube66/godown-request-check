@@ -44,7 +44,7 @@ function Compare({ a, earlier }: { a: AnomalyDoc; earlier: { m: string; q: numbe
       <div className="cmp ok"><dt><i />This hostel's earlier months</dt>
         <dd>{earlier.length ? earlier.map((e) => `${monthLabel(e.m, true).replace(/\s\d{4}$/, '')}: ${num(e.q)}`).join(',  ') : <span className="mut">None on record yet</span>}</dd></div>
       {peer && (
-        <div className="cmp ok"><dt><i />Similar hostels ask for</dt>
+        <div className="cmp peer"><dt><i />Similar hostels ask for</dt>
           <dd><b>about {num(peer.typical)}</b>
             {peer.count > 0 && <span className="mut"> Most ask between {num(peer.low)} and {num(peer.high)}. Compared with {peer.count} hostels of a similar size.</span>}</dd></div>
       )}
