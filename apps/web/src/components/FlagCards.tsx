@@ -1,4 +1,4 @@
-import { itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
+import { BANNER, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import type { History } from '@/lib/history';
 import { hostelKey, monthsWithRequests } from '@/lib/history';
 import type { TypingGroup } from '@/lib/group';
@@ -8,6 +8,11 @@ import HistoryChart, { windowMonths } from './HistoryChart';
 import { Icon } from './Icons';
 
 interface Ctx { history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean }
+
+/** Says in words how serious the card is, across the full top of the card. */
+function SeverityBanner({ sev }: { sev: 'high' | 'medium' | 'low' }) {
+  return <div className={`sev-banner ${sev}`}><b>{BANNER[sev].label}.</b><span>{BANNER[sev].text}</span></div>;
+}
 
 function chartFor(a: AnomalyDoc, ctx: Ctx) {
   const h = ctx.history[hostelKey(a.godownId, a.hostelCode)];
@@ -67,6 +72,7 @@ export function SpikeCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string
   const ch = chartFor(a, ctx);
   return (
     <article className={`flag sev-${sev.cls}`}>
+      <SeverityBanner sev={a.severity} />
       <div className="flag-text">
         <header className="flag-head">
           {no && <span className="no" title="Reference number for this flag">{no}</span>}
@@ -102,6 +108,7 @@ export function TypingCard({ g, ctx, no }: { g: TypingGroup; ctx: Ctx; no?: stri
   const ch = chartFor(first!, ctx);
   return (
     <article className="flag sev-high typing">
+      <SeverityBanner sev={'high'} />
       <div className="flag-text">
         <header className="flag-head">
           {no && <span className="no" title="Reference number for this flag">{no}</span>}
@@ -147,6 +154,7 @@ export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: Anomaly
   const earlier = hist.filter((h) => h.month < a.month);
   return (
     <article className={`flag sev-${sev.cls} order`}>
+      <SeverityBanner sev={a.severity} />
       <div className="flag-text">
         <header className="flag-head">
           {no && <span className="no" title="Reference number for this flag">{no}</span>}
@@ -210,6 +218,7 @@ export function DuplicateCard({ a, ctx, no, reqs = {} }: { a: AnomalyDoc; ctx: C
   };
   return (
     <article className={`flag sev-${sev.cls} dup`}>
+      <SeverityBanner sev={a.severity} />
       <div className="flag-text">
         <header className="flag-head">
           {no && <span className="no" title="Reference number for this flag">{no}</span>}

@@ -32,9 +32,9 @@ export function timesMore(ratio: number): string {
 }
 
 export const SEVERITY = {
-  high: { label: 'Check now', hint: 'Far more than normal', cls: 'high' },
-  medium: { label: 'Take a look', hint: 'Noticeably more than normal', cls: 'medium' },
-  low: { label: 'Minor', hint: 'A bit more than normal', cls: 'low' },
+  high: { label: 'Check now', hint: 'Far more than normal. Please look at these first', cls: 'high' },
+  medium: { label: 'Take a look', hint: 'Noticeably more than normal. Please look at these next', cls: 'medium' },
+  low: { label: 'Minor', hint: 'A little more than normal. For your information, no rush', cls: 'low' },
 } as const;
 
 export function ago(d?: Date | null): string {
@@ -56,4 +56,11 @@ export const METHOD_TEXT = {
   'own-history': "Compared with this hostel's earlier months.",
   peers: 'Compared with similar hostels (no earlier months to use).',
   blend: 'Compared with earlier months and similar hostels.',
+} as const;
+
+/** The sentence shown across the top of every card, so nobody has to understand a colour or an icon. */
+export const BANNER = {
+  high: { label: 'Check now', text: 'This is far more than normal. Please look at this first.' },
+  medium: { label: 'Take a look', text: 'This is noticeably more than normal. Please look at this when you can.' },
+  low: { label: 'Minor', text: 'This is a little more than normal. It is only for your information, there is no rush.' },
 } as const;

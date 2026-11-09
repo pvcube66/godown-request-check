@@ -146,7 +146,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         {(['high', 'medium', 'low'] as const).map((s) => (
           <Link key={s} href={qs(sp, { sev: s, p: '' })} className={`tab ${s} ${sev === s ? 'on' : ''}`} aria-current={sev === s ? 'page' : undefined}>
             <span className="tab-icon"><Icon name={SEV_ICON[s]} size={20} /></span>
-            <span className="tab-body"><b>{count(s)} <small>{count(s) === 1 ? 'item' : 'items'}</small></b><span>{SEVERITY[s].label}. {SEVERITY[s].hint}.</span></span>
+            <span className="tab-body"><span className="tab-label">{SEVERITY[s].label}</span><b>{count(s)} <small>{count(s) === 1 ? 'item' : 'items'}</small></b><span>{SEVERITY[s].hint}.</span></span>
           </Link>
         ))}
       </nav>
