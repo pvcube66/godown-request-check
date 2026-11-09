@@ -8,7 +8,7 @@ export default async function Accounts() {
   const accts = await c.accounts.find({}, { projection: { passwordEnc: 0, tokenEnc: 0 } }).toArray();
   return (
     <>
-      <div className="hero"><h1>Godowns</h1><p>These are the godowns we are watching. Each one needs a working login on the government portal.</p></div>
+      <div className="hero"><h1>Godowns</h1><p className="lede">These are the godowns we are watching. Each one needs a working login on the government portal.</p></div>
       <div className="list" style={{ marginBottom: 32 }}>
         {accts.map((a) => (
           <div className="row" key={a.username}>

@@ -7,7 +7,7 @@ export default async function Runs() {
   const runs = await c.runs.find().sort({ startedAt: -1 }).limit(40).toArray();
   return (
     <>
-      <div className="hero"><h1>Past checks</h1><p>The system looks at the portal automatically every hour. Here are the latest checks.</p></div>
+      <div className="hero"><h1>Past checks</h1><p className="lede">The system looks at the portal automatically every hour. Here are the latest checks.</p></div>
       {runs.length === 0 && <div className="empty">No checks have run yet.</div>}
       <div className="list">
         {runs.map((r) => {

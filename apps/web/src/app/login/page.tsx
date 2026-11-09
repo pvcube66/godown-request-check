@@ -1,4 +1,5 @@
 import LoginForm from './LoginForm';
+import { Logo } from '@/components/Icons';
 
 export const metadata = { title: 'Sign in · Godown Request Check' };
 
@@ -6,7 +7,7 @@ export default function Login() {
   return (
     <div className="login">
       <section className="login-side" aria-hidden="true">
-        <p className="brand">Godown Request Check</p>
+        <p className="brand"><Logo size={34} />Godown Request Check</p>
         <h1>Spot requests that are much bigger than usual.</h1>
         <div className="demo">
           <p className="demo-title">Idli Ravva</p>
