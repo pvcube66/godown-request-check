@@ -60,7 +60,7 @@ describe('parser', () => {
 });
 
 describe('portal time', () => {
-  it('parses microsecond timestamps as UTC', () => {
+  it('parses microsecond timestamps (differences are what matter)', () => {
     expect(parsePortalTime('2026-11-09 12:43:59.960131').toISOString()).toBe('2026-11-09T12:43:59.960Z');
   });
 });

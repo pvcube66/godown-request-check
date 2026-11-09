@@ -3,3 +3,6 @@ export * from './secretBox.js';
 export * from './types.js';
 export * from './parser.js';
 export * from './portalClient.js';
+export * from './db.js';
+export * from './accounts.js';
+export * from './sync.js';
