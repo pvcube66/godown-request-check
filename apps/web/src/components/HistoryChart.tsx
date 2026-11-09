@@ -13,12 +13,12 @@ export function windowMonths(all: string[], flagMonth: string): string[] {
  * When the hostel has no earlier months, `peer` adds a labelled bar for what other hostels ask,
  * so the "usual" number is always visible and never has to be explained.
  */
-export default function HistoryChart({ itemName, months, values, flagMonth, peer }: {
-  itemName: string; months: string[]; values: Record<string, number>; flagMonth: string; peer?: number;
+export default function HistoryChart({ itemName, months, values, flagMonth, peer, suffix = '', peerLabel = 'Other hostels' }: {
+  itemName: string; months: string[]; values: Record<string, number>; flagMonth: string; peer?: number; suffix?: string; peerLabel?: string;
 }) {
   type Col = { key: string; label: string; value: number | undefined; kind: 'peer' | 'ok' | 'bad' };
   const cols: Col[] = [
-    ...(peer !== undefined ? [{ key: 'peer', label: 'Other hostels', value: peer, kind: 'peer' as const }] : []),
+    ...(peer !== undefined ? [{ key: 'peer', label: peerLabel, value: peer, kind: 'peer' as const }] : []),
     ...months.map((m) => ({ key: m, label: monthLabel(m, true).replace(/\s\d{4}$/, ''), value: values[m], kind: (m === flagMonth ? 'bad' : 'ok') as 'bad' | 'ok' })),
   ];
   const n = cols.length, W = Math.max(300, n * 80), H = 190, L = 10, R = 10, T = 34, B = 34;
@@ -39,7 +39,7 @@ export default function HistoryChart({ itemName, months, values, flagMonth, peer
               ? <text className="hc-none" x={cx} y={T + plotH - 8} textAnchor="middle">not asked</text>
               : <>
                   <rect className="hc-bar" x={cx - barW / 2} y={T + plotH - h} width={barW} height={h} rx={5} style={{ animationDelay: `${i * 70}ms` }} />
-                  <text className="hc-val" x={cx} y={T + plotH - h - 8} textAnchor="middle">{num(c.value)}</text>
+                  <text className="hc-val" x={cx} y={T + plotH - h - 8} textAnchor="middle">{num(c.value)}{suffix}</text>
                 </>}
             <text className="hc-month" x={cx} y={H - 11} textAnchor="middle">{c.label}</text>
           </g>

@@ -8,7 +8,7 @@ export async function loginAction(_prev: unknown, formData: FormData): Promise<{
   if (!checkPassword(String(formData.get('password') ?? ''))) {
     return { error: 'That password is not right. Please check it and try again.' };
   }
-  (await cookies()).set(SESSION_COOKIE, makeSession(), { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 7 * 86_400 });
+  (await cookies()).set(SESSION_COOKIE, makeSession(), { httpOnly: true, sameSite: 'lax', path: '/', maxAge: 7 * 86_400, secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_INSECURE !== '1' });
   redirect('/');
 }
 

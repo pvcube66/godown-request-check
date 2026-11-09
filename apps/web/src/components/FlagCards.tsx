@@ -139,7 +139,10 @@ export function TypingCard({ g, ctx }: { g: TypingGroup; ctx: Ctx }) {
 export function OrderCard({ a, items, ctx }: { a: AnomalyDoc; items: AnomalyDoc[]; ctx: Ctx }) {
   const sev = SEVERITY[a.severity];
   const n = a.order?.itemsCompared ?? items.length;
-  const pct = Math.max(3, Math.min(100, 100 / a.ratio));
+  const hist = a.order?.history ?? [];
+  const values = Object.fromEntries(hist.map((h) => [h.month, h.ratio]));
+  const shown = windowMonths(hist.map((h) => h.month), a.month);
+  const earlier = hist.filter((h) => h.month < a.month);
   return (
     <article className={`flag sev-${sev.cls} order`}>
       <div className="flag-text">
@@ -150,21 +153,31 @@ export function OrderCard({ a, items, ctx }: { a: AnomalyDoc; items: AnomalyDoc[
         </header>
         <p className="sentence">
           Across <b>{n} items</b>, this hostel asked for <b>{timesMore(a.ratio).replace(' more', '')}</b> what hostels with a similar number of students ask.
-          {a.students ? <> It has <b>{a.students.toLocaleString('en-IN')} students</b>.</> : null}
         </p>
-        <p className="hint"><Icon name="info" size={16} />If this hostel really has more students than the portal shows, the order may be fine. Worth a quick check either way.</p>
+        <dl className="compare" aria-label="Comparison">
+          <div className="cmp bad"><dt><i />This hostel asked for</dt>
+            <dd><b>{num(a.ratio)}×</b> the normal order<span className="mut"> in {monthLabel(a.month)}.{a.students ? ` It has ${a.students.toLocaleString('en-IN')} students.` : ''}</span></dd></div>
+          <div className="cmp ok"><dt><i />This hostel's earlier months</dt>
+            <dd>{earlier.length ? earlier.map((e) => `${monthLabel(e.month, true).replace(/\s\d{4}$/, '')}: ${num(e.ratio)}×`).join(',  ') : <span className="mut">None on record yet</span>}</dd></div>
+          <div className="cmp peer"><dt><i />Hostels with a similar number of students</dt>
+            <dd><b>1×</b><span className="mut"> This is the normal level. Worked out per student, across {n} items.</span></dd></div>
+        </dl>
+        <p className="hint"><Icon name="info" size={16} /><span>If this hostel really has more students than the portal shows, the order may be fine. Worth a quick check either way.</span></p>
         {ctx.showActions !== false && <FlagActions keys={[a.key, ...items.map((i) => i.key)]} mode={mode(ctx.view)} />}
       </div>
       <figure className="flag-chart">
-        <figcaption>Per student, compared with similar hostels</figcaption>
-        <div className="bars" role="img" aria-label={`Similar hostels 1, this hostel about ${a.ratio} times that`}>
-          <div className="bar-row"><span>Similar hostels</span><div className="track"><i className="b-ref" style={{ width: `${pct}%` }} /></div><b>1×</b></div>
-          <div className="bar-row"><span>This hostel</span><div className="track"><i className="b-high" style={{ width: '100%' }} /></div><b>{num(a.ratio)}×</b></div>
-        </div>
+        <figcaption>Whole order, month by month</figcaption>
+        {shown.length > 0
+          ? <HistoryChart itemName="Whole order" months={shown} values={values} flagMonth={a.month} peer={1} suffix="×" peerLabel="Similar hostels" />
+          : <p className="chart-note">No earlier months to show yet.</p>}
+        <ul className="key" aria-label="What the colours mean">
+          <li><i className="k-ok" />Normal months</li><li><i className="k-bad" />Unusual month</li><li><i className="k-peer" />Normal for the size (1×)</li>
+        </ul>
+        <p className="chart-note"><Icon name="info" size={14} />Each bar shows how many times the normal order for this many students the hostel asked for.</p>
       </figure>
       {items.length > 0 && (
         <details className="flag-more">
-          <summary><Icon name="chevron" size={18} />Show the {items.length} item{items.length > 1 ? 's' : ''} that stand out most</summary>
+          <summary><Icon name="chevron" size={18} />Show the {items.length} item{items.length > 1 ? 's' : ''} that stand out most, each with its own earlier months</summary>
           <div className="nested">{items.slice(0, 12).map((i) => <SpikeCard key={i.key} a={i} ctx={{ ...ctx, showActions: false }} />)}</div>
         </details>
       )}

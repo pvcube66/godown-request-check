@@ -113,7 +113,7 @@ main{max-width:1080px;margin:0 auto;padding:34px 24px 70px}
 .hostel-meta{display:flex;gap:18px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .count-chip{background:var(--brand-tint);color:var(--brand-3);padding:4px 13px;border-radius:999px;font-weight:650;font-size:14.5px}
 
-.flag{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:22px 30px;padding:26px 26px 26px 30px;border-top:1px solid var(--line-2);max-height:2600px;transition:max-height .45s var(--ease),opacity .3s,transform .35s var(--ease),padding .45s var(--ease)}
+.flag{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:22px 30px;padding:26px 26px 26px 30px;border-top:1px solid var(--line-2);transition:max-height .45s var(--ease),opacity .3s,transform .35s var(--ease),padding .45s var(--ease)}
 .hostel-head+.flag,.hostel.solo>.flag:first-child{border-top:0}
 .flag::before{content:'';position:absolute;left:0;top:22px;bottom:22px;width:4px;border-radius:0 4px 4px 0;background:var(--low)}
 .flag.sev-high::before{background:var(--high)} .flag.sev-medium::before{background:var(--amber)}

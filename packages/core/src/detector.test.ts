@@ -206,3 +206,19 @@ describe('whole-order check', () => {
     expect(run(1)).toHaveLength(0);
   });
 });
+
+describe('hostels with no student count are compared with the same kind of hostel', () => {
+  const items = ['I0', 'I1', 'I2', 'I3', 'I4', 'I5'];
+  const make = (hostel: string, society: string, qty: number, i0 = qty) =>
+    ({ ...mk(hostel, '2026-11', {}), societyId: society, items: Object.fromEntries(items.map((it, k) => [it, k === 0 ? i0 : qty])) });
+  const kind = Array.from({ length: 10 }, (_, i) => make(`K${i}`, 'KG', 20));          // this kind of hostel asks ~20
+  const others = Array.from({ length: 10 }, (_, i) => make(`G${i}`, 'GEN', 100));      // other hostels ask ~100
+  it('flags an amount that is normal for other hostels but 5x what its own kind asks', () => {
+    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 100)], ['2026-11']);
+    expect(res.find((a) => a.hostelCode === 'X' && a.item === 'I0')).toBeTruthy();
+  });
+  it('does not flag a hostel that asks what its own kind normally asks', () => {
+    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20)], ['2026-11']);
+    expect(res.filter((a) => a.hostelCode === 'X')).toHaveLength(0);
+  });
+});

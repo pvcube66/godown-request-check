@@ -16,7 +16,10 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   const log = opts.quiet ? (..._a: unknown[]) => {} : console.log;
   const all = (await c.requests.find({}).toArray()).map(clone);
   const sizes = new Map((await c.hostels.find({ students: { $gt: 0 } }).toArray()).map((h) => [`${h.godownId}|${h.hostelCode}`, h.students!] as const));
-  const run = (reqs: RequestDoc[]) => detectAnomalies(reqs, [MONTH], cfg, sizes);
+  // BENCH_NOSIZES=1 pretends no hostel has a student count (the situation for the hostels the portal has no data for)
+  const detectSizes = process.env.BENCH_NOSIZES ? new Map<string, number>() : sizes;
+  if (process.env.BENCH_KIND === '0') cfg = { ...cfg, peersByKind: false };
+  const run = (reqs: RequestDoc[]) => detectAnomalies(reqs, [MONTH], cfg, detectSizes);
   const live = (r: RequestDoc) => !/^reject/i.test(r.status);
   const nov = all.filter((r) => r.month === MONTH && live(r));
   const key = (a: { hostelCode: string; item: string }) => `${a.hostelCode}|${a.item}`;
@@ -65,10 +68,17 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   }
 
   // ---------- 2. recall on planted mistakes (3 random plantings, results added together)
-  type Tally = { n: number; hit: number; hist: number; histHit: number; noHist: number; noHistHit: number; medHigh: number; tagged: number };
-  const T = (): Tally => ({ n: 0, hit: 0, hist: 0, histHit: 0, noHist: 0, noHistHit: 0, medHigh: 0, tagged: 0 });
+  const medianOf = (a: number[]) => { const v = [...a].sort((x, y) => x - y); return v.length ? v[v.length >> 1]! : 0; };
+  const rateByItem = new Map<string, { h: string; rate: number }[]>(); const typical = new Map<string, number>();
+  { const q: Record<string, number[]> = {};
+    for (const r of nov) { const st = sizes.get(`${r.godownId}|${r.hostelCode}`); for (const [it, v] of Object.entries(r.items)) { if (v <= 0) continue; (q[it] ??= []).push(v); if (st) (rateByItem.get(it) ?? rateByItem.set(it, []).get(it)!).push({ h: r.hostelCode, rate: v / st }); } }
+    for (const [it, v] of Object.entries(q)) typical.set(it, medianOf(v)); }
+  /** What a hostel of this size would normally ask for the item, according to the clean data. */
+  const normalFor = (h: string, item: string) => { const st = sizes.get(`2|${h}`) ?? 0; const rs = (rateByItem.get(item) ?? []).filter((x) => x.h !== h).map((x) => x.rate); return rs.length >= 5 && st ? medianOf(rs) * st : 0; };
+  type Tally = { real: number; realHit: number; n: number; hit: number; hist: number; histHit: number; noHist: number; noHistHit: number; medHigh: number; tagged: number };
+  const T = (): Tally => ({ real: 0, realHit: 0, n: 0, hit: 0, hist: 0, histHit: 0, noHist: 0, noHistHit: 0, medHigh: 0, tagged: 0 });
   const spikeT: Record<number, Tally> = { 2: T(), 3: T(), 5: T(), 10: T(), 30: T() };
-  const zeroT = T(); let typeN = 0, typeHit = 0, orderN = 0, orderHit = 0, zeroFixOk = 0;
+  const zeroT = T(); let typeN = 0, typeHit = 0, orderN = 0, orderHit = 0, orderReal = 0, orderRealHit = 0, zeroFixOk = 0;
   const hasHist = (h: string) => new Set(all.filter((r) => r.hostelCode === h && r.month < MONTH && live(r)).map((r) => r.month)).size >= 2;
 
   for (const seed of [7, 8, 9]) {
@@ -88,7 +98,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
       const item = items[Math.floor(R() * items.length)]!; planted.push({ kind: 'zero', mag: 10, h, item, hist: hasHist(h), orig: r.items[item]! }); r.items[item] = r.items[item]! * 10;
     }
     const typed: { h: string; items: string[] }[] = [];
-    for (const h of take(14)) { const r = novOf(h); const items = pickFrom(Object.keys(r.items).filter((i) => r.items[i]! > 0), 5); if (items.length < 5) continue; items.forEach((i) => (r.items[i] = 120)); typed.push({ h, items }); }
+    for (const h of take(14)) { const r = novOf(h); const items = pickFrom(Object.keys(r.items).filter((i) => r.items[i]! > 0), 5); if (items.length < 5) continue; const v = Math.round(30 * Math.max(...items.map((i) => typical.get(i) ?? 1))); items.forEach((i) => (r.items[i] = v)); typed.push({ h, items }); }
     const orders: string[] = [];
     for (const h of take(14)) { const r = novOf(h); for (const i of Object.keys(r.items)) r.items[i] = r.items[i]! * 4; orders.push(h); }
 
@@ -96,17 +106,29 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
     for (const p of planted) {
       const t = p.kind === 'zero' ? zeroT : spikeT[p.mag]!; const f = fk.get(`${p.h}|${p.item}`);
       t.n++; p.hist ? t.hist++ : t.noHist++;
+      const nf = normalFor(p.h, p.item); const trulyAbnormal = nf > 0 && p.orig * p.mag >= 3 * nf;
+      if (trulyAbnormal) { t.real++; if (f) t.realHit++; }
+      if (process.env.BENCH_DEBUG && p.kind === 'spike' && p.mag === 5 && !f) {
+        const past = all.filter((r) => r.hostelCode === p.h && r.month < MONTH && live(r)).map((r) => r.items[p.item] ?? 0);
+        const med = (a: number[]) => { const v = [...a].filter((x) => x > 0).sort((x, y) => x - y); return v.length ? v[v.length >> 1]! : 0; };
+        console.log(`  MISSED x5: ${p.item.slice(0, 24).padEnd(24)} planted ${(p.orig * 5).toFixed(1)} (was ${p.orig}) | own earlier months [${past.join(', ')}] median ${med(past)} | students ${sizes.get(`2|${p.h}`) ?? '?'}`);
+      }
       if (f) { t.hit++; p.hist ? t.histHit++ : t.noHistHit++; if (f.severity !== 'low') t.medHigh++; if (f.looksLikeExtraZero) t.tagged++; if (p.kind === 'zero' && f.zeroFix && Math.abs(f.zeroFix.value - p.orig) / p.orig < 0.6) zeroFixOk++; }
     }
     typeN += typed.length; typeHit += typed.filter((t) => t.items.filter((i) => fk.get(`${t.h}|${i}`)?.kind === 'typing').length >= 3).length;
+    // a whole-order plant only counts when the planted order really is far above normal for the hostel's size
+    const orderOracle = (h: string) => { const r = all.find((x) => x.month === MONTH && x.hostelCode === h && live(x))!; const ratios = Object.entries(r.items).filter(([, v]) => v > 0).map(([it, v]) => { const nf = normalFor(h, it); return nf > 0 ? (v * 4) / nf : 0; }).filter((x) => x > 0); return { median: medianOf(ratios), n: ratios.length }; };
+    const real = orders.filter((h) => { const o = orderOracle(h); return o.n >= 8 && o.median >= 3; });
     orderN += orders.length; orderHit += orders.filter((h) => found.some((a) => a.hostelCode === h && a.kind === 'order')).length;
+    orderReal += real.length; orderRealHit += real.filter((h) => found.some((a) => a.hostelCode === h && a.kind === 'order')).length;
+    if (process.env.BENCH_DEBUG) for (const h of orders.filter((h) => !found.some((a) => a.hostelCode === h && a.kind === 'order'))) { const o = orderOracle(h); console.log(`  MISSED order: ${h} students ${sizes.get(`2|${h}`) ?? '?'} | items compared ${o.n} | planted order is ${o.median.toFixed(1)}x normal for its size`); }
   }
   log('\nRECALL ON PLANTED MISTAKES (caught / planted, 3 runs)');
   for (const mag of [2, 3, 5, 10, 30]) { const t = spikeT[mag]!;
-    log(`  one item x${String(mag).padEnd(2)}   ${pct(t.hit, t.n)}  (${t.hit}/${t.n})   with own history ${pct(t.histHit, t.hist)}  without ${pct(t.noHistHit, t.noHist)}   medium/high ${pct(t.medHigh, t.n)}`); }
+    log(`  one item x${String(mag).padEnd(2)}   ${pct(t.hit, t.n)}  (${t.hit}/${t.n})   with own history ${pct(t.histHit, t.hist)}  without ${pct(t.noHistHit, t.noHist)}   medium/high ${pct(t.medHigh, t.n)}   | of those truly far above normal for the hostel's size: ${pct(t.realHit, t.real)} (${t.realHit}/${t.real})`); }
   log(`  extra zero (x10 on a staple)  ${pct(zeroT.hit, zeroT.n)}  (${zeroT.hit}/${zeroT.n})   explained as "a zero was typed" ${pct(zeroT.tagged, zeroT.hit)}   suggested value within range ${pct(zeroFixOk, zeroT.hit)}`);
   log(`  same number typed for 5 items  ${pct(typeHit, typeN)}  (${typeHit}/${typeN})   identified as a typing mistake`);
-  log(`  whole order x4               ${pct(orderHit, orderN)}  (${orderHit}/${orderN})`);
+  log(`  whole order x4               ${pct(orderHit, orderN)}  (${orderHit}/${orderN})   | of those truly far above normal for the hostel's size (>=3x over 8+ items): ${pct(orderRealHit, orderReal)} (${orderRealHit}/${orderReal})`);
 
   // ---------- 3. false alarms from normal-sized noise (+-25%)
   const R2 = rng(99);

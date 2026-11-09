@@ -36,7 +36,7 @@ export interface AnomalyDoc {
   /** 'typing' = the same number was entered for several items and is far above each item's usual. */
   kind: 'spike' | 'typing' | 'order';
   /** kind 'order': the whole order is out of proportion to the number of students (ratio = typical item ratio). */
-  order?: { itemsCompared: number };
+  order?: { itemsCompared: number; /** the same whole-order measure for every month on record (1 = normal for the hostel's size) */ history?: { month: string; ratio: number }[] };
   /** True for item flags that belong to a whole-order finding for the same hostel and month (shown under it, not separately). */
   partOfOrder?: boolean;
   slip?: { value: number; count: number; items: string[] };

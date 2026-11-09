@@ -19,6 +19,7 @@ export interface DetectorConfig {
   ownCorroborated: number; // own-history ratio needed when similar hostels also say it is high
   ownVolatile: number;     // own-history ratio needed when the hostel's own months already vary a lot
   ownAbovePeers: boolean;  // an own-history jump must also be above the normal range of similar hostels
+  peersByKind: boolean;    // when the student count is unknown, compare with the same kind of hostel (same society) first
   orderMinItems: number;   // whole-order check: needs at least this many items compared per student ...
   orderRatio: number;      // ... and the typical item at least this many times what similar-sized hostels ask
 }
@@ -26,11 +27,11 @@ export interface DetectorConfig {
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 5,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, orderMinItems: 8, orderRatio: 2.5,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, orderMinItems: 8, orderRatio: 2.5,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
-type Req = Pick<RequestDoc, 'godownId' | 'hostelCode' | 'hostelName' | 'districtName' | 'month' | 'status' | 'items'>;
+type Req = Pick<RequestDoc, 'godownId' | 'hostelCode' | 'hostelName' | 'districtName' | 'month' | 'status' | 'items'> & { societyId?: string };
 
 const median = (a: number[]) => {
   if (!a.length) return 0;
@@ -108,8 +109,18 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
       if (!cur.length) continue;
       // peer medians per item for this month
       const peerVals = new Map<string, number[]>();
-      for (const [, e] of cur) for (const [it, q] of Object.entries(e.items)) if (q > 0) (peerVals.get(it) ?? peerVals.set(it, []).get(it)!).push(q);
+      const kindVals = new Map<string, Map<string, number[]>>();            // society (kind of hostel) -> item -> quantities
+      for (const [, e] of cur) {
+        const soc = e.meta.societyId ?? '';
+        const km = kindVals.get(soc) ?? kindVals.set(soc, new Map()).get(soc)!;
+        for (const [it, q] of Object.entries(e.items)) if (q > 0) {
+          (peerVals.get(it) ?? peerVals.set(it, []).get(it)!).push(q);
+          (km.get(it) ?? km.set(it, []).get(it)!).push(q);
+        }
+      }
       const peerMed = new Map([...peerVals].map(([it, v]) => [it, v.length >= cfg.minPeers ? median(v) : 0]));
+      /** Hostels of the same kind (same society) when there are enough of them, otherwise everyone. */
+      const poolFor = (soc: string, item: string) => { const k = cfg.peersByKind ? kindVals.get(soc)?.get(item) : undefined; return k && k.length >= cfg.minPeers ? k : peerVals.get(item); };
       // per-student rates for hostels whose student count is known
       const rateVals = new Map<string, { rate: number; students: number; hostel: string }[]>();
       for (const [k, e] of cur) {
@@ -121,7 +132,9 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
       for (const [key, e] of cur) {
         const hostel = key.split('|')[1]!;
         // hostel size scale: median of (qty / peer median) across its items
-        const ratios = Object.entries(e.items).filter(([it, q]) => q > 0 && (peerMed.get(it) ?? 0) > 0).map(([it, q]) => q / peerMed.get(it)!);
+        const soc = e.meta.societyId ?? '';
+        const medOf = (it: string) => { const v = poolFor(soc, it); return v && v.length >= cfg.minPeers ? median(v) : 0; };
+        const ratios = Object.entries(e.items).filter(([it, q]) => q > 0 && medOf(it) > 0).map(([it, q]) => q / medOf(it));
         const scale = ratios.length >= cfg.minItemsForScale ? median(ratios) : 0;
 
         // own history = earlier months for this hostel
@@ -144,7 +157,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
                 z: (qty: number) => (Math.log(qty / students) - ls.m) / ls.mad };
             }
           }
-          const v = peerVals.get(item), pmed = peerMed.get(item) ?? 0;
+          const v = poolFor(soc, item), pmed = medOf(item);
           if (!v || v.length < cfg.minPeers || scale <= 0 || !pmed) return undefined;
           const ls = logStats(v);
           return { expected: pmed * scale, low: quantile(v, 0.25) * scale, high: quantile(v, 0.75) * scale, count: v.length, basis: 'estimated' as const, sizeRange: undefined,
@@ -238,6 +251,20 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             }
           }
         }
+        /** The whole-order measure for every month this hostel has requests in, so the screen can show its earlier months. */
+        const orderHistory = () => {
+          const out: { month: string; ratio: number }[] = [];
+          for (const [k, mo] of agg) {
+            if (!k.startsWith(`${gid}|${hostel}|`)) continue;
+            const rs: number[] = [];
+            for (const [item, q] of Object.entries(mo.items)) {
+              const pi = q > 0 ? peerInfo(item) : undefined;
+              if (pi && pi.basis === 'students' && pi.expected > 0) rs.push(q / pi.expected);
+            }
+            if (rs.length >= cfg.orderMinItems) out.push({ month: k.split('|')[2]!, ratio: round(median(rs), 1) });
+          }
+          return out.sort((a, b) => a.month.localeCompare(b.month));
+        };
         // Whole-order check: when the typical item is far above what similar-sized hostels ask per student,
         // that is one finding about the whole order, not many separate item mistakes.
         if (students && students > 0) {
@@ -254,7 +281,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
                 hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: '(whole order)',
                 requested: round(r, 1), expected: 1, ratio: round(r, 1), score: round(Math.log2(r), 2),
                 severity: r >= 6 ? 'high' : r >= 4 ? 'medium' : 'low', method: 'peers', kind: 'order',
-                order: { itemsCompared: ratiosOrder.length }, students,
+                order: { itemsCompared: ratiosOrder.length, history: orderHistory() }, students,
                 reason: `The typical item is ${round(r, 1)} times what hostels with a similar number of students ask per student (${ratiosOrder.length} items compared).`,
               });
             }

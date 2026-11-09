@@ -18,8 +18,12 @@ export default function FlagActions({ keys, mode }: { keys: string[]; mode: 'ope
   const root = useRef<HTMLDivElement>(null);
 
   const apply = (status: Status, undoTo?: Status) => start(async () => {
-    const card = root.current?.closest('.flag');
-    card?.classList.add('leaving');
+    const card = root.current?.closest<HTMLElement>('.flag');
+    if (card) {                                   // fix the card at its real height first, so it can shrink smoothly to nothing
+      card.style.maxHeight = `${card.offsetHeight}px`;
+      void card.offsetHeight;
+      card.classList.add('leaving');
+    }
     try {
       await setAnomalyStatuses(keys, status);
       showToast({
@@ -28,6 +32,7 @@ export default function FlagActions({ keys, mode }: { keys: string[]; mode: 'ope
       });
     } catch {
       card?.classList.remove('leaving');
+      if (card) card.style.maxHeight = '';
       showToast({ message: 'That did not save. Please try again.', tone: 'bad' });
     }
   });
