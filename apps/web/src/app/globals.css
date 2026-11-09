@@ -509,3 +509,25 @@ body[data-loading] main{opacity:.55;transition:opacity .2s;pointer-events:none}
 .dup-items b{text-align:right;font-variant-numeric:tabular-nums}.dup-items li.differs{background:var(--med-tint);margin:0 -8px;padding:7px 8px;border-radius:8px}
 .dup-more>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;padding:10px 0 4px;color:var(--brand-2);font-weight:650}
 .dup-more>summary::-webkit-details-marker{display:none}.dup-more[open]>summary svg{transform:rotate(180deg)}
+
+/* ───────── Cards and tabs coloured by how serious they are ───────── */
+.flag.sev-high{background:color-mix(in srgb,var(--high) 8%,var(--card))}
+.flag.sev-medium{background:color-mix(in srgb,var(--amber) 13%,var(--card))}
+.flag.sev-low{background:color-mix(in srgb,var(--low) 6%,var(--card))}
+.flag.sev-high{border-top-color:color-mix(in srgb,var(--high) 26%,var(--line))}
+.flag.sev-medium{border-top-color:color-mix(in srgb,var(--amber) 38%,var(--line))}
+.flag.sev-low{border-top-color:color-mix(in srgb,var(--low) 22%,var(--line))}
+.flag::before{width:6px;top:0;bottom:0;border-radius:0}
+.flag.sev-high::before{background:var(--high)}
+.flag.sev-medium::before{background:var(--amber)}
+.flag.sev-low::before{background:var(--low)}
+.flag .flag-head h3{color:inherit}
+.flag.sev-high .flag-head h3{color:color-mix(in srgb,var(--high) 72%,var(--ink))}
+.flag.sev-medium .flag-head h3{color:color-mix(in srgb,var(--med) 78%,var(--ink))}
+.tab.high{background:color-mix(in srgb,var(--high) 9%,var(--card));border-color:color-mix(in srgb,var(--high) 30%,var(--line))}
+.tab.medium{background:color-mix(in srgb,var(--amber) 15%,var(--card));border-color:color-mix(in srgb,var(--amber) 42%,var(--line))}
+.tab.low{background:color-mix(in srgb,var(--low) 7%,var(--card));border-color:color-mix(in srgb,var(--low) 24%,var(--line))}
+.tab.on{border-color:var(--ink)}
+.tab.high .tab-icon{background:var(--high);color:#fff}
+.tab.medium .tab-icon{background:var(--amber);color:#3a2600}
+.tab.low .tab-icon{background:var(--low);color:#fff}
