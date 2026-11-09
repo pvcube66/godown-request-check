@@ -9,11 +9,15 @@ export interface DetectorConfig {
   minItemsForScale: number;
   itemMinExcess: Record<string, number>;   // per-item override of minExcess
   expectedLimit: number;   // history window (months) used for own median
+  slipMinGroup: number;    // same number typed for at least this many items in one request ...
+  slipRatio: number;       // ... and at least this many times each item's usual amount
+  slipFraction: number;    // share of the repeated items that must be far above usual
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 4, minExcess: 5, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -26,6 +30,11 @@ const median = (a: number[]) => {
 };
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
+/** True when ratio is very close to 10, 100 or 1000: the classic "extra zero" typing slip. */
+function nearPowerOfTen(ratio: number): boolean {
+  return [10, 100, 1000].some((p) => ratio >= p * 0.85 && ratio <= p * 1.15);
+}
+
 function severity(ratio: number, method: 'own-history' | 'peers'): 'low' | 'medium' | 'high' {
   const [hi, med] = method === 'own-history' ? [8, 5] : [10, 6];
   return ratio >= hi ? 'high' : ratio >= med ? 'medium' : 'low';
@@ -35,12 +44,14 @@ function severity(ratio: number, method: 'own-history' | 'peers'): 'low' | 'medi
 export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: DetectorConfig = DEFAULT_CONFIG): Candidate[] {
   // 1. aggregate: godown|hostel|month -> item totals
   const agg = new Map<string, { meta: Req; items: Record<string, number> }>();
+  const perRequest = new Map<string, Record<string, number>[]>();
   for (const r of reqs) {
     if (/^reject/i.test(r.status)) continue;
     const k = `${r.godownId}|${r.hostelCode}|${r.month}`;
     const e = agg.get(k) ?? { meta: r, items: {} };
     for (const [it, q] of Object.entries(r.items)) e.items[it] = (e.items[it] ?? 0) + q;
     agg.set(k, e);
+    (perRequest.get(k) ?? perRequest.set(k, []).get(k)!).push(r.items);
   }
   const out: Candidate[] = [];
   const godowns = [...new Set(reqs.map((r) => r.godownId))];
@@ -66,38 +77,69 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           .filter(([k]) => k.startsWith(`${gid}|${hostel}|`) && k.split('|')[2]! < month)
           .sort((a, b) => b[0].split('|')[2]!.localeCompare(a[0].split('|')[2]!)).slice(0, cfg.expectedLimit);
 
+        const expectation = new Map<string, { expected: number; method: 'own-history' | 'peers' }>();
+        const found = new Map<string, Candidate>();
+
         for (const [item, qty] of Object.entries(e.items)) {
           if (qty <= 0) continue;
           const minExcess = cfg.itemMinExcess[item] ?? cfg.minExcess;
           const past = hist.map(([, h]) => h.items[item] ?? 0).filter((q) => q > 0);   // zeros are not "usual need"
           const pm = peerMed.get(item) ?? 0;
           let method: 'own-history' | 'peers' | null = null;
-          let expected = 0, reason = '';
+          let expected = 0;
 
-          if (past.length >= cfg.ownMinHistory) {
-            expected = median(past);
-            if (qty >= cfg.ownRatio * expected && qty - expected >= minExcess) {
-              method = 'own-history';
-              reason = `Asked ${qty} but this hostel usually asks ~${round(expected)} (last ${past.length} months: ${past.join(', ')})`;
-              if (scale && pm) reason += `; other hostels ask ~${round(pm * scale)} for a hostel this size`;
-            }
-          } else if (scale > 0 && pm > 0) {
-            expected = scale * pm;
-            if (qty >= cfg.peerRatio * expected && qty - expected >= minExcess) {
-              method = 'peers';
-              reason = `Asked ${qty}; hostels of similar size ask ~${round(expected)}` +
-                (past.length ? ` (this hostel's only earlier request: ${past[0]})` : ' (no earlier history for this hostel)');
-            }
-          }
-          if (!method) continue;
+          if (past.length >= cfg.ownMinHistory) { method = 'own-history'; expected = median(past); }
+          else if (scale > 0 && pm > 0) { method = 'peers'; expected = scale * pm; }
+          if (!method || expected <= 0) continue;
+          expectation.set(item, { expected, method });
+
+          const limit = method === 'own-history' ? cfg.ownRatio : cfg.peerRatio;
+          if (qty < limit * expected || qty - expected < minExcess) continue;
+          let reason = method === 'own-history'
+            ? `Asked ${qty} but this hostel usually asks ~${round(expected)} (last ${past.length} months: ${past.join(', ')})`
+            : `Asked ${qty}; hostels of similar size ask ~${round(expected)}` + (past.length ? ` (this hostel's only earlier request: ${past[0]})` : ' (no earlier history for this hostel)');
+          if (method === 'own-history' && scale && pm) reason += `; other hostels ask ~${round(pm * scale)} for a hostel this size`;
           const ratio = qty / expected;
-          out.push({
+          found.set(item, {
             key: `${gid}|${hostel}|${month}|${item}`, godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
-            severity: severity(ratio, method), method, reason,
+            severity: severity(ratio, method), method, kind: 'spike', looksLikeExtraZero: nearPowerOfTen(ratio), reason,
           });
         }
+
+        // Typing slips: the same number entered for several items in ONE request, far above each item's usual.
+        // (Repeated round numbers alone are normal; it is the "far above usual" part that gives it away.)
+        for (const items of perRequest.get(key) ?? []) {
+          const byValue = new Map<number, string[]>();
+          for (const [it, q] of Object.entries(items)) if (q > 0) (byValue.get(q) ?? byValue.set(q, []).get(q)!).push(it);
+          for (const [value, names] of byValue) {
+            if (names.length < cfg.slipMinGroup) continue;
+            const over = names.filter((it) => {
+              const x = expectation.get(it);
+              return x && value >= cfg.slipRatio * x.expected && value - x.expected >= (cfg.itemMinExcess[it] ?? cfg.minExcess);
+            });
+            if (over.length < cfg.slipMinGroup || over.length < cfg.slipFraction * names.length) continue;
+            for (const it of over) {
+              const x = expectation.get(it)!;
+              const qty = e.items[it]!;
+              const ratio = qty / x.expected;
+              const base = found.get(it);
+              found.set(it, {
+                ...(base ?? {
+                  key: `${gid}|${hostel}|${month}|${it}`, godownId: gid, hostelCode: hostel,
+                  hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: it,
+                  requested: round(qty), expected: round(x.expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
+                  method: x.method, reason: '',
+                }),
+                severity: 'high', kind: 'typing', slip: { value, count: over.length, items: over },
+                looksLikeExtraZero: false,
+                reason: `The same number (${value}) was entered for ${over.length} different items, far above what is usual for each. Likely a typing mistake.`,
+              });
+            }
+          }
+        }
+        out.push(...found.values());
       }
     }
   }

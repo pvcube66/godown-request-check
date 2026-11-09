@@ -23,6 +23,11 @@ export interface AnomalyDoc {
   requested: number; expected: number; ratio: number; score: number;
   severity: 'low' | 'medium' | 'high';
   method: 'own-history' | 'peers' | 'blend';
+  /** 'typing' = the same number was entered for several items and is far above each item's usual. */
+  kind: 'spike' | 'typing';
+  slip?: { value: number; count: number; items: string[] };
+  /** The jump is almost exactly 10x / 100x / 1000x, so an extra zero (or a shifted decimal point) was probably typed. */
+  looksLikeExtraZero?: boolean;
   reason: string;
   status: 'open' | 'confirmed' | 'ignored' | 'expected' | 'resolved';
   detectedAt: Date; updatedAt: Date; lastSeenAt: Date;
