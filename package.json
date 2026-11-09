@@ -1,0 +1,20 @@
+{
+  "name": "anomaly-detection",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p packages/core && tsc -p apps/worker",
+    "worker": "npm -w apps/worker run start"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
