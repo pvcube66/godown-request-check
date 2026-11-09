@@ -122,3 +122,21 @@ describe('typing mistakes', () => {
     expect(b.looksLikeExtraZero).toBe(false);
   });
 });
+
+describe('similar-hostel comparison details', () => {
+  it('records how many similar hostels were compared and their usual range', () => {
+    const res = detectAnomalies(world([mk('NEW', '2026-11', { IddliRavva: 300 })]), ['2026-11']);
+    const a = find(res, 'NEW')!;
+    expect(a.peer).toBeDefined();
+    expect(a.peer!.count).toBeGreaterThanOrEqual(12);
+    expect(a.peer!.low).toBeLessThanOrEqual(a.peer!.typical);
+    expect(a.peer!.typical).toBeLessThanOrEqual(a.peer!.high);
+    expect(a.peer!.typical).toBeGreaterThan(20);
+  });
+  it('also gives the similar-hostel numbers when the hostel has its own history', () => {
+    const res = detectAnomalies(world([mk('H', '2026-09', {}), mk('H', '2026-10', {}), mk('H', '2026-11', { IddliRavva: 300 })]), ['2026-11']);
+    const a = find(res, 'H')!;
+    expect(a.method).toBe('own-history');
+    expect(a.peer?.count).toBeGreaterThan(0);
+  });
+});

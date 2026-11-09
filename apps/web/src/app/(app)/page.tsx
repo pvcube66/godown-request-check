@@ -106,7 +106,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
                   <b>{hostelLabel(a.hostelName)}</b>{' '}
                   {text === 'typing'
                     ? <>entered the same number, <b>{num(a.slip!.value)}</b>, for <b>{n} different items</b> in {monthLabel(a.month)}. This may be a typing mistake.</>
-                    : <>asked for {itemLabel(a.item)}: <b>{num(a.requested)}</b>, when it is usually about <b>{num(a.expected)}</b>.</>}
+                    : <>asked for {itemLabel(a.item)}: <b>{num(a.requested)}</b>, when {a.method === 'peers' ? 'other hostels like it ask for' : 'it usually asks for'} about <b>{num(a.expected)}</b>.</>}
                   {' '}<Link href={`/hostel/${a.hostelCode}?g=${a.godownId}`} className="link-arrow">See this hostel<Icon name="arrow" size={15} /></Link>
                 </span>
               </li>

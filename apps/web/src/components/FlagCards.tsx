@@ -13,18 +13,43 @@ function chartFor(a: AnomalyDoc, ctx: Ctx) {
   const h = ctx.history[hostelKey(a.godownId, a.hostelCode)];
   const shown = windowMonths(ctx.months, a.month);
   const have = monthsWithRequests(h);
-  const earlier = [...have].filter((m) => m < a.month).length;
+  const earlierMonths = [...have].filter((m) => m < a.month).sort();
+  const earlier = earlierMonths.length;
   return {
     shown,
-    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={h?.[a.item] ?? {}} flagMonth={a.month} expected={a.expected} sev={a.severity} />,
+    earlierList: earlierMonths.map((m) => ({ m, q: h?.[a.item]?.[m] ?? 0 })),
+    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={h?.[a.item] ?? {}} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} />,
     note: earlier >= 3 ? null : earlier === 0
       ? 'This hostel has no earlier months on record yet, so we compared it with similar hostels.'
       : `Only ${earlier} earlier month${earlier > 1 ? 's are' : ' is'} on record for this hostel so far.`,
   };
 }
 
-function Legend({ expected }: { expected: number }) {
-  return <p className="legend"><i aria-hidden="true" />Dashed line: the usual amount, about <b>{num(expected)}</b></p>;
+function Key({ peer }: { peer: boolean }) {
+  return (
+    <ul className="key" aria-label="What the colours mean">
+      <li><i className="k-ok" />Normal months</li>
+      <li><i className="k-bad" />Unusual month</li>
+      {peer && <li><i className="k-peer" />What other hostels ask</li>}
+    </ul>
+  );
+}
+
+/** Side by side: what this hostel asked for, what it asked before, and what similar hostels ask. */
+function Compare({ a, earlier }: { a: AnomalyDoc; earlier: { m: string; q: number }[] }) {
+  const peer = a.peer ?? (a.method === 'peers' ? { typical: a.expected, low: a.expected, high: a.expected, count: 0 } : undefined);
+  return (
+    <dl className="compare" aria-label="Comparison">
+      <div className="cmp bad"><dt><i />This hostel asked for</dt><dd><b>{num(a.requested)}</b> in {monthLabel(a.month)}</dd></div>
+      <div className="cmp ok"><dt><i />This hostel's earlier months</dt>
+        <dd>{earlier.length ? earlier.map((e) => `${monthLabel(e.m, true).replace(/\s\d{4}$/, '')}: ${num(e.q)}`).join(',  ') : <span className="mut">None on record yet</span>}</dd></div>
+      {peer && (
+        <div className="cmp ok"><dt><i />Similar hostels ask for</dt>
+          <dd><b>about {num(peer.typical)}</b>
+            {peer.count > 0 && <span className="mut"> Most ask between {num(peer.low)} and {num(peer.high)}. Compared with {peer.count} hostels of a similar size.</span>}</dd></div>
+      )}
+    </dl>
+  );
 }
 
 const mode = (v: Ctx['view']) => (v === 'open' ? 'open' : 'done');
@@ -41,18 +66,18 @@ export function SpikeCard({ a, ctx }: { a: AnomalyDoc; ctx: Ctx }) {
           <span className="when">for {monthLabel(a.month)}</span>
         </header>
         <p className="sentence">
-          Asked for <b>{num(a.requested)}</b>. Usually about <b>{num(a.expected)}</b>, so this is <b>{timesMore(a.ratio)}</b>.
+          That is <b>{timesMore(a.ratio)}</b> than {a.method === 'own-history' ? 'this hostel usually asks for' : 'similar hostels ask for'}.
         </p>
+        <Compare a={a} earlier={ch.earlierList} />
         {a.looksLikeExtraZero && (
           <p className="hint"><Icon name="pencil" size={16} />The jump is almost exactly {a.ratio >= 500 ? '1,000' : a.ratio >= 50 ? '100' : '10'} times. A zero may have been typed by mistake.</p>
         )}
-        <p className="why">{a.method === 'own-history' ? 'Compared with what this hostel asked for in earlier months.' : 'Compared with similar hostels.'}</p>
         {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} />}
       </div>
       <figure className="flag-chart">
         <figcaption>Month by month</figcaption>
         {ch.node}
-        <Legend expected={a.expected} />
+        <Key peer={!!(a.peer || a.method === 'peers')} />
         {ch.note && <p className="chart-note"><Icon name="info" size={14} />{ch.note}</p>}
       </figure>
     </article>
@@ -74,14 +99,14 @@ export function TypingCard({ g, ctx }: { g: TypingGroup; ctx: Ctx }) {
           The same number, <b>{num(g.value)}</b>, was entered for <b>{g.items.length} different items</b>. For each one it is far more than usual, so it may have been typed into every box by mistake.
         </p>
         <ul className="chips" aria-label="Items with the same number">
-          {g.items.map((a) => <li key={a.key}><b>{itemLabel(a.item)}</b><span>usually {num(a.expected)}</span></li>)}
+          {g.items.map((a) => <li key={a.key}><b>{itemLabel(a.item)}</b><span>{a.method === 'peers' ? 'other hostels ask' : 'usually'} {num(a.expected)}</span></li>)}
         </ul>
         {ctx.showActions !== false && <FlagActions keys={g.items.map((a) => a.key)} mode={mode(ctx.view)} />}
       </div>
       <figure className="flag-chart">
         <figcaption>{itemLabel(first!.item)}, month by month</figcaption>
         {ch.node}
-        <Legend expected={first!.expected} />
+        <Key peer={!!(first!.peer || first!.method === 'peers')} />
         {ch.note && <p className="chart-note"><Icon name="info" size={14} />{ch.note}</p>}
       </figure>
       {rest.length > 0 && (
@@ -89,7 +114,7 @@ export function TypingCard({ g, ctx }: { g: TypingGroup; ctx: Ctx }) {
           <summary><Icon name="chevron" size={18} />Show month-by-month charts for the other {rest.length} item{rest.length > 1 ? 's' : ''}</summary>
           <div className="mini-grid">
             {rest.map((a) => (
-              <figure key={a.key} className="mini"><figcaption>{itemLabel(a.item)}</figcaption>{chartFor(a, ctx).node}<Legend expected={a.expected} /></figure>
+              <figure key={a.key} className="mini"><figcaption>{itemLabel(a.item)}</figcaption>{chartFor(a, ctx).node}<Key peer={!!(a.peer || a.method === 'peers')} /></figure>
             ))}
           </div>
         </details>

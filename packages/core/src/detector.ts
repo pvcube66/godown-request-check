@@ -28,6 +28,13 @@ const median = (a: number[]) => {
   const s = [...a].sort((x, y) => x - y), m = s.length >> 1;
   return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
 };
+/** Value at quantile q (0..1) with linear interpolation. */
+const quantile = (a: number[], q: number) => {
+  const s = [...a].sort((x, y) => x - y);
+  if (!s.length) return 0;
+  const pos = (s.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+  return s[lo]! + (s[hi]! - s[lo]!) * (pos - lo);
+};
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
 /** True when ratio is very close to 10, 100 or 1000: the classic "extra zero" typing slip. */
@@ -77,6 +84,12 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           .filter(([k]) => k.startsWith(`${gid}|${hostel}|`) && k.split('|')[2]! < month)
           .sort((a, b) => b[0].split('|')[2]!.localeCompare(a[0].split('|')[2]!)).slice(0, cfg.expectedLimit);
 
+        // What similar hostels ask for each item, scaled to this hostel's size (shown next to the flag so it can be judged).
+        const peerStat = (item: string): Candidate['peer'] => {
+          const v = peerVals.get(item);
+          if (!v || v.length < cfg.minPeers || scale <= 0 || !(peerMed.get(item) ?? 0)) return undefined;
+          return { count: v.length, low: round(quantile(v, 0.25) * scale), high: round(quantile(v, 0.75) * scale), typical: round(peerMed.get(item)! * scale) };
+        };
         const expectation = new Map<string, { expected: number; method: 'own-history' | 'peers' }>();
         const found = new Map<string, Candidate>();
 
@@ -104,7 +117,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             key: `${gid}|${hostel}|${month}|${item}`, godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
-            severity: severity(ratio, method), method, kind: 'spike', looksLikeExtraZero: nearPowerOfTen(ratio), reason,
+            severity: severity(ratio, method), method, kind: 'spike', looksLikeExtraZero: nearPowerOfTen(ratio), peer: peerStat(item), reason,
           });
         }
 
@@ -130,7 +143,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
                   key: `${gid}|${hostel}|${month}|${it}`, godownId: gid, hostelCode: hostel,
                   hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: it,
                   requested: round(qty), expected: round(x.expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
-                  method: x.method, reason: '',
+                  method: x.method, peer: peerStat(it), reason: '',
                 }),
                 severity: 'high', kind: 'typing', slip: { value, count: over.length, items: over },
                 looksLikeExtraZero: false,

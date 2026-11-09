@@ -23,6 +23,8 @@ export interface AnomalyDoc {
   requested: number; expected: number; ratio: number; score: number;
   severity: 'low' | 'medium' | 'high';
   method: 'own-history' | 'peers' | 'blend';
+  /** What similar hostels ask for this item (scaled to this hostel's size): the typical amount, the usual range, and how many hostels were compared. */
+  peer?: { count: number; low: number; high: number; typical: number };
   /** 'typing' = the same number was entered for several items and is far above each item's usual. */
   kind: 'spike' | 'typing';
   slip?: { value: number; count: number; items: string[] };
