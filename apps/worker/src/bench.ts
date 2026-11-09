@@ -19,6 +19,8 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   // BENCH_NOSIZES=1 pretends no hostel has a student count (the situation for the hostels the portal has no data for)
   const detectSizes = process.env.BENCH_NOSIZES ? new Map<string, number>() : sizes;
   if (process.env.BENCH_KIND === '0') cfg = { ...cfg, peersByKind: false };
+  if (process.env.BENCH_HE === '1') cfg = { ...cfg, hostelEffect: true };
+  if (process.env.BENCH_HE === 'rate') cfg = { ...cfg, hostelEffectRating: true };
   const run = (reqs: RequestDoc[]) => detectAnomalies(reqs, [MONTH], cfg, detectSizes);
   const live = (r: RequestDoc) => !/^reject/i.test(r.status);
   const nov = all.filter((r) => r.month === MONTH && live(r));

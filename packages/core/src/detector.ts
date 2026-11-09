@@ -21,6 +21,8 @@ export interface DetectorConfig {
   ownVolatile: number;     // own-history ratio needed when the hostel's own months already vary a lot
   ownAbovePeers: boolean;  // an own-history jump must also be above the normal range of similar hostels
   peersByKind: boolean;    // when the student count is unknown, compare with the same kind of hostel (same society) first
+  hostelEffect: boolean;   // also learn each hostel's usual level from its OTHER items, and judge an item against that
+  hostelEffectRating: boolean; // use that level only to rate how unusual an already-flagged item is (adds no new flags)
   dupSimilarity: number;   // two requests from one hostel in one month this alike (0..1) count as a duplicate
   dupMinItems: number;     // ... and must each ask for at least this many different items
   orderMinItems: number;   // whole-order check: needs at least this many items compared per student ...
@@ -30,7 +32,7 @@ export interface DetectorConfig {
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: false, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -139,6 +141,22 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
     return { m, mad: Math.max(cfg.madFloor, 1.4826 * median(l.map((x) => Math.abs(x - m)))) };
   };
 
+  // Two-way robust fit (median polish): item effect = what a typical hostel asks per student for the item,
+  // hostel effect = how much more or less than typical this hostel asks across all its items. The leftover spread per item
+  // (after removing the hostel effect) is much tighter than the raw spread, so smaller jumps stand out.
+  const logMed = new Map<string, number>();
+  for (const [it, list] of hostelRate) logMed.set(it, median(list.map((p) => Math.log(p.rate))));
+  const hostelOff = new Map<string, number>();
+  { const per = new Map<string, number[]>();
+    for (const [it, list] of hostelRate) for (const p of list) (per.get(`${p.godown}|${p.hostel}`) ?? per.set(`${p.godown}|${p.hostel}`, []).get(`${p.godown}|${p.hostel}`)!).push(Math.log(p.rate) - logMed.get(it)!);
+    for (const [k, v] of per) if (v.length >= cfg.minItemsForScale) hostelOff.set(k, median(v)); }
+  const resSigma = new Map<string, number>();
+  for (const [it, list] of hostelRate) {
+    const res = list.map((p) => Math.log(p.rate) - logMed.get(it)! - (hostelOff.get(`${p.godown}|${p.hostel}`) ?? 0));
+    const m = median(res);
+    resSigma.set(it, Math.max(cfg.madFloor, 1.4826 * median(res.map((x) => Math.abs(x - m)))));
+  }
+
   const out: Candidate[] = [];
   const godowns = [...new Set(reqs.map((r) => r.godownId))];
 
@@ -211,6 +229,16 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
         };
         const expectation = new Map<string, { expected: number; method: 'own-history' | 'peers' }>();
         const found = new Map<string, Candidate>();
+        // how far above/below typical this hostel asks, per item (students known only); used to judge each item against the hostel's own level
+        const logRatio = new Map<string, number>();
+        if ((cfg.hostelEffect || cfg.hostelEffectRating) && students) for (const [it, q] of Object.entries(e.items)) {
+          const pi = q > 0 ? peerInfo(it) : undefined;
+          if (pi && pi.basis === 'students' && pi.expected > 0) logRatio.set(it, Math.log(q / pi.expected));
+        }
+        const levelWithout = (it: string): number | null => {
+          const v = [...logRatio].filter(([k]) => k !== it).map(([, x]) => x);
+          return v.length >= cfg.minItemsForScale ? Math.max(-1.5, Math.min(1.5, median(v))) : null;
+        };
 
         for (const [item, qty] of Object.entries(e.items)) {
           if (qty <= 0) continue;
@@ -227,6 +255,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           expectation.set(item, { expected, method: method === 'blend' ? 'peers' : method });
 
           let flagged: boolean;
+          let zUsed = peerZ;
           if (method === 'own-history') {
             // lower the bar when similar hostels also say it is high; raise it when this hostel's own months already swing a lot
             const volatile = Math.max(...past) / Math.min(...past) >= 2.5;
@@ -241,7 +270,23 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
               && peerZ >= cfg.peerZ && qty >= 1.5 * Math.max(...past) && qty - pInfo.expected >= minExcess) {
             flagged = true; method = 'blend'; expected = pInfo.expected;
           }
+          // Judge the item against this hostel's own level (learned from its other items). Catches smaller jumps at hostels that
+          // normally ask for less than their peers, and avoids flagging single items at hostels that always ask for a lot.
+          if (!flagged && cfg.hostelEffect && pInfo && pInfo.basis === 'students' && pInfo.expected > 0) {
+            const lvl = levelWithout(item);
+            if (lvl !== null) {
+              const expAdj = pInfo.expected * Math.exp(lvl), zAdj = Math.log(qty / expAdj) / (resSigma.get(item) ?? cfg.madFloor);
+              if (qty >= cfg.peerRatio * expAdj && zAdj >= cfg.peerZ && qty - expAdj >= minExcess && qty >= pInfo.expected) {
+                flagged = true; method = method === 'own-history' ? 'blend' : 'peers'; expected = expAdj; zUsed = zAdj;
+              }
+            }
+          }
           if (!flagged) continue;
+          // Rate it against the hostel's own level too: the leftover spread is tighter, so a real jump scores higher than the raw comparison says.
+          if (cfg.hostelEffectRating && method !== 'own-history' && pInfo && pInfo.basis === 'students' && pInfo.expected > 0) {
+            const lvl = levelWithout(item);
+            if (lvl !== null && qty >= pInfo.expected) zUsed = Math.max(zUsed, Math.log(qty / (pInfo.expected * Math.exp(lvl))) / (resSigma.get(item) ?? cfg.madFloor));
+          }
           let reason = method === 'own-history' || method === 'blend'
             ? `Asked ${qty} but this hostel usually asks ~${round(expected)} (last ${past.length} months: ${past.join(', ')})`
             : `Asked ${qty}; hostels like it ask ~${round(expected)}` + (past.length ? ` (this hostel's only earlier request: ${past[0]})` : ' (no earlier history for this hostel)');
@@ -251,7 +296,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             key: `${gid}|${hostel}|${month}|${item}`, godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
-            severity: severity(ratio, method, peerZ, !!pInfo && qty <= pInfo.high), method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
+            severity: severity(ratio, method, zUsed, !!pInfo && qty <= pInfo.high), method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
           });
           const c = found.get(item)!;
           for (const div of [10, 100, 1000]) {
