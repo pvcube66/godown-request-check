@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import { runBench } from './bench.js';
 import { runSweep } from './sweep.js';
-import { addAccount, closeDb, connectDb, runCycle, runDetection, syncAll } from '@anomaly/core';
+import { addAccount, closeDb, connectDb, reviewStats, runCycle, runDetection, syncAll } from '@anomaly/core';
 
 // Load the repo-root .env regardless of where the command is run from.
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env') });
@@ -60,6 +60,12 @@ async function main() {
       }
       case 'bench': { await runBench(c); break; }
       case 'bench-quick': { await runBench(c, undefined, { blind: false }); break; }
+      case 'review-stats': {
+        const r = await reviewStats(c);
+        console.log(`reviewed ${r.reviewed}: ${r.realProblems} real problems, ${r.falseAlarms} false alarms`);
+        for (const g of [...r.bySeverity, ...r.byKind, ...r.byBasis]) console.log(`  ${g.label.padEnd(44)} ${g.realProblems}/${g.reviewed} real (${Math.round((100 * g.realProblems) / Math.max(1, g.reviewed))}%)`);
+        break;
+      }
       case 'sweep': { await runSweep(c); break; }
       case 'status': {
         const accts = await c.accounts.find({}, { projection: { passwordEnc: 0, tokenEnc: 0 } }).toArray();

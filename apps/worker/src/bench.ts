@@ -108,6 +108,10 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
       t.n++; p.hist ? t.hist++ : t.noHist++;
       const nf = normalFor(p.h, p.item); const trulyAbnormal = nf > 0 && p.orig * p.mag >= 3 * nf;
       if (trulyAbnormal) { t.real++; if (f) t.realHit++; }
+      if (process.env.BENCH_DEBUG && p.kind === 'spike' && trulyAbnormal && !f) {
+        const past = all.filter((r) => r.hostelCode === p.h && r.month < MONTH && live(r)).map((r) => r.items[p.item] ?? 0);
+        console.log(`  MISSED (truly abnormal) x${p.mag}: ${p.item.slice(0, 22).padEnd(22)} planted ${(p.orig * p.mag).toFixed(1)} vs normal-for-size ${nf.toFixed(2)} (${((p.orig * p.mag) / nf).toFixed(1)}x) | earlier months [${past.join(', ')}] | students ${sizes.get(`2|${p.h}`) ?? '?'} | item ordered by ${(rateByItem.get(p.item) ?? []).length} hostels`);
+      }
       if (process.env.BENCH_DEBUG && p.kind === 'spike' && p.mag === 5 && !f) {
         const past = all.filter((r) => r.hostelCode === p.h && r.month < MONTH && live(r)).map((r) => r.items[p.item] ?? 0);
         const med = (a: number[]) => { const v = [...a].filter((x) => x > 0).sort((x, y) => x - y); return v.length ? v[v.length >> 1]! : 0; };
