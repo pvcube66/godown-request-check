@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db';
 import { ago } from '@/lib/format';
 import AddForm from './AddForm';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;     // adding a godown loads its whole history, which can take most of a minute
 
 export default async function Accounts() {
   const c = await getDb();
