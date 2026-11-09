@@ -3,7 +3,7 @@ import '@fontsource-variable/figtree';
 import './globals.css';
 
 export const metadata = {
-  metadataBase: new URL('https://vivtejhostels.vercel.app'),
+  metadataBase: new URL('https://vivtejhostelanamoly.vercel.app'),
   title: { default: 'Godown Request Check', template: '%s · Godown Request Check' },
   description: 'Spots goods requests that are much bigger than usual.',
 };
