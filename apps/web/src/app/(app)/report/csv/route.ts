@@ -10,7 +10,9 @@ export async function GET(req: Request) {
   const u = new URL(req.url);
   const rows = await loadReport(await getDb(), { month: u.searchParams.get('month') ?? '', district: u.searchParams.get('district') ?? '', q: u.searchParams.get('q') ?? '' });
   const head = ['Hostel', 'District', 'Month', 'Item', 'Asked for', 'Usually about', 'How much more', 'How important', 'How we compared'];
-  const lines = rows.map((a) => [hostelLabel(a.hostelName), a.districtName, monthLabel(a.month), itemLabel(a.item), a.requested, a.expected, timesMore(a.ratio), IMPORTANCE[a.severity], METHOD_TEXT[a.method]].map(cell).join(','));
+  const lines = rows.map((a) => (a.kind === 'order'
+    ? [hostelLabel(a.hostelName), a.districtName, monthLabel(a.month), 'Whole order', '', '', timesMore(a.ratio).replace(' more', ''), IMPORTANCE[a.severity], `Compared per student with hostels of a similar size (${a.order?.itemsCompared} items)`]
+    : [hostelLabel(a.hostelName), a.districtName, monthLabel(a.month), itemLabel(a.item), a.requested, a.expected, timesMore(a.ratio), IMPORTANCE[a.severity], METHOD_TEXT[a.method]]).map(cell).join(','));
   const body = '﻿' + [head.map(cell).join(','), ...lines].join('\r\n');
   return new Response(body, { headers: {
     'Content-Type': 'text/csv; charset=utf-8',

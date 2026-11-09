@@ -30,7 +30,9 @@ export default async function Report({ searchParams }: { searchParams: Promise<{
           <ul>
             {g.map((a) => (
               <li key={a.key}>
-                <b>{itemLabel(a.item)}</b> for {monthLabel(a.month)}: asked for <b>{num(a.requested)}</b>, when {a.method === 'peers' ? 'other hostels like it ask for' : 'it usually asks for'} about {num(a.expected)} ({timesMore(a.ratio)}).
+                {a.kind === 'order'
+                  ? <><b>Whole order</b> for {monthLabel(a.month)}: {timesMore(a.ratio).replace(' more', '')} what hostels with a similar number of students ask, across {a.order?.itemsCompared} items.</>
+                  : <><b>{itemLabel(a.item)}</b> for {monthLabel(a.month)}: asked for <b>{num(a.requested)}</b>, when {a.method === 'peers' ? 'other hostels like it ask for' : 'it usually asks for'} about {num(a.expected)} ({timesMore(a.ratio)}).</>}
                 {' '}<span className="mut">{IMPORTANCE[a.severity]}. {METHOD_TEXT[a.method]}</span>
               </li>
             ))}

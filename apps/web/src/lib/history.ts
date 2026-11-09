@@ -28,3 +28,12 @@ export function monthsWithRequests(h: History[string] | undefined): Set<string> 
   for (const row of Object.values(h ?? {})) for (const m of Object.keys(row)) s.add(m);
   return s;
 }
+
+/** Items that belong to a whole-order finding, keyed by "godownId|hostel|month". */
+export async function loadOrderItems(c: Collections, orders: { godownId: number; hostelCode: string; month: string }[]) {
+  const map = new Map<string, import('@anomaly/core').AnomalyDoc[]>();
+  if (!orders.length) return map;
+  const rows = await c.anomalies.find({ partOfOrder: true, status: 'open', $or: orders.map((o) => ({ godownId: o.godownId, hostelCode: o.hostelCode, month: o.month })) }).sort({ ratio: -1 }).toArray();
+  for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}|${r.month}`; (map.get(k) ?? map.set(k, []).get(k)!).push(r); }
+  return map;
+}

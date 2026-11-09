@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { hostelLabel, itemLabel, monthLabel, num } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
-import { hostelKey, loadHistory, monthsWithRequests } from '@/lib/history';
-import { SpikeCard, TypingCard } from '@/components/FlagCards';
+import { hostelKey, loadHistory, loadOrderItems, monthsWithRequests } from '@/lib/history';
+import { OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
@@ -24,11 +24,14 @@ export default async function Hostel({ params, searchParams }: { params: Promise
     <div className="empty"><h2>Hostel not found</h2><p>We could not find any requests for this hostel.</p><Link className="btn" href="/">Back to the list</Link></div>
   );
   const godownId = reqs[0]!.godownId;
+  const size = await c.hostels.findOne({ godownId, hostelCode: code });
   const flagged = await c.anomalies.find({ ...filter, status: 'open' }).sort({ ratio: -1 }).toArray();
   const { history, months: allMonths } = await loadHistory(c, [{ godownId, hostelCode: code }]);
   const h = history[hostelKey(godownId, code)] ?? {};
   const months = [...monthsWithRequests(h)].sort();
-  const { typing, spikes } = groupFlags(flagged);
+  const { orders, typing, spikes: spikesAll } = groupFlags(flagged);
+  const spikes = spikesAll.filter((a) => !a.partOfOrder);
+  const orderItems = await loadOrderItems(c, orders);
   const ctx = { history, months: allMonths, view: 'open' as const };
 
   const flaggedSet = new Map<string, number>();                       // item|month -> flagged requested
@@ -42,7 +45,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const items = Object.keys(h).filter((it) => Object.values(h[it]!).some((q) => q > 0))
     .sort((a, b) => Number(flaggedItems.has(b)) - Number(flaggedItems.has(a)) || a.localeCompare(b));
   const cols = { '--cols': months.length } as React.CSSProperties;
-  const nCards = typing.length + spikes.length;
+  const nCards = orders.length + typing.length + spikes.length;
 
   return (
     <>
@@ -51,6 +54,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         <h1>{hostelLabel(reqs[0]!.hostelName)}</h1>
         <p className="where big"><Icon name="pin" size={17} />{reqs[0]!.districtName} district</p>
         <ul className="facts">
+          <li>{size?.students ? <><b>{size.students.toLocaleString('en-IN')}</b> students</> : <span className="mut">Student count not available</span>}</li>
           <li><b>{reqs.length}</b> request{reqs.length > 1 ? 's' : ''} on record</li>
           <li><b>{months.length}</b> month{months.length > 1 ? 's' : ''} of history</li>
           <li className={nCards ? 'warn' : 'good'}><b>{nCards}</b> to look at</li>
@@ -61,6 +65,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         <section aria-labelledby="looks-wrong">
           <h2 className="sub" id="looks-wrong">What looks wrong</h2>
           <div className="hostel solo">
+            {orders.map((o) => <OrderCard key={o.key} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} />)}
             {typing.map((t) => <TypingCard key={`${t.month}|${t.value}`} g={t} ctx={ctx} />)}
             {spikes.map((a) => <SpikeCard key={a.key} a={a} ctx={ctx} />)}
           </div>

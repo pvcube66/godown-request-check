@@ -140,3 +140,62 @@ describe('similar-hostel comparison details', () => {
     expect(a.peer?.count).toBeGreaterThan(0);
   });
 });
+
+describe('comparing per student (real hostel sizes)', () => {
+  const rate = 0.5;                                     // everyone normally asks 0.5 per student
+  const sizesMap = new Map<string, number>();
+  const small = Array.from({ length: 10 }, (_, i) => 30 + i * 8);       // 30..102 students
+  const big = Array.from({ length: 10 }, (_, i) => 300 + i * 60);       // 300..840 students
+  const peerReqs = [...small, ...big].map((st, i) => { sizesMap.set(`2|S${i}`, st); return mk(`S${i}`, '2026-11', { Rice: rate * st }); });
+  const only = (extra: ReturnType<typeof mk>[]) => [...peerReqs, ...extra].map((r) => ({ ...r, items: { Rice: r.items.Rice ?? 0 } }));
+  const run = (hostel: string, students: number, qty: number) => {
+    const m = new Map(sizesMap); m.set(`2|${hostel}`, students);
+    return detectAnomalies(only([mk(hostel, '2026-11', { Rice: qty })]), ['2026-11'], DEFAULT_CONFIG, m).find((a) => a.hostelCode === hostel);
+  };
+
+  it('does not flag a big hostel that simply has many students', () => {
+    expect(run('BIGGY', 600, 300)).toBeUndefined();               // 0.5 per student, same as everyone
+  });
+  it('does not flag a small hostel with a small order', () => {
+    expect(run('TINY', 50, 25)).toBeUndefined();
+  });
+  it('flags a small hostel that asks for a big hostel\'s amount', () => {
+    const a = run('TINY', 50, 300)!;                               // 6 per student: 12x normal
+    expect(a).toBeTruthy();
+    expect(a.peer?.basis).toBe('students');
+    expect(a.students).toBe(50);
+    expect(a.expected).toBeCloseTo(25, 0);                         // 0.5 x 50 students
+  });
+  it('compares only with hostels of a similar size and reports their size range', () => {
+    const a = run('TINY', 50, 300)!;
+    expect(a.peer!.sizeRange![0]).toBeGreaterThanOrEqual(25);
+    expect(a.peer!.sizeRange![1]).toBeLessThanOrEqual(100);
+  });
+  it('says it is an estimate when the student count is unknown', () => {
+    const a = detectAnomalies(world([mk('NEW', '2026-11', { IddliRavva: 300 })]), ['2026-11'])
+      .find((x) => x.hostelCode === 'NEW')!;
+    expect(a.peer?.basis).toBe('estimated');
+    expect(a.students).toBeUndefined();
+  });
+});
+
+describe('whole-order check', () => {
+  const items = Array.from({ length: 12 }, (_, i) => `Item${i}`);
+  const sizesMap = new Map<string, number>();
+  const mkAll = (hostel: string, mult: number) => mk(hostel, '2026-11', Object.fromEntries(items.map((it) => [it, 10 * mult]))) ;
+  const peers = Array.from({ length: 14 }, (_, i) => { sizesMap.set(`2|W${i}`, 100 + i); return { ...mk(`W${i}`, '2026-11', {}), items: Object.fromEntries(items.map((it) => [it, 10])) }; });
+  const run = (mult: number) => {
+    const m = new Map(sizesMap); m.set('2|X', 105);
+    return detectAnomalies([...peers, { ...mkAll('X', mult), items: Object.fromEntries(items.map((it) => [it, 10 * mult])) }], ['2026-11'], DEFAULT_CONFIG, m).filter((a) => a.hostelCode === 'X');
+  };
+  it('reports ONE whole-order finding when every item is far above normal per student', () => {
+    const res = run(6);
+    const order = res.filter((a) => a.kind === 'order');
+    expect(order).toHaveLength(1);
+    expect(order[0]!.ratio).toBeGreaterThanOrEqual(5);
+    expect(order[0]!.order!.itemsCompared).toBe(12);
+  });
+  it('reports nothing when the order is normal for the number of students', () => {
+    expect(run(1)).toHaveLength(0);
+  });
+});

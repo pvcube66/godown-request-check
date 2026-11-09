@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
-import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY } from '@/lib/format';
+import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
-import { loadHistory } from '@/lib/history';
-import { SpikeCard, TypingCard } from '@/components/FlagCards';
+import { loadHistory, loadOrderItems } from '@/lib/history';
+import { OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 import BarChart from './BarChart';
 import FilterSelect from './FilterSelect';
@@ -32,7 +32,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const view = (['open', 'confirmed', 'fine'].includes(sp.view ?? '') ? sp.view! : 'open') as 'open' | 'confirmed' | 'fine';
   const c = await getDb();
 
-  const scope: Record<string, unknown> = {};
+  const scope: Record<string, unknown> = { partOfOrder: { $ne: true } };
   if (sp.month) scope.month = sp.month;
   if (sp.district) scope.districtName = sp.district;
   const q = (sp.q ?? '').trim().slice(0, 60);
@@ -55,10 +55,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
 
   // Start-here list: one line per hostel. A typing mistake counts as one line, not five.
   const seen = new Set<string>();
-  const top: { hostel: AnomalyDoc; text: 'typing' | 'spike'; a: AnomalyDoc; n: number }[] = [];
+  const top: { hostel: AnomalyDoc; text: 'typing' | 'spike' | 'order'; a: AnomalyDoc; n: number }[] = [];
   for (const r of topRows) {
     if (seen.has(r.hostelCode)) continue; seen.add(r.hostelCode);
-    top.push({ hostel: r, a: r, text: r.kind === 'typing' ? 'typing' : 'spike', n: r.slip?.count ?? 1 });
+    top.push({ hostel: r, a: r, text: r.kind === 'typing' ? 'typing' : r.kind === 'order' ? 'order' : 'spike', n: r.slip?.count ?? r.order?.itemsCompared ?? 1 });
     if (top.length === 3) break;
   }
 
@@ -67,6 +67,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
   const groups = [...byHostel.values()].sort((a, b) => b[0]!.ratio - a[0]!.ratio);
   const shown = sp.all ? groups : groups.slice(0, HOSTELS_SHOWN);
   const { history, months: allMonths } = await loadHistory(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode })));
+  const orderItems = await loadOrderItems(c, shown.flatMap((g) => g.filter((a) => a.kind === 'order')));
   const ctx = { history, months: allMonths, view };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
@@ -104,7 +105,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
                 <span className="sum-icon"><Icon name={text === 'typing' ? 'pencil' : 'alert'} size={18} /></span>
                 <span>
                   <b>{hostelLabel(a.hostelName)}</b>{' '}
-                  {text === 'typing'
+                  {text === 'order'
+                    ? <>asked for <b>{timesMore(a.ratio).replace(' more', '')}</b> what hostels with a similar number of students ask, across <b>{n} items</b> in {monthLabel(a.month)}.</>
+                    : text === 'typing'
                     ? <>entered the same number, <b>{num(a.slip!.value)}</b>, for <b>{n} different items</b> in {monthLabel(a.month)}. This may be a typing mistake.</>
                     : <>asked for {itemLabel(a.item)}: <b>{num(a.requested)}</b>, when {a.method === 'peers' ? 'other hostels like it ask for' : 'it usually asks for'} about <b>{num(a.expected)}</b>.</>}
                   {' '}<Link href={`/hostel/${a.hostelCode}?g=${a.godownId}`} className="link-arrow">See this hostel<Icon name="arrow" size={15} /></Link>
@@ -164,8 +167,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
 
       {shown.map((g) => {
         const top1 = g[0]!;
-        const { typing, spikes } = groupFlags(g);
+        const { orders, typing, spikes } = groupFlags(g);
         const cards = [
+          ...orders.map((o) => ({ key: o.key, node: <OrderCard key={o.key} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} /> })),
           ...typing.map((t) => ({ key: `t|${t.month}|${t.value}`, node: <TypingCard key={`t|${t.month}|${t.value}`} g={t} ctx={ctx} /> })),
           ...spikes.map((a) => ({ key: a.key, node: <SpikeCard key={a.key} a={a} ctx={ctx} /> })),
         ];

@@ -80,3 +80,17 @@ export async function fetchGodownsForUser(token: string, username: string): Prom
   if (!Array.isArray(arr)) throw new Error('MessGodownMaster: unexpected response');
   return arr as { id: number; name: string }[];
 }
+
+/** Number of students in a hostel: the sum of every class in the portal's attendance report.
+ *  (Only the totals are read. Student names and other personal details are never requested or stored.) */
+export async function fetchHostelStudents(token: string, hostelCode: string): Promise<number | null> {
+  const today = new Date().toISOString().slice(0, 10);
+  const q = new URLSearchParams({ hostelId: hostelCode, date: today });
+  const r = await fetch(`${base()}report/api/reports/GetRptAttendanceByHostel?${q}`, { headers: authHeaders(token), signal: AbortSignal.timeout(30_000) });
+  if (r.status === 401) throw new PortalAuthError('Token rejected (401)');
+  if (!r.ok) throw new Error(`GetRptAttendanceByHostel HTTP ${r.status}`);
+  const j = (await r.json()) as { success?: boolean; data?: { total_students?: number }[] };
+  if (!Array.isArray(j.data)) return null;
+  const total = j.data.reduce((s, row) => s + (Number(row.total_students) || 0), 0);
+  return total > 0 ? total : null;
+}
