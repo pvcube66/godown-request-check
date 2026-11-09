@@ -9,3 +9,4 @@ coverage/
 fixtures/private/
 *.d.ts
 *.tsbuildinfo
+next-env.d.ts

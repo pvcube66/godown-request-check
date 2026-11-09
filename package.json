@@ -8,7 +8,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p packages/core && tsc -p apps/worker",
-    "worker": "npm -w apps/worker run start"
+    "worker": "npm -w apps/worker run start",
+    "web": "npm -w apps/web run start"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
