@@ -72,12 +72,16 @@ describe('detector', () => {
     expect(find(res, 'H', 'Z')).toBeUndefined();   // no peer data for Z, no own non-zero history
   });
 
-  it('ignores tiny absolute differences', () => {
+  it('only rates a jump as minor when the amount is still normal for similar hostels', () => {
     const res = detectAnomalies(world([
       mk('H', '2026-09', { E: 1 }), mk('H', '2026-10', { E: 1 }), mk('H', '2026-11', { E: 4 }),
     ]), ['2026-11']);
-    expect(find(res, 'H', 'E')).toBeUndefined();
-    expect(DEFAULT_CONFIG.minExcess).toBeGreaterThan(3);
+    const a = find(res, 'H', 'E');           // 1 -> 4 is a jump for this hostel, but similar hostels ask for 10
+    expect(a === undefined || a.severity === 'low').toBe(true);
+  });
+  it('learns the noise floor from the data instead of using a fixed number', () => {
+    expect(DEFAULT_CONFIG.minExcess).toBeLessThan(1);
+    expect(DEFAULT_CONFIG.floorFrac).toBeGreaterThan(0);
   });
 });
 
@@ -114,12 +118,15 @@ describe('typing mistakes', () => {
     expect(res.filter((a) => a.hostelCode === 'T' && a.kind === 'typing')).toHaveLength(0);
   });
 
-  it('notes when a jump is almost exactly 10x (probably an extra zero)', () => {
+  it('explains a jump that a typed zero would explain, and says what the amount would be', () => {
     const base = [mk('H', '2026-09', {}), mk('H', '2026-10', {})];
     const a = find(detectAnomalies(world([...base, mk('H', '2026-11', { IddliRavva: 300 })]), ['2026-11']), 'H')!;
     expect(a.looksLikeExtraZero).toBe(true);
+    expect(a.zeroFix).toEqual({ divisor: 10, value: 30 });
     const b = find(detectAnomalies(world([...base, mk('H', '2026-11', { IddliRavva: 3600 })]), ['2026-11']), 'H')!;
-    expect(b.looksLikeExtraZero).toBe(false);
+    expect(b.zeroFix?.divisor).toBe(100);                          // two zeros: 3600 -> 36
+    const c = find(detectAnomalies(world([...base, mk('H', '2026-11', { IddliRavva: 95 })]), ['2026-11']), 'H');
+    expect(c?.looksLikeExtraZero ?? false).toBe(false);           // 95 is not explained by a typed zero
   });
 });
 

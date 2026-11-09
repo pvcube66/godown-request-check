@@ -3,6 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
+import { runBench } from './bench.js';
+import { runSweep } from './sweep.js';
 import { addAccount, closeDb, connectDb, runCycle, runDetection, syncAll } from '@anomaly/core';
 
 // Load the repo-root .env regardless of where the command is run from.
@@ -56,6 +58,9 @@ async function main() {
         console.log(by.map((b) => `${b._id.m} ${b._id.s} ${b._id.x}: ${b.n}`).join('\n'));
         break;
       }
+      case 'bench': { await runBench(c); break; }
+      case 'bench-quick': { await runBench(c, undefined, { blind: false }); break; }
+      case 'sweep': { await runSweep(c); break; }
       case 'status': {
         const accts = await c.accounts.find({}, { projection: { passwordEnc: 0, tokenEnc: 0 } }).toArray();
         console.log(JSON.stringify(accts, null, 2));

@@ -78,7 +78,11 @@ export function SpikeCard({ a, ctx }: { a: AnomalyDoc; ctx: Ctx }) {
         </p>
         <Compare a={a} earlier={ch.earlierList} />
         {a.looksLikeExtraZero && (
-          <p className="hint"><Icon name="pencil" size={16} />The jump is almost exactly {a.ratio >= 500 ? '1,000' : a.ratio >= 50 ? '100' : '10'} times. A zero may have been typed by mistake.</p>
+          <p className="hint"><Icon name="pencil" size={16} />
+            <span>{a.zeroFix
+              ? <>If {a.zeroFix.divisor === 10 ? 'one zero' : a.zeroFix.divisor === 100 ? 'two zeros' : 'three zeros'} were typed by mistake, the amount would be <b>{num(a.zeroFix.value)}</b>, which is a normal amount for this item.</>
+              : <>A zero may have been typed by mistake.</>}</span>
+          </p>
         )}
         {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} />}
       </div>

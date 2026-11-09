@@ -13,14 +13,20 @@ export interface DetectorConfig {
   slipRatio: number;       // ... and at least this many times each item's usual amount
   slipFraction: number;    // share of the repeated items that must be far above usual
   sizeBand: number;        // compare with hostels having between 1/band and band x this hostel's students
+  peerZ: number;           // how far outside the normal spread of similar hostels (in robust standard deviations, log scale)
+  madFloor: number;        // smallest natural spread assumed (log scale) so very tight items do not become hair-triggers
+  floorFrac: number;       // ignore differences smaller than this share of the item's typical order (learned per item)
+  ownCorroborated: number; // own-history ratio needed when similar hostels also say it is high
+  ownVolatile: number;     // own-history ratio needed when the hostel's own months already vary a lot
+  ownAbovePeers: boolean;  // an own-history jump must also be above the normal range of similar hostels
   orderMinItems: number;   // whole-order check: needs at least this many items compared per student ...
   orderRatio: number;      // ... and the typical item at least this many times what similar-sized hostels ask
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
-  ownRatio: 3, ownMinHistory: 2, peerRatio: 4, minExcess: 5, minPeers: 8,
+  ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 5,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, orderMinItems: 8, orderRatio: 3,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, orderMinItems: 8, orderRatio: 2.5,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -40,14 +46,14 @@ const quantile = (a: number[], q: number) => {
 };
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
-/** True when ratio is very close to 10, 100 or 1000: the classic "extra zero" typing slip. */
-function nearPowerOfTen(ratio: number): boolean {
-  return [10, 100, 1000].some((p) => ratio >= p * 0.85 && ratio <= p * 1.15);
-}
-
-function severity(ratio: number, method: 'own-history' | 'peers'): 'low' | 'medium' | 'high' {
-  const [hi, med] = method === 'own-history' ? [8, 5] : [10, 6];
-  return ratio >= hi ? 'high' : ratio >= med ? 'medium' : 'low';
+/** How serious a flag is. Combines the size of the jump with how far outside the natural spread it falls,
+ *  so a big jump on an item that naturally varies a lot is rated lower than the same jump on a steady item. */
+function severity(ratio: number, method: 'own-history' | 'peers' | 'blend', z: number, withinNormal: boolean): 'low' | 'medium' | 'high' {
+  if (withinNormal) return 'low';        // still inside what similar hostels normally ask: at most a minor note
+  if (method === 'own-history') return ratio >= 8 ? 'high' : ratio >= 4 ? 'medium' : 'low';
+  if (ratio >= 8 && z >= 2.5) return 'high';
+  if (ratio >= 4 && z >= 1.5) return 'medium';
+  return 'low';
 }
 
 /** Pure function: totals per hostel+month (rejected requests ignored), then flags spikes. */
@@ -65,6 +71,33 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
     agg.set(k, e);
     (perRequest.get(k) ?? perRequest.set(k, []).get(k)!).push(r.items);
   }
+  // What is typical, learned from the data itself (nothing here is hardcoded per item):
+  //  - itemTypical: the usual size of an order for each item (sets the noise floor)
+  //  - hostelRate: each hostel's own typical per-student rate for each item (median over its months)
+  const posByItem = new Map<string, number[]>();
+  const monthRates = new Map<string, Map<string, { students: number; rates: number[] }>>();    // item -> hostelKey -> rates
+  for (const [k, e] of agg) {
+    const [g, h] = k.split('|');
+    const st = sizes.get(`${g}|${h}`);
+    for (const [it, q] of Object.entries(e.items)) {
+      if (q <= 0) continue;
+      (posByItem.get(it) ?? posByItem.set(it, []).get(it)!).push(q);
+      if (st && st > 0) {
+        const m = monthRates.get(it) ?? monthRates.set(it, new Map()).get(it)!;
+        const x = m.get(`${g}|${h}`) ?? m.set(`${g}|${h}`, { students: st, rates: [] }).get(`${g}|${h}`)!;
+        x.rates.push(q / st);
+      }
+    }
+  }
+  const itemTypical = new Map([...posByItem].map(([it, v]) => [it, median(v)]));
+  const hostelRate = new Map([...monthRates].map(([it, m]) => [it, [...m].map(([hk, x]) => ({ hostel: hk.split('|')[1]!, godown: Number(hk.split('|')[0]), students: x.students, rate: median(x.rates) }))]));
+  const floorOf = (item: string) => cfg.itemMinExcess[item] ?? Math.max(cfg.minExcess, cfg.floorFrac * (itemTypical.get(item) ?? 0));
+  /** robust centre and spread of ln(values) */
+  const logStats = (vals: number[]) => {
+    const l = vals.filter((v) => v > 0).map(Math.log), m = median(l);
+    return { m, mad: Math.max(cfg.madFloor, 1.4826 * median(l.map((x) => Math.abs(x - m)))) };
+  };
+
   const out: Candidate[] = [];
   const godowns = [...new Set(reqs.map((r) => r.godownId))];
 
@@ -101,18 +134,21 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
          *  student count is known; otherwise an estimate based on the size of the order itself. */
         const peerInfo = (item: string) => {
           if (students && students > 0) {
-            const all = (rateVals.get(item) ?? []).filter((p) => p.hostel !== hostel);
+            const all = (hostelRate.get(item) ?? []).filter((p) => p.hostel !== hostel && p.godown === gid);
             const near = all.filter((p) => p.students >= students / cfg.sizeBand && p.students <= students * cfg.sizeBand);
             const use = near.length >= cfg.minPeers ? near : all;
             if (use.length >= cfg.minPeers) {
-              const rates = use.map((p) => p.rate), sz = use.map((p) => p.students);
+              const rates = use.map((p) => p.rate), sz = use.map((p) => p.students), ls = logStats(rates);
               return { expected: median(rates) * students, low: quantile(rates, 0.25) * students, high: quantile(rates, 0.75) * students,
-                count: use.length, basis: 'students' as const, sizeRange: [Math.min(...sz), Math.max(...sz)] as [number, number] };
+                count: use.length, basis: 'students' as const, sizeRange: [Math.min(...sz), Math.max(...sz)] as [number, number],
+                z: (qty: number) => (Math.log(qty / students) - ls.m) / ls.mad };
             }
           }
           const v = peerVals.get(item), pmed = peerMed.get(item) ?? 0;
           if (!v || v.length < cfg.minPeers || scale <= 0 || !pmed) return undefined;
-          return { expected: pmed * scale, low: quantile(v, 0.25) * scale, high: quantile(v, 0.75) * scale, count: v.length, basis: 'estimated' as const, sizeRange: undefined };
+          const ls = logStats(v);
+          return { expected: pmed * scale, low: quantile(v, 0.25) * scale, high: quantile(v, 0.75) * scale, count: v.length, basis: 'estimated' as const, sizeRange: undefined,
+            z: (qty: number) => (Math.log(qty / scale) - ls.m) / ls.mad };
         };
         const peerStat = (item: string): Candidate['peer'] => {
           const p = peerInfo(item);
@@ -123,20 +159,35 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
 
         for (const [item, qty] of Object.entries(e.items)) {
           if (qty <= 0) continue;
-          const minExcess = cfg.itemMinExcess[item] ?? cfg.minExcess;
+          const minExcess = floorOf(item);
           const past = hist.map(([, h]) => h.items[item] ?? 0).filter((q) => q > 0);   // zeros are not "usual need"
           const pInfo = peerInfo(item);
-          let method: 'own-history' | 'peers' | null = null;
+          const peerZ = pInfo ? pInfo.z(qty) : -Infinity;
+          let method = null as 'own-history' | 'peers' | 'blend' | null;
           let expected = 0;
 
           if (past.length >= cfg.ownMinHistory) { method = 'own-history'; expected = median(past); }
           else if (pInfo && pInfo.expected > 0) { method = 'peers'; expected = pInfo.expected; }
           if (!method || expected <= 0) continue;
-          expectation.set(item, { expected, method });
+          expectation.set(item, { expected, method: method === 'blend' ? 'peers' : method });
 
-          const limit = method === 'own-history' ? cfg.ownRatio : cfg.peerRatio;
-          if (qty < limit * expected || qty - expected < minExcess) continue;
-          let reason = method === 'own-history'
+          let flagged: boolean;
+          if (method === 'own-history') {
+            // lower the bar when similar hostels also say it is high; raise it when this hostel's own months already swing a lot
+            const volatile = Math.max(...past) / Math.min(...past) >= 2.5;
+            const limit = volatile ? cfg.ownVolatile : peerZ >= 2.5 ? cfg.ownCorroborated : cfg.ownRatio;
+            flagged = qty >= limit * expected && qty - expected >= minExcess && (!cfg.ownAbovePeers || !pInfo || qty > pInfo.high);
+          } else {
+            flagged = qty >= cfg.peerRatio * expected && peerZ >= cfg.peerZ && qty - expected >= minExcess;
+          }
+          // Own months say "normal" but similar hostels clearly disagree AND this is at least 1.5x anything this hostel has asked
+          // before: trust both signals together (a hostel with only a couple of months of history can look more volatile than it is).
+          if (!flagged && method === 'own-history' && pInfo && pInfo.expected > 0 && qty >= cfg.peerRatio * pInfo.expected
+              && peerZ >= cfg.peerZ && qty >= 1.5 * Math.max(...past) && qty - pInfo.expected >= minExcess) {
+            flagged = true; method = 'blend'; expected = pInfo.expected;
+          }
+          if (!flagged) continue;
+          let reason = method === 'own-history' || method === 'blend'
             ? `Asked ${qty} but this hostel usually asks ~${round(expected)} (last ${past.length} months: ${past.join(', ')})`
             : `Asked ${qty}; hostels like it ask ~${round(expected)}` + (past.length ? ` (this hostel's only earlier request: ${past[0]})` : ' (no earlier history for this hostel)');
           if (method === 'own-history' && pInfo) reason += `; other hostels like it ask ~${round(pInfo.expected)}`;
@@ -145,8 +196,15 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             key: `${gid}|${hostel}|${month}|${item}`, godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
-            severity: severity(ratio, method), method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: nearPowerOfTen(ratio), peer: peerStat(item), ...(students ? { students } : {}), reason,
+            severity: severity(ratio, method, peerZ, !!pInfo && qty <= pInfo.high), method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
           });
+          const c = found.get(item)!;
+          for (const div of [10, 100, 1000]) {
+            const fix = qty / div;
+            const inOwn = past.length >= cfg.ownMinHistory && fix >= 0.6 * Math.min(...past) && fix <= 1.6 * Math.max(...past);
+            const inPeer = method === 'peers' && pInfo && fix >= 0.7 * pInfo.low && fix <= 1.4 * pInfo.high;
+            if (inOwn || inPeer || (ratio >= div * 0.85 && ratio <= div * 1.15)) { c.looksLikeExtraZero = true; c.zeroFix = { divisor: div, value: round(fix) }; break; }
+          }
         }
 
         // Typing slips: the same number entered for several items in ONE request, far above each item's usual.
@@ -158,7 +216,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             if (names.length < cfg.slipMinGroup) continue;
             const over = names.filter((it) => {
               const x = expectation.get(it);
-              return x && value >= cfg.slipRatio * x.expected && value - x.expected >= (cfg.itemMinExcess[it] ?? cfg.minExcess);
+              return x && value >= cfg.slipRatio * x.expected && value - x.expected >= floorOf(it);
             });
             if (over.length < cfg.slipMinGroup || over.length < cfg.slipFraction * names.length) continue;
             for (const it of over) {

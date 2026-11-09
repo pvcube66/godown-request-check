@@ -42,6 +42,8 @@ export interface AnomalyDoc {
   slip?: { value: number; count: number; items: string[] };
   /** The jump is almost exactly 10x / 100x / 1000x, so an extra zero (or a shifted decimal point) was probably typed. */
   looksLikeExtraZero?: boolean;
+  /** When dividing by 10 / 100 / 1000 gives a normal amount, this is that amount (so the screen can say "a zero may have been typed"). */
+  zeroFix?: { divisor: number; value: number };
   reason: string;
   status: 'open' | 'confirmed' | 'ignored' | 'expected' | 'resolved';
   detectedAt: Date; updatedAt: Date; lastSeenAt: Date;
