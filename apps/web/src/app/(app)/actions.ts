@@ -26,6 +26,6 @@ export async function addAccountAction(_prev: unknown, formData: FormData): Prom
     revalidatePath('/accounts'); revalidatePath('/');
     return { ok: true, message: `Added ${r.username} (godowns: ${r.godowns.map((g) => g.name).join(', ')}). History loaded.` };
   } catch (e) {
-    return { ok: false, message: `Could not add login: ${e instanceof Error ? e.message : String(e)}` };
+    return { ok: false, message: `We could not add this login: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
