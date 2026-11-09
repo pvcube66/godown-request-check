@@ -1,4 +1,5 @@
 import type { Collections, RunDoc } from './db.js';
+import { refreshCancellationCheck } from './cancellations.js';
 import { runDetection } from './detector.js';
 import { syncAll } from './sync.js';
 
@@ -13,6 +14,7 @@ export async function runCycle(c: Collections, trigger: string, mode: 'recent' |
     const run = await syncAll(c, mode, trigger);
     try {
       run.newAnomalies = (await runDetection(c)).created;
+      await refreshCancellationCheck(c).catch(() => undefined);      // keep the Accuracy page's real-cancellation check fresh
     } catch (e) {
       run.ok = false;
       run.accounts.push({ username: '(detector)', ok: false, error: e instanceof Error ? e.message : String(e) });

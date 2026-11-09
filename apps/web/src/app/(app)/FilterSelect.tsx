@@ -9,7 +9,7 @@ export default function FilterSelect({ label, name, value, options, base }: {
     <label className="select">
       <span>{label}</span>
       <select value={value} onChange={(e) => {
-        const p = new URLSearchParams({ ...base, [name]: e.target.value });
+        const p = new URLSearchParams({ ...base, [name]: e.target.value }); p.delete('p');
         for (const [k, v] of [...p]) if (!v) p.delete(k);
         window.dispatchEvent(new Event('nav-start'));
         router.push(`/?${p}`);

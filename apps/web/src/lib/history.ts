@@ -4,8 +4,8 @@ import type { Collections } from '@anomaly/core';
 export type History = Record<string, Record<string, Record<string, number>>>;
 export const hostelKey = (godownId: number, hostelCode: string) => `${godownId}|${hostelCode}`;
 
-export async function loadHistory(c: Collections, pairs: { godownId: number; hostelCode: string }[]) {
-  const months = (await c.requests.distinct('month')).sort();
+export async function loadHistory(c: Collections, pairs: { godownId: number; hostelCode: string }[], knownMonths?: string[]) {
+  const months = knownMonths ?? (await c.requests.distinct('month')).sort();
   const history: History = {};
   if (!pairs.length) return { history, months };
   const wanted = new Set(pairs.map((p) => hostelKey(p.godownId, p.hostelCode)));

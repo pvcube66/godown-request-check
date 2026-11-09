@@ -103,6 +103,7 @@ export async function ensureIndexes(c: Collections) {
   await c.requests.createIndex({ godownId: 1, month: 1, hostelCode: 1 });
   await c.anomalies.createIndex({ key: 1 }, { unique: true });
   await c.anomalies.createIndex({ status: 1, severity: 1, month: -1 });
+  await c.anomalies.createIndex({ status: 1, severity: 1, ratio: -1 });      // the main list: open flags by seriousness, biggest first
   await c.runs.createIndex({ startedAt: -1 });
   await c.hostels.createIndex({ godownId: 1, hostelCode: 1 }, { unique: true });
 }

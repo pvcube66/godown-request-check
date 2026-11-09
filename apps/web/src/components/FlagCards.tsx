@@ -125,9 +125,9 @@ export function TypingCard({ g, ctx, no }: { g: TypingGroup; ctx: Ctx; no?: stri
       </figure>
       {rest.length > 0 && (
         <details className="flag-more">
-          <summary><Icon name="chevron" size={18} />Show month-by-month charts for the other {rest.length} item{rest.length > 1 ? 's' : ''}</summary>
+          <summary><Icon name="chevron" size={18} />Show month-by-month charts for {rest.length > 8 ? 'the biggest 8 of the other' : 'the other'} {rest.length} item{rest.length > 1 ? 's' : ''}</summary>
           <div className="mini-grid">
-            {rest.map((a) => (
+            {rest.slice(0, 8).map((a) => (
               <figure key={a.key} className="mini"><figcaption>{itemLabel(a.item)}</figcaption>{chartFor(a, ctx).node}<Key peer={!!(a.peer || a.method === 'peers')} /></figure>
             ))}
           </div>
@@ -180,8 +180,8 @@ export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: Anomaly
       </figure>
       {items.length > 0 && (
         <details className="flag-more">
-          <summary><Icon name="chevron" size={18} />Show the {items.length} item{items.length > 1 ? 's' : ''} that stand out most, each with its own earlier months</summary>
-          <div className="nested">{items.slice(0, 12).map((i) => <SpikeCard key={i.key} a={i} ctx={{ ...ctx, showActions: false }} />)}</div>
+          <summary><Icon name="chevron" size={18} />Show the {Math.min(items.length, 6)} item{Math.min(items.length, 6) > 1 ? 's' : ''} that stand out most, each with its own earlier months</summary>
+          <div className="nested">{items.slice(0, 6).map((i) => <SpikeCard key={i.key} a={i} ctx={{ ...ctx, showActions: false }} />)}</div>
         </details>
       )}
     </article>

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { cancellationCheck, reviewStats, type ReviewGroup } from '@anomaly/core';
+import { getCancellationCheck, reviewStats, type ReviewGroup } from '@anomaly/core';
 import { hostelLabel, monthLabel, num } from '@/lib/format';
 import { Icon } from '@/components/Icons';
 import { getDb } from '@/lib/db';
@@ -23,7 +23,7 @@ function Row({ g }: { g: ReviewGroup }) {
 
 export default async function Accuracy() {
   const c = await getDb();
-  const [r, cancelled] = await Promise.all([reviewStats(c), cancellationCheck(c)]);
+  const [r, cancelled] = await Promise.all([reviewStats(c), getCancellationCheck(c)]);
   const caught = cancelled.filter((x) => x.flagged).length;
   const pct = Math.round((100 * r.realProblems) / Math.max(1, r.reviewed));
   return (

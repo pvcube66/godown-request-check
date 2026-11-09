@@ -13,8 +13,8 @@ import SearchBox from './SearchBox';
 import type { AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
-type SP = { sev?: string; month?: string; district?: string; view?: string; all?: string; q?: string };
-const HOSTELS_SHOWN = 15, CARDS_SHOWN = 3;
+type SP = { sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string };
+const PAGE_SIZE = 8, CARDS_SHOWN = 3;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const qs = (cur: SP, patch: Partial<SP>) => {
   const p = new URLSearchParams(Object.entries({ ...cur, ...patch }).filter(([, v]) => v) as [string, string][]);
@@ -49,7 +49,7 @@ async function HomeContent({ sp }: { sp: SP }) {
   const attention = { ...scope, status: 'open', severity: { $in: ['high', 'medium'] } };
   const showSummary = view === 'open';
 
-  const [rows, counts, months, districts, topRows, byDistrict, byItem, lastRun] = await Promise.all([
+  const [rows, counts, months, districts, topRows, byDistrict, byItem, lastRun, requestMonths] = await Promise.all([
     c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: '$severity', n: { $sum: 1 } } }]).toArray(),
     c.anomalies.distinct('month'),
@@ -58,6 +58,7 @@ async function HomeContent({ sp }: { sp: SP }) {
     showSummary ? c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: attention }, { $group: { _id: '$districtName', h: { $addToSet: '$hostelCode' } } }, { $project: { n: { $size: '$h' } } }, { $sort: { n: -1 } }, { $limit: 6 }]).toArray() : [],
     showSummary ? c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: attention }, { $group: { _id: '$item', h: { $addToSet: '$hostelCode' } } }, { $project: { n: { $size: '$h' } } }, { $sort: { n: -1 } }, { $limit: 6 }]).toArray() : [],
     c.runs.find().sort({ startedAt: -1 }).limit(1).next(),
+    c.requests.distinct('month'),
   ]);
   const count = (s: string) => counts.find((x) => x._id === s)?.n ?? 0;
 
@@ -73,9 +74,15 @@ async function HomeContent({ sp }: { sp: SP }) {
   const byHostel = new Map<string, AnomalyDoc[]>();
   for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}`; (byHostel.get(k) ?? byHostel.set(k, []).get(k)!).push(r); }
   const groups = [...byHostel.values()].sort((a, b) => b[0]!.ratio - a[0]!.ratio);
-  const shown = sp.all ? groups : groups.slice(0, HOSTELS_SHOWN);
-  const { history, months: allMonths } = await loadHistory(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode })));
-  const orderItems = await loadOrderItems(c, shown.flatMap((g) => g.filter((a) => a.kind === 'order')));
+  const pages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
+  const pageNo = Math.min(pages, Math.max(1, Math.floor(Number(sp.p)) || 1));
+  const offset = (pageNo - 1) * PAGE_SIZE;
+  const shown = groups.slice(offset, offset + PAGE_SIZE);
+  // the two lookups do not depend on each other, so they run together
+  const [{ history, months: allMonths }, orderItems] = await Promise.all([
+    loadHistory(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode })), requestMonths.sort()),
+    loadOrderItems(c, shown.flatMap((g) => g.filter((a) => a.kind === 'order'))),
+  ]);
   const ctx = { history, months: allMonths, view };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
@@ -136,7 +143,7 @@ async function HomeContent({ sp }: { sp: SP }) {
 
       <nav className="tabs" aria-label="How big is the difference">
         {(['high', 'medium', 'low'] as const).map((s) => (
-          <Link key={s} href={qs(sp, { sev: s, all: '' })} className={`tab ${s} ${sev === s ? 'on' : ''}`} aria-current={sev === s ? 'page' : undefined}>
+          <Link key={s} href={qs(sp, { sev: s, p: '' })} className={`tab ${s} ${sev === s ? 'on' : ''}`} aria-current={sev === s ? 'page' : undefined}>
             <span className="tab-icon"><Icon name={SEV_ICON[s]} size={20} /></span>
             <span className="tab-body"><b>{count(s)} <small>{count(s) === 1 ? 'item' : 'items'}</small></b><span>{SEVERITY[s].label}. {SEVERITY[s].hint}.</span></span>
           </Link>
@@ -149,7 +156,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
         <div className="seg" role="group" aria-label="Which requests to show">
           {[['open', 'To check'], ['confirmed', 'Marked wrong'], ['fine', 'Marked fine']].map(([v, l]) => (
-            <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, all: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>
+            <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, p: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>
           ))}
         </div>
       </div>
@@ -169,7 +176,7 @@ async function HomeContent({ sp }: { sp: SP }) {
 
       {shown.map((g, hi) => {
         const top1 = g[0]!;
-        const sn = hi + 1;
+        const sn = offset + hi + 1;
         const { orders, duplicates, typing, spikes } = groupFlags(g);
         const cards = [
           ...duplicates.map((d) => ({ key: d.key, node: <DuplicateCard key={d.key} a={d} ctx={ctx} /> })),
@@ -197,8 +204,12 @@ async function HomeContent({ sp }: { sp: SP }) {
           </section>
         );
       })}
-      {!sp.all && groups.length > HOSTELS_SHOWN && (
-        <Link className="btn showall" href={qs(sp, { all: '1' })}>Show the other {groups.length - HOSTELS_SHOWN} hostels</Link>
+      {pages > 1 && (
+        <nav className="pager" aria-label="More hostels">
+          {pageNo > 1 ? <Link className="btn" href={qs(sp, { p: pageNo === 2 ? '' : String(pageNo - 1) })}>Previous</Link> : <span />}
+          <span className="mut">Hostels {offset + 1} to {Math.min(offset + PAGE_SIZE, groups.length)} of {groups.length}</span>
+          {pageNo < pages ? <Link className="btn primary-ish" href={qs(sp, { p: String(pageNo + 1) })}>Next {Math.min(PAGE_SIZE, groups.length - offset - PAGE_SIZE)} hostels</Link> : <span />}
+        </nav>
       )}
     </>
   );

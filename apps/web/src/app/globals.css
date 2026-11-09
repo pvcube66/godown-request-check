@@ -496,3 +496,6 @@ body[data-loading] main{opacity:.55;transition:opacity .2s;pointer-events:none}
 .flag.dup{grid-template-columns:minmax(0,1fr)}
 
 .row.cancel{align-items:flex-start}.row.cancel .reason{margin-top:6px;color:var(--ink-2);font-size:15.5px;max-width:70ch}.state{display:inline-flex;align-items:center;gap:6px}
+
+.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0}.pager .mut{font-size:15px}
+.btn.primary-ish{background:var(--brand);color:#fff;border-color:var(--brand)}.btn.primary-ish:hover{background:var(--brand-2)}

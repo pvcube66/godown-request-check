@@ -14,7 +14,7 @@ export default function SearchBox({ base, q }: { base: Record<string, string>; q
       e.preventDefault();
       const value = String(new FormData(e.currentTarget).get('q') ?? '').trim();
       const p = new URLSearchParams(base);
-      p.delete('all'); if (value) p.set('q', value); else p.delete('q');
+      p.delete('all'); p.delete('p'); if (value) p.set('q', value); else p.delete('q');
       window.dispatchEvent(new Event('nav-start'));
       start(() => router.push(`/?${p}`));
     }}>
