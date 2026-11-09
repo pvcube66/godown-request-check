@@ -16,7 +16,6 @@ const LINKS = [
   { href: '/', label: 'Unusual requests', icon: 'alert' },
   { href: '/accounts', label: 'Godowns', icon: 'warehouse' },
   { href: '/runs', label: 'Past checks', icon: 'clock' },
-  { href: '/accuracy', label: 'Accuracy', icon: 'check' },
 ] as const;
 
 export default function Sidebar({
