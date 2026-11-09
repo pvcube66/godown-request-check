@@ -10,7 +10,7 @@ function rng(seed: number) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(0)}%` : 'n/a').padStart(5);
 const clone = (r: RequestDoc): RequestDoc => ({ ...r, items: { ...r.items } });
 
-export interface BenchMetrics { recall: Record<number, number>; medHigh: Record<number, number>; zero: number; typing: number; order: number; noiseNew: number; noiseNewMH: number; flags: number; lowFlags: number }
+export interface BenchMetrics { recall: Record<number, number>; realRecall: Record<number, number>; medHigh: Record<number, number>; zero: number; typing: number; order: number; noiseNew: number; noiseNewMH: number; flags: number; lowFlags: number }
 
 export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CONFIG, opts: { quiet?: boolean; blind?: boolean } = {}): Promise<BenchMetrics> {
   const log = opts.quiet ? (..._a: unknown[]) => {} : console.log;
@@ -141,6 +141,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   log(`  new flags by severity: ${JSON.stringify(fresh.reduce((m: Record<string, number>, a) => ((m[a.severity] = (m[a.severity] ?? 0) + 1), m), {}))}`);
   return {
     recall: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.hit / Math.max(1, spikeT[m]!.n)])) as Record<number, number>,
+    realRecall: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.realHit / Math.max(1, spikeT[m]!.real)])) as Record<number, number>,
     medHigh: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.medHigh / Math.max(1, spikeT[m]!.n)])) as Record<number, number>,
     zero: zeroT.hit / Math.max(1, zeroT.n), typing: typeHit / Math.max(1, typeN), order: orderHit / Math.max(1, orderN),
     noiseNew: fresh.length, noiseNewMH: fresh.filter((a) => a.severity !== 'low').length, flags: base.length, lowFlags: base.filter((a) => a.severity === 'low').length,

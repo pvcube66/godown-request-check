@@ -12,7 +12,8 @@ export interface DetectorConfig {
   slipMinGroup: number;    // same number typed for at least this many items in one request ...
   slipRatio: number;       // ... and at least this many times each item's usual amount
   slipFraction: number;    // share of the repeated items that must be far above usual
-  sizeBand: number;        // compare with hostels having between 1/band and band x this hostel's students
+  sizeBand: number;        // hostels within 1/band .. band x this hostel's students count as 'close in size'
+  peerK: number;           // use at most this many of the closest-in-size hostels (more is steadier, fewer is more alike)
   peerZ: number;           // how far outside the normal spread of similar hostels (in robust standard deviations, log scale)
   madFloor: number;        // smallest natural spread assumed (log scale) so very tight items do not become hair-triggers
   floorFrac: number;       // ignore differences smaller than this share of the item's typical order (learned per item)
@@ -25,9 +26,9 @@ export interface DetectorConfig {
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
-  ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 5,
+  ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, orderMinItems: 8, orderRatio: 2.5,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, orderMinItems: 8, orderRatio: 2.5,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -148,8 +149,10 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
         const peerInfo = (item: string) => {
           if (students && students > 0) {
             const all = (hostelRate.get(item) ?? []).filter((p) => p.hostel !== hostel && p.godown === gid);
-            const near = all.filter((p) => p.students >= students / cfg.sizeBand && p.students <= students * cfg.sizeBand);
-            const use = near.length >= cfg.minPeers ? near : all;
+            // Close in size first. If too few are close, widen to the nearest hostels of any size (rates are per student, so this is still fair).
+            const byCloseness = [...all].sort((a, b) => Math.abs(Math.log(a.students / students)) - Math.abs(Math.log(b.students / students)));
+            const near = byCloseness.filter((p) => p.students >= students / cfg.sizeBand && p.students <= students * cfg.sizeBand);
+            const use = (near.length >= cfg.minPeers ? near : byCloseness).slice(0, cfg.peerK);
             if (use.length >= cfg.minPeers) {
               const rates = use.map((p) => p.rate), sz = use.map((p) => p.students), ls = logStats(rates);
               return { expected: median(rates) * students, low: quantile(rates, 0.25) * students, high: quantile(rates, 0.75) * students,

@@ -52,7 +52,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
       <nav className="crumbs" aria-label="Breadcrumb"><Link href="/"><Icon name="back" size={16} />Unusual requests</Link></nav>
       <section className="hero">
         <h1>{hostelLabel(reqs[0]!.hostelName)}</h1>
-        <p className="where big"><Icon name="pin" size={17} />{reqs[0]!.districtName} district</p>
+        <p className="where big"><Icon name="pin" size={17} />{reqs[0]!.districtName} district<span className="hid">Hostel ID {code}</span></p>
         <ul className="facts">
           <li>{size?.students ? <><b>{size.students.toLocaleString('en-IN')}</b> students</> : <span className="mut">Student count not available</span>}</li>
           <li><b>{reqs.length}</b> request{reqs.length > 1 ? 's' : ''} on record</li>
@@ -65,9 +65,9 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         <section aria-labelledby="looks-wrong">
           <h2 className="sub" id="looks-wrong">What looks wrong</h2>
           <div className="hostel solo">
-            {orders.map((o) => <OrderCard key={o.key} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} />)}
-            {typing.map((t) => <TypingCard key={`${t.month}|${t.value}`} g={t} ctx={ctx} />)}
-            {spikes.map((a) => <SpikeCard key={a.key} a={a} ctx={ctx} />)}
+            {orders.map((o, i) => <OrderCard key={o.key} no={`${i + 1}`} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} />)}
+            {typing.map((t, i) => <TypingCard key={`${t.month}|${t.value}`} no={`${orders.length + i + 1}`} g={t} ctx={ctx} />)}
+            {spikes.map((a, i) => <SpikeCard key={a.key} no={`${orders.length + typing.length + i + 1}`} a={a} ctx={ctx} />)}
           </div>
         </section>
       )}

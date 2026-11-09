@@ -1,4 +1,6 @@
+import { Suspense, cloneElement } from 'react';
 import Link from 'next/link';
+import { PageSkeleton } from '@/components/Skeletons';
 import { getDb } from '@/lib/db';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
@@ -7,6 +9,7 @@ import { OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 import BarChart from './BarChart';
 import FilterSelect from './FilterSelect';
+import SearchBox from './SearchBox';
 import type { AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +31,11 @@ function nextCheck(now = Date.now()) {
 
 export default async function Home({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
+  // the key makes the placeholder appear again whenever a filter, tab or search changes
+  return <Suspense key={JSON.stringify(sp)} fallback={<PageSkeleton />}><HomeContent sp={sp} /></Suspense>;
+}
+
+async function HomeContent({ sp }: { sp: SP }) {
   const sev = (['high', 'medium', 'low'] as const).includes(sp.sev as 'high') ? (sp.sev as 'high' | 'medium' | 'low') : 'high';
   const view = (['open', 'confirmed', 'fine'].includes(sp.view ?? '') ? sp.view! : 'open') as 'open' | 'confirmed' | 'fine';
   const c = await getDb();
@@ -134,15 +142,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
       </nav>
 
       <div className="filters">
-        <form action="/" method="get" className="search" role="search">
-          {Object.entries(base).filter(([k]) => k !== 'q' && k !== 'all').map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-          <label htmlFor="q">Find a hostel</label>
-          <div className="search-row">
-            <span className="search-box"><Icon name="search" size={18} /><input id="q" name="q" defaultValue={q} placeholder="Type part of the name" autoComplete="off" /></span>
-            <button className="btn">Search</button>
-            {q && <Link href={qs(sp, { q: '', all: '' })} className="link-arrow">Clear</Link>}
-          </div>
-        </form>
+        <SearchBox base={Object.fromEntries(Object.entries(base).filter(([k]) => k !== 'q' && k !== 'all'))} q={q} />
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
         <div className="seg" role="group" aria-label="Which requests to show">
@@ -165,28 +165,30 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
         </div>
       )}
 
-      {shown.map((g) => {
+      {shown.map((g, hi) => {
         const top1 = g[0]!;
+        const sn = hi + 1;
         const { orders, typing, spikes } = groupFlags(g);
         const cards = [
           ...orders.map((o) => ({ key: o.key, node: <OrderCard key={o.key} a={o} items={orderItems.get(`${o.godownId}|${o.hostelCode}|${o.month}`) ?? []} ctx={ctx} /> })),
           ...typing.map((t) => ({ key: `t|${t.month}|${t.value}`, node: <TypingCard key={`t|${t.month}|${t.value}`} g={t} ctx={ctx} /> })),
           ...spikes.map((a) => ({ key: a.key, node: <SpikeCard key={a.key} a={a} ctx={ctx} /> })),
         ];
+        const numbered = cards.map((x, ci) => ({ ...x, node: cloneElement(x.node, { no: `${sn}.${ci + 1}` }) }));
         return (
           <section className="hostel" key={`${top1.godownId}|${top1.hostelCode}`}>
             <header className="hostel-head">
-              <div><h2>{hostelLabel(top1.hostelName)}</h2><p className="where"><Icon name="pin" size={15} />{top1.districtName} district</p></div>
+              <div className="hostel-title"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><div><h2>{hostelLabel(top1.hostelName)}</h2><p className="where"><Icon name="pin" size={15} />{top1.districtName} district<span className="hid">Hostel ID {top1.hostelCode}</span></p></div></div>
               <div className="hostel-meta">
                 <span className="count-chip">{cards.length} to look at</span>
                 <Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link>
               </div>
             </header>
-            {cards.slice(0, CARDS_SHOWN).map((x) => x.node)}
+            {numbered.slice(0, CARDS_SHOWN).map((x) => x.node)}
             {cards.length > CARDS_SHOWN && (
               <details className="more">
                 <summary><Icon name="chevron" size={18} />Show {cards.length - CARDS_SHOWN} more for this hostel</summary>
-                {cards.slice(CARDS_SHOWN).map((x) => x.node)}
+                {numbered.slice(CARDS_SHOWN).map((x) => x.node)}
               </details>
             )}
           </section>

@@ -1,6 +1,7 @@
 'use client';
 import { useActionState, useState } from 'react';
 import { loginAction } from './actions';
+import Spinner from '@/components/Spinner';
 
 export default function LoginForm() {
   const [state, action, pending] = useActionState(loginAction, null);
@@ -13,7 +14,7 @@ export default function LoginForm() {
         <button type="button" className="linkish" onClick={() => setShow((s) => !s)} aria-pressed={show}>{show ? 'Hide' : 'Show'}</button>
       </div>
       {state?.error && <p className="form-error" role="alert">{state.error}</p>}
-      <button className="primary big" disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</button>
+      <button className="primary big" disabled={pending}>{pending ? <><Spinner />Signing in…</> : 'Sign in'}</button>
     </form>
   );
 }

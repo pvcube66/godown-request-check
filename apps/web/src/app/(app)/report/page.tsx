@@ -24,9 +24,9 @@ export default async function Report({ searchParams }: { searchParams: Promise<{
       <h1>Unusual goods requests</h1>
       <p className="mut">Prepared on {today}. {filters ? `Showing ${filters}. ` : ''}
         {rows.length === 0 ? 'Nothing needs checking.' : `${rows.length} item${rows.length > 1 ? 's' : ''} at ${byHostel.size} hostel${byHostel.size > 1 ? 's' : ''} need checking. Only the “Check now” and “Take a look” items are included.`}</p>
-      {[...byHostel.values()].map((g) => (
+      {[...byHostel.values()].map((g, i) => (
         <section key={g[0]!.hostelCode} className="report-hostel">
-          <h2>{hostelLabel(g[0]!.hostelName)} <span className="mut">{g[0]!.districtName} district</span></h2>
+          <h2><span className="report-sn">{i + 1}.</span> {hostelLabel(g[0]!.hostelName)} <span className="mut">{g[0]!.districtName} district. Hostel ID {g[0]!.hostelCode}</span></h2>
           <ul>
             {g.map((a) => (
               <li key={a.key}>

@@ -50,7 +50,7 @@ function Compare({ a, earlier }: { a: AnomalyDoc; earlier: { m: string; q: numbe
           <dd><b>about {num(peer.typical)}</b>
             <span className="mut"> Most ask between {num(peer.low)} and {num(peer.high)}.{' '}
               {byStudents
-                ? <>Compared with {peer.count} hostels that have {peer.sizeRange ? `${num(peer.sizeRange[0])} to ${num(peer.sizeRange[1])}` : 'a similar number of'} students, worked out per student.</>
+                ? <>Compared with the {peer.count} hostels closest in size ({peer.sizeRange ? `${num(peer.sizeRange[0])} to ${num(peer.sizeRange[1])}` : 'a similar number of'} students), worked out per student. Hostels that did not ask for this item are left out.{peer.count < 15 ? ' This is a smaller group, so treat the range as a rough guide.' : ''}</>
                 : <>This is an estimate. We do not have this hostel's student count, so its size was judged from its other orders.</>}
             </span></dd></div>
       ) : a.method === 'peers' ? (
@@ -62,13 +62,14 @@ function Compare({ a, earlier }: { a: AnomalyDoc; earlier: { m: string; q: numbe
 
 const mode = (v: Ctx['view']) => (v === 'open' ? 'open' : 'done');
 
-export function SpikeCard({ a, ctx }: { a: AnomalyDoc; ctx: Ctx }) {
+export function SpikeCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string }) {
   const sev = SEVERITY[a.severity];
   const ch = chartFor(a, ctx);
   return (
     <article className={`flag sev-${sev.cls}`}>
       <div className="flag-text">
         <header className="flag-head">
+          {no && <span className="no" title="Reference number for this flag">{no}</span>}
           <h3>{itemLabel(a.item)}</h3>
           <span className={`pill ${sev.cls}`}><Icon name={a.severity === 'low' ? 'info' : 'alert'} size={14} />{sev.label}</span>
           <span className="when">for {monthLabel(a.month)}</span>
@@ -96,13 +97,14 @@ export function SpikeCard({ a, ctx }: { a: AnomalyDoc; ctx: Ctx }) {
   );
 }
 
-export function TypingCard({ g, ctx }: { g: TypingGroup; ctx: Ctx }) {
+export function TypingCard({ g, ctx, no }: { g: TypingGroup; ctx: Ctx; no?: string }) {
   const [first, ...rest] = g.items.sort((a, b) => b.ratio - a.ratio);
   const ch = chartFor(first!, ctx);
   return (
     <article className="flag sev-high typing">
       <div className="flag-text">
         <header className="flag-head">
+          {no && <span className="no" title="Reference number for this flag">{no}</span>}
           <h3>Possible typing mistake</h3>
           <span className="pill high"><Icon name="pencil" size={14} />Check now</span>
           <span className="when">for {monthLabel(g.month)}</span>
@@ -136,7 +138,7 @@ export function TypingCard({ g, ctx }: { g: TypingGroup; ctx: Ctx }) {
 }
 
 /** One finding for the whole order: the typical item is far above what similar-sized hostels ask per student. */
-export function OrderCard({ a, items, ctx }: { a: AnomalyDoc; items: AnomalyDoc[]; ctx: Ctx }) {
+export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: AnomalyDoc[]; ctx: Ctx; no?: string }) {
   const sev = SEVERITY[a.severity];
   const n = a.order?.itemsCompared ?? items.length;
   const hist = a.order?.history ?? [];
@@ -147,6 +149,7 @@ export function OrderCard({ a, items, ctx }: { a: AnomalyDoc; items: AnomalyDoc[
     <article className={`flag sev-${sev.cls} order`}>
       <div className="flag-text">
         <header className="flag-head">
+          {no && <span className="no" title="Reference number for this flag">{no}</span>}
           <h3>The whole order looks too big</h3>
           <span className={`pill ${sev.cls}`}><Icon name="alert" size={14} />{sev.label}</span>
           <span className="when">for {monthLabel(a.month)}</span>

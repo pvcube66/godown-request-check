@@ -3,11 +3,14 @@ import Link from 'next/link';
 import { logoutAction } from '../login/actions';
 import { Logo } from '@/components/Icons';
 import NavLinks from '@/components/NavLinks';
+import { Suspense } from 'react';
 import Toaster from '@/components/Toaster';
+import TopLoader from '@/components/TopLoader';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <>
+      <Suspense fallback={null}><TopLoader /></Suspense>
       <a href="#main" className="skip">Skip to the content</a>
       <header className="top noprint">
         <div className="top-in">

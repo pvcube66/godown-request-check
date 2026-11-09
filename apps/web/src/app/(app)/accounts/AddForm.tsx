@@ -1,6 +1,7 @@
 'use client';
 import { useActionState } from 'react';
 import { addAccountAction } from '../actions';
+import Spinner from '@/components/Spinner';
 
 export default function AddForm() {
   const [state, action, pending] = useActionState(addAccountAction, null);
@@ -12,7 +13,8 @@ export default function AddForm() {
       <input id="username" name="username" autoComplete="off" required />
       <label htmlFor="password">Portal password</label>
       <input id="password" name="password" type="password" autoComplete="new-password" required />
-      <button className="primary" disabled={pending}>{pending ? 'Checking the login and loading requests. This can take about 20 seconds…' : 'Add this godown'}</button>
+      <button className="primary" disabled={pending}>{pending ? <><Spinner />Checking the login and loading requests…</> : 'Add this godown'}</button>
+      {pending && <p className="mut" role="status">This can take up to a minute while we load the godown's past requests. Please keep this page open.</p>}
       {state && <p className={state.ok ? 'ok-text' : 'bad-text'} role="status">{state.message}</p>}
       <p className="mut" style={{ marginTop: 12, fontSize: 15 }}>The password is stored in encrypted form.</p>
     </form>
