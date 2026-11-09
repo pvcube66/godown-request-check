@@ -269,8 +269,7 @@ main{max-width:1080px;width:100%;margin:0 auto;padding:34px 24px 70px;flex:1}
 
 .flag{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:22px 30px;padding:26px 26px 26px 30px;border-top:1px solid var(--line-2);transition:max-height .45s var(--ease),opacity .3s,transform .35s var(--ease),padding .45s var(--ease)}
 .hostel-head+.flag,.hostel.solo>.flag:first-child{border-top:0}
-.flag::before{content:'';position:absolute;left:0;top:22px;bottom:22px;width:4px;border-radius:0 4px 4px 0;background:var(--low)}
-.flag.sev-high::before{background:var(--high)} .flag.sev-medium::before{background:var(--amber)}
+.flag::before{content:'';position:absolute;left:0;top:22px;bottom:22px;width:4px;border-radius:0 4px 4px 0;background:var(--line)}
 .flag.leaving{max-height:0;opacity:0;transform:translateX(14px);padding-block:0;overflow:hidden;border-top-width:0;pointer-events:none}
 .flag-head{display:flex;gap:10px 12px;align-items:center;flex-wrap:wrap}
 .flag-head h3{font-size:20.5px}
@@ -511,19 +510,6 @@ body[data-loading] main{opacity:.55;transition:opacity .2s;pointer-events:none}
 .dup-more>summary::-webkit-details-marker{display:none}.dup-more[open]>summary svg{transform:rotate(180deg)}
 
 /* ───────── Cards and tabs coloured by how serious they are ───────── */
-.flag.sev-high{background:color-mix(in srgb,var(--high) 8%,var(--card))}
-.flag.sev-medium{background:color-mix(in srgb,var(--amber) 13%,var(--card))}
-.flag.sev-low{background:color-mix(in srgb,var(--low) 6%,var(--card))}
-.flag.sev-high{border-top-color:color-mix(in srgb,var(--high) 26%,var(--line))}
-.flag.sev-medium{border-top-color:color-mix(in srgb,var(--amber) 38%,var(--line))}
-.flag.sev-low{border-top-color:color-mix(in srgb,var(--low) 22%,var(--line))}
-.flag::before{width:6px;top:0;bottom:0;border-radius:0}
-.flag.sev-high::before{background:var(--high)}
-.flag.sev-medium::before{background:var(--amber)}
-.flag.sev-low::before{background:var(--low)}
-.flag .flag-head h3{color:inherit}
-.flag.sev-high .flag-head h3{color:color-mix(in srgb,var(--high) 72%,var(--ink))}
-.flag.sev-medium .flag-head h3{color:color-mix(in srgb,var(--med) 78%,var(--ink))}
 .tab.high{background:color-mix(in srgb,var(--high) 9%,var(--card));border-color:color-mix(in srgb,var(--high) 30%,var(--line))}
 .tab.medium{background:color-mix(in srgb,var(--amber) 15%,var(--card));border-color:color-mix(in srgb,var(--amber) 42%,var(--line))}
 .tab.low{background:color-mix(in srgb,var(--low) 7%,var(--card));border-color:color-mix(in srgb,var(--low) 24%,var(--line))}
@@ -536,14 +522,6 @@ body[data-loading] main{opacity:.55;transition:opacity .2s;pointer-events:none}
 .flag{--pt:26px;--pr:26px;--pl:30px;padding:var(--pt) var(--pr) var(--pt) var(--pl)}
 .nested .flag{--pt:20px;--pr:22px;--pl:26px}
 @media (max-width:760px){.flag{--pt:22px;--pr:18px;--pl:22px}}
-.flag.sev-high{background:color-mix(in srgb,var(--high) 11%,var(--card))}
-.flag.sev-medium{background:color-mix(in srgb,var(--amber) 17%,var(--card))}
-.flag.sev-low{background:color-mix(in srgb,var(--low) 9%,var(--card))}
-.sev-banner{grid-column:1/-1;margin:calc(var(--pt) * -1) calc(var(--pr) * -1) 0 calc(var(--pl) * -1);padding:11px var(--pr) 11px var(--pl);display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;font-size:16.5px;line-height:1.4;border-bottom:1px solid transparent}
-.sev-banner b{font-size:17px;font-weight:800}
-.sev-banner.high{background:color-mix(in srgb,var(--high) 20%,var(--card));color:color-mix(in srgb,var(--high) 80%,var(--ink));border-bottom-color:color-mix(in srgb,var(--high) 30%,var(--card))}
-.sev-banner.medium{background:color-mix(in srgb,var(--amber) 30%,var(--card));color:color-mix(in srgb,var(--med) 85%,var(--ink));border-bottom-color:color-mix(in srgb,var(--amber) 45%,var(--card))}
-.sev-banner.low{background:color-mix(in srgb,var(--low) 14%,var(--card));color:var(--ink-2);border-bottom-color:color-mix(in srgb,var(--low) 25%,var(--card))}
 .tab-body{gap:1px}
 .tab-label{font-size:19px;font-weight:800;line-height:1.2}
 .tab.high .tab-label{color:color-mix(in srgb,var(--high) 80%,var(--ink))}
