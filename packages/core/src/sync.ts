@@ -6,7 +6,7 @@ import type { MasterDataCollections } from './masterData.js';
 import { AccountDoc, Collections, RunDoc } from './db.js';
 import { parseGodownRows } from './parser.js';
 import { syncOrders } from './orders.js';
-import { syncFulfilment } from './fulfilment.js';
+import { syncFulfilment, syncOrderSuppliers } from './fulfilment.js';
 import { fetchGodownMonth, fetchHostelStudents, fetchRequestItems, fetchRequestRemark, PortalAuthError } from './portalClient.js';
 
 export const MONTH_NAMES = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
@@ -60,6 +60,10 @@ export async function syncAccount(c: Collections, acct: AccountDoc, months: stri
   try { await syncFulfilment(c, acct, token); } catch (e) {
     if (e instanceof PortalAuthError) throw e;
     console.error('supplied quantities failed:', e instanceof Error ? e.message : e);
+  }
+  try { await syncOrderSuppliers(c, acct, token); } catch (e) {
+    if (e instanceof PortalAuthError) throw e;
+    console.error('suppliers failed:', e instanceof Error ? e.message : e);
   }
   await c.accounts.updateOne({ username: acct.username }, { $set: { lastSyncAt: new Date(), lastError: null } });
   return total;

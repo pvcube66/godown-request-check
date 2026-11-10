@@ -12,7 +12,7 @@ export const BYS: { key: By; label: string }[] = [
 /** The numbers behind "is this supplier meeting demand?". Shown on the page so nobody has to guess. */
 export const MEETING = { fill: 0.9, notFill: 0.75, lateShare: 0.1, notLateShare: 0.25 } as const;
 
-export type PerfOrder = Pick<OrderDoc, 'account' | 'districtName' | 'hostelCode' | 'hostelName' | 'stage' | 'stageSince' | 'reached' | 'placedOn'> & {
+export type PerfOrder = Pick<OrderDoc, 'supplier' | 'account' | 'districtName' | 'hostelCode' | 'hostelName' | 'stage' | 'stageSince' | 'reached' | 'placedOn'> & {
   fulfilment?: Pick<NonNullable<OrderDoc['fulfilment']>, 'lineFill' | 'receivedFill' | 'lines' | 'linesWithSupply' | 'fullLines' | 'variationLines'>;
 };
 
@@ -38,9 +38,10 @@ export interface PerfRow {
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const MOVING: Stage[] = ['pending', 'dc', 'transit'];
 
-/** Which supplier served an order: the supplier mapped to its district on the day it was placed (history is kept). */
+/** Which supplier served an order: the one the portal names on its delivery note; otherwise the supplier mapped to its district on the day it was placed (history is kept). */
 export function supplierResolver(mappings: readonly Pick<MappingDoc, 'districtCode' | 'supplierCode' | 'from' | 'to'>[], supplierName: (code: string) => string) {
-  return (o: Pick<PerfOrder, 'districtName' | 'placedOn' | 'stageSince'>): { key: string; label: string } => {
+  return (o: Pick<PerfOrder, 'districtName' | 'placedOn' | 'stageSince'> & { supplier?: { id: string; name: string } }): { key: string; label: string } => {
+    if (o.supplier) return { key: o.supplier.id, label: o.supplier.name };         // the supplier the portal names on the delivery note wins
     const day = istDay(o.placedOn ?? o.stageSince);
     const code = normalizedDistrictCode(o.districtName);
     const m = mappings.find((x) => x.districtCode === code && x.from <= day && (x.to === null || day < x.to));
@@ -137,7 +138,7 @@ export function hostelService(orders: readonly PerfOrder[]): HostelService {
 
 export async function loadPerfOrders(c: Collections, names: string[] | null, month?: string): Promise<PerfOrder[]> {
   return c.orders.find(scoped(orderFilter({ month }), names) as never, { projection: {
-    account: 1, districtName: 1, hostelCode: 1, hostelName: 1, stage: 1, stageSince: 1, reached: 1, placedOn: 1,
+    supplier: 1, account: 1, districtName: 1, hostelCode: 1, hostelName: 1, stage: 1, stageSince: 1, reached: 1, placedOn: 1,
     'fulfilment.lineFill': 1, 'fulfilment.receivedFill': 1, 'fulfilment.lines': 1, 'fulfilment.linesWithSupply': 1, 'fulfilment.fullLines': 1, 'fulfilment.variationLines': 1,
   } }).toArray() as unknown as Promise<PerfOrder[]>;
 }

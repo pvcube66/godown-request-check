@@ -172,3 +172,23 @@ export async function fetchRequestRemark(token: string, requestId: string): Prom
   for (const row of rows) for (const t of [row.remarks, row.supplierRemarks, row.vendorRemarks]) if (t?.trim()) return t.trim().slice(0, 400);
   return null;
 }
+
+export interface OrderSupplier { id: string; name: string; category?: string }
+
+/** Read-only: which supplier a delivery note was made for. The portal's answer also carries the supplier's bank, PAN, phone and e-mail;
+ *  none of that is read out of the response. Only the supplier's id, name and supply category are kept. */
+export async function fetchOrderSupplier(token: string, requestId: string): Promise<OrderSupplier | null> {
+  const path = 'GetVendorDtls';
+  const r = await fetch(`${base()}Mess/api/mess/${path}?requestId=${encodeURIComponent(requestId)}`, { method: 'GET', headers: authHeaders(token), signal: AbortSignal.timeout(30_000) });
+  if (r.status === 401 || r.status === 403) throw new PortalAuthError(`Token rejected (${r.status})`);
+  if (!r.ok) throw new Error(`${path} HTTP ${r.status}`);
+  const j = await r.json() as { data?: unknown; msg?: unknown; message?: unknown };
+  const message = String((j?.data as { msg?: unknown } | undefined)?.msg ?? j?.msg ?? j?.message ?? '');
+  if (/unauthori[sz]ed|invalid token|token expired|session expired/i.test(message)) throw new PortalAuthError(`${path}: token rejected`);
+  if (!Array.isArray(j?.data)) return null;
+  const row = j.data[0] as Record<string, unknown> | undefined;
+  const id = portalText(row?.vendor_id), name = portalText(row?.vendor_name);
+  if (!id || !name) return null;
+  const category = portalText(row?.supply_category_name);
+  return { id, name, ...(category ? { category } : {}) };
+}

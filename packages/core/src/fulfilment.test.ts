@@ -75,3 +75,24 @@ describe('reading the item lists', () => {
     err.mockRestore();
   });
 });
+
+import { syncOrderSuppliers } from './fulfilment.js';
+describe('reading the supplier of each order', () => {
+  const acct = { username: 'GDN-X' } as AccountDoc;
+  it('asks only for delivered or dispatched orders with no supplier yet, and stores just id, name and category', async () => {
+    let filter: unknown; const updates: { f: unknown; set: unknown }[] = [];
+    const c = { orders: { find: (f: unknown) => { filter = f; return { sort: () => ({ limit: () => ({ toArray: async () => [{ requestId: 'R1' }, { requestId: 'R2' }] }) }) }; }, updateOne: async (f: unknown, u: { $set: unknown }) => { updates.push({ f, set: u.$set }); } } } as unknown as Collections;
+    const read = vi.fn(async (_t: string, id: string) => (id === 'R1' ? { id: 'VND1', name: 'Supplier One', category: 'Food' } : null));
+    expect(await syncOrderSuppliers(c, acct, 't', 10, 0, read)).toBe(2);
+    expect(filter).toMatchObject({ account: 'GDN-X', stage: { $in: ['dc', 'transit', 'received', 'variation'] }, supplier: { $exists: false } });
+    expect(updates[0]!.set).toEqual({ supplier: { id: 'VND1', name: 'Supplier One', category: 'Food' } });
+    expect(updates[1]!.set).toHaveProperty('supplierCheckedAt');          // none named: not asked again
+  });
+  it('stops on a rejected login, skips other failures', async () => {
+    const c = { orders: { find: () => ({ sort: () => ({ limit: () => ({ toArray: async () => [{ requestId: 'R1' }] }) }) }), updateOne: async () => undefined } } as unknown as Collections;
+    await expect(syncOrderSuppliers(c, acct, 't', 10, 0, async () => { throw new PortalAuthError('x'); })).rejects.toBeInstanceOf(PortalAuthError);
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(await syncOrderSuppliers(c, acct, 't', 10, 0, async () => { throw new Error('500'); })).toBe(0);
+    err.mockRestore();
+  });
+});

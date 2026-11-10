@@ -235,3 +235,15 @@ Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked 
 - Delivery ticks only work once the webhook is set up. Until then messages stay "Sent".
 - Telugu wording, a reply button and a WhatsApp login code are not included (they need the client's decision).
 - Hosting: the webhook needs a public HTTPS address, which the current Vercel site has; it moves with the site when hosting details arrive (Phase 10).
+
+
+## Phase 7 addition — suppliers named by the portal
+
+While looking for supplier data we found that the portal has a read-only endpoint, `GetVendorDtls?requestId=...`, that names the supplier on each delivery note (plus hostel and godown). The hourly check now reads it once per order (up to 120 per godown login per hour) and keeps **only the supplier's id, name and supply category**. The same portal answer also contains the supplier's bank, PAN, phone and e-mail; these are not read out of the response or stored. Supplier performance now uses the portal's supplier for each order, falling back to the district mapping only for orders without one. This reduces how much the client's mapping sheet is needed for the supplier view (it is still needed for district-to-godown history). One real read-only call was made to confirm the endpoint; nothing was written to the portal.
+
+## Phase 10 (partly) and Phase 11
+
+- **Done without hosting details:** `/api/health` (200 while the last good hourly check is under 2 hours old, else 503; shows only times and counts), a red bar on the first page when the check has not worked for over 2 hours, an administrator notice when a godown login is failing, `scripts/backup.sh`, and `docs/handover.md`.
+- **Not done (needs the hosting details):** moving the web app, hourly job and database to the client's server, HTTPS, the managed hourly service, off-machine backups, the cut-over.
+- **Phase 11:** `docs/acceptance-checklist.md`, `docs/training-guide.md`, and re-runnable local scripts in `scripts/acceptance/`: `check-access.mts` (about 90 role, district and rule checks against a running copy of the app on a made-up database, all passing) and `load-check.mts` (25,000 orders: the main calculations each finish in under half a second locally). The load check does not measure the portal's own response time, which sets how long the hourly read takes.
+- The first time WhatsApp is switched to Live, every hostel with a late order and a phone number is due at once (about one message per such hostel). Use Preview for a few days first and consider starting with a test phone only.

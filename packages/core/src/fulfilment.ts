@@ -1,6 +1,6 @@
 import type { AccountDoc, Collections } from './db.js';
 import type { Stage } from './orders.js';
-import { fetchRequestItems, PortalAuthError, type PortalRequestItem } from './portalClient.js';
+import { fetchOrderSupplier, fetchRequestItems, PortalAuthError, type OrderSupplier, type PortalRequestItem } from './portalClient.js';
 
 /** How much of an order the godown actually supplied, and how much the hostel received.
  *  Read from the portal's item list (read-only) once an order has a delivery note, and again each time its stage changes.
@@ -67,6 +67,28 @@ export async function syncFulfilment(
     } catch (e) {
       if (e instanceof PortalAuthError) throw e;
       console.error(`fulfilment read failed for ${o.requestId}:`, e instanceof Error ? e.message : e);
+    }
+    if (pauseMs) await new Promise((r) => setTimeout(r, pauseMs));
+  }
+  return done;
+}
+
+/** Reads which supplier each delivered-or-dispatched order belongs to (once per order, a limited number per hour). Read-only. */
+export async function syncOrderSuppliers(
+  c: Collections, acct: AccountDoc, token: string, limit = FULFILMENT_PER_RUN, pauseMs = 200,
+  read: (token: string, requestId: string) => Promise<OrderSupplier | null> = fetchOrderSupplier,
+): Promise<number> {
+  const todo = await c.orders.find({ account: acct.username, stage: { $in: SUPPLIED_STAGES }, supplier: { $exists: false }, supplierCheckedAt: { $exists: false } } as never, { projection: { requestId: 1 } })
+    .sort({ placedOn: -1 }).limit(limit).toArray();
+  let done = 0;
+  for (const o of todo) {
+    try {
+      const sup = await read(token, o.requestId);
+      await c.orders.updateOne({ account: acct.username, requestId: o.requestId }, { $set: sup ? { supplier: sup } : { supplierCheckedAt: new Date() } } as never);
+      done++;
+    } catch (e) {
+      if (e instanceof PortalAuthError) throw e;
+      console.error(`supplier read failed for ${o.requestId}:`, e instanceof Error ? e.message : e);
     }
     if (pauseMs) await new Promise((r) => setTimeout(r, pauseMs));
   }

@@ -67,7 +67,7 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
             ? <>The {num(v.total)} orders behind this row. <Link href={here({ focus: undefined })} className="link-arrow">Back to all</Link></>
             : 'Each supplier’s share of what hostels asked for that was actually supplied, how quickly, and how many orders are still waiting. The weakest are at the top.'}
         </p>
-        {!v.mapped && v.by === 'supplier' && <p className="status bad" role="status">No district-to-supplier mapping has been imported yet, so orders cannot be given to a supplier. Import the mapping under Master data. Meanwhile use the Godown or District view.</p>}
+        {v.by === 'supplier' && v.main.rows.some((r) => r.key === '(unmapped)') && <p className="status bad" role="status">Some orders have no supplier yet: the portal names the supplier once a delivery note exists, and orders that are still Pending have none. {v.mapped ? '' : 'You can also import the district-to-supplier mapping under Master data. '}</p>}
         <p className="mut small">Quantities have been read for {num(v.coverage.read)} of {num(v.coverage.withDc)} orders that have a delivery note. The rest are read a few every hour, so the figures sharpen over the first day.</p>
       </section>
 

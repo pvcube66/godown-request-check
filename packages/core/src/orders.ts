@@ -53,6 +53,8 @@ export interface OrderDoc {
   dcNumber: string | null; vehicleNo: string | null;
   /** How much was supplied / received, read from the item list (see fulfilment.ts). Absent until read. */
   fulfilment?: Fulfilment;
+  /** The supplier the portal names on this order's delivery note (id, name, category only). Absent until read. */
+  supplier?: { id: string; name: string; category?: string };
   firstSeenAt: Date; lastSeenAt: Date;
 }
 

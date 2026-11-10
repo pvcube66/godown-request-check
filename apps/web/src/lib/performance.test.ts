@@ -106,3 +106,11 @@ describe('monthly checkpoint', () => {
     expect(cp.rows[0]!.months['2026-10']!.fill).toBeCloseTo(0.75);
   });
 });
+
+describe('supplier named by the portal', () => {
+  it('wins over the district mapping', () => {
+    const resolve = supplierResolver([{ districtCode: normalizedDistrictCode('Nalgonda'), supplierCode: 'S9', from: '2026-01-01', to: null }], (c) => `Mapped ${c}`);
+    expect(resolve({ districtName: 'Nalgonda', placedOn: d('2026-11-01'), stageSince: NOW, supplier: { id: 'VND0001', name: 'Portal Supplier' } })).toEqual({ key: 'VND0001', label: 'Portal Supplier' });
+    expect(resolve({ districtName: 'Nalgonda', placedOn: d('2026-11-01'), stageSince: NOW }).key).toBe('S9');
+  });
+});

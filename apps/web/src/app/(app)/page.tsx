@@ -4,6 +4,7 @@ import { PageSkeleton } from '@/components/Skeletons';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { overdueCount } from '@/lib/issues';
+import { loadHealth, STALE_MINUTES } from '@/lib/health';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
 import { loadHistory, loadOrderItems, loadRequestsById } from '@/lib/history';
@@ -93,6 +94,7 @@ async function HomeContent({ sp }: { sp: SP }) {
   const issues: Record<string, string> = {};
   for (const i of issueRows) for (const k of i.anomalyKeys) issues[k] = i.issueId;
   const waitDays = await getWaitDays(c);
+  const health = await loadHealth(c);
   const overdue = await overdueCount(c, names, waitDays);
   const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues };
 
@@ -121,6 +123,8 @@ async function HomeContent({ sp }: { sp: SP }) {
         </p>
       </section>
 
+      {!health.ok && <p className="alert-bar" role="alert">The hourly check has not worked for over {STALE_MINUTES / 60} hours{health.lastSuccessAt ? <> (last good check {ago(health.lastSuccessAt)})</> : ' (no good check on record)'}. The lists below may be out of date. Please tell an administrator.</p>}
+      {viewer.role === 'admin' && health.needAttention > 0 && <p className="alert-bar" role="alert">{health.needAttention} godown {health.needAttention === 1 ? 'login needs' : 'logins need'} attention (portal sign-in failing). <Link href="/accounts">See Godowns</Link></p>}
       {overdue > 0 && <p className="alert-bar" role="status">{overdue} {overdue === 1 ? 'hostel has' : 'hostels have'} not sent a new indent {waitDays}+ {waitDays === 1 ? 'day' : 'days'} after a rejection. <Link href="/issues">See the list</Link></p>}
 
       {showSummary && top.length > 0 && (
