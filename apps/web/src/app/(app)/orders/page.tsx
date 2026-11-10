@@ -21,7 +21,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const c = await getDb();
   const now = new Date();
   const [all, counts, months] = await Promise.all([loadOrders(c, sp), stageCounts(c), orderMonths(c)]);
-  const tab = TABS.find((t) => t.key === sp.stage)?.key ?? 'open';
+  const tab = TABS.find((t) => t.key === sp.stage)?.key ?? 'all';
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
   const pageNo = Math.min(Math.max(1, Number(sp.p) || 1), pages);
   const offset = (pageNo - 1) * PAGE_SIZE;
@@ -31,10 +31,10 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const lastSeen = all.reduce<Date | null>((m, o) => (!m || o.lastSeenAt > m ? o.lastSeenAt : m), null);
 
   return (
-    <>
+    <div className="orders-page">
       <section className="hero">
         <p className="greet">Order tracking</p>
-        <h1>{tab === 'open' ? `${num(counts.open ?? 0)} orders still in progress` : `${num(all.length)} ${all.length === 1 ? 'order' : 'orders'}${tab === 'all' ? '' : ` · ${TABS.find((t) => t.key === tab)?.label}`}`}</h1>
+        <h1>{num(all.length)} {tab === 'all' ? (all.length === 1 ? 'order' : 'orders') : `${TABS.find((t) => t.key === tab)?.label} ${all.length === 1 ? 'order' : 'orders'}`}</h1>
         <p className="lede">
           Every order from the portal, and how long it has been at its current stage. The longest-waiting orders are at the top.
           {late > 0 && <> <b>{num(late)}</b> {late === 1 ? 'has' : 'have'} been waiting over two weeks.</>}
@@ -47,7 +47,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
           const n = (counts as Record<string, number | undefined>)[t.key] ?? 0;
           const on = t.key === tab;
           return (
-            <Link key={t.key} href={qs({ ...base, p: '' }, { stage: t.key === 'open' ? '' : t.key })} className={`order-tab ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined}>
+            <Link key={t.key} href={qs({ ...base, p: '' }, { stage: t.key === 'all' ? '' : t.key })} className={`order-tab ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined}>
               {t.label} <span className="order-tab-n">{num(n)}</span>
             </Link>
           );
@@ -124,6 +124,6 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
           </p>
         </>
       )}
-    </>
+    </div>
   );
 }

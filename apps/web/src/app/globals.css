@@ -555,3 +555,7 @@ body[data-loading] main{opacity:.55;transition:opacity .2s;pointer-events:none}
 .order-table td.stage-col.current{background:var(--brand-tint)}
 .order-table td.stage-col.current.watch{background:var(--med-tint);color:var(--med)}
 .order-table td.stage-col.current.late{background:var(--high-tint);color:var(--high)}
+/* Order tracking uses the full width of the screen */
+main:has(.orders-page){max-width:none;padding-left:28px;padding-right:28px}
+.orders-page{width:100%}
+.orders-page .order-table td{font-size:15px}
