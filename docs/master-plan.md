@@ -9,7 +9,7 @@ Every point below is traced back to one of those two. Nothing here is built yet 
 - **R-numbers** (R1, R2 …) are the individual requirements pulled out of the transcript and checklist. Section 1 lists them all; the phases in section 4 say which R-numbers each phase delivers, and section 8 proves nothing was dropped.
 - **Done** = already live. **Partly** = a base exists. **New** = nothing yet.
 - Effort figures are working days for one developer, rounded, to feed the costing the client asked for. They are estimates, not quotes.
-- Items marked **ASK** are unclear in the transcript and need the client's answer before that part is built (section 3).
+- Items marked **ASK** are the two optional WhatsApp-login points; everything else was decided in section 3.
 
 ---------------------------------------------------------------------
 ## 1. Requirements register (everything the client said or wrote)
@@ -45,14 +45,14 @@ Every point below is traced back to one of those two. Nothing here is built yet 
 | R14 | Smaller fonts, compact tiles/cards, shorter page length: "at a glance I should see more data". | Both | New |
 | R15 | **Black-and-white theme.** Colour only for alerts and status tags (red/yellow/green). | Both | New |
 | R16 | Tile on the surface = hostel name, hostel code, **type of issue** (duplicate / anomaly / …). Details open on click. | Transcript | **Partly** |
-| R17 | The "similar hostels" bar should stay (blue today). With B&W theme, decide how to show it. | Transcript | **ASK** (colour rule) |
+| R17 | The "similar hostels" bar should stay. In the B&W theme it is shown in grey with an outline (see Phase 3), not colour. | Transcript | **Decided (D5)** |
 | R18 | Show the **student count** per hostel (about 40 hostels have none). | Transcript | **Done** (labelled estimate for the 40) |
 
 ### E. Anomaly workflow
 | # | Requirement | Source | State |
 |---|---|---|---|
 | R19 | **Replace "this is fine / this looks wrong"** with two plain actions. "Wrong" means *issue: the hostel must fix it*. No system "learning": "it might learn wrongly… intimation is enough". | Transcript | **Partly** (buttons exist, wording and meaning change) |
-| R20 | **Issue = reject the whole indent.** There is **no edit option** (editing wastes time, so a final version never arrives). The hostel raises a fresh indent. One wrong item rejects the whole indent. | Transcript | New |
+| R20 | **Issue = the whole indent must be redone.** There is **no edit option** (editing wastes time). The hostel raises a fresh indent. One wrong item sends back the whole indent. **The operator rejects it on the real portal; our app only records and tracks it (D3).** | Transcript | New |
 | R21 | After an issue/reject, the order sits in a **"waiting for new indent"** list. If the hostel raises a new one, the system **recognises it** and links the two. If none arrives, **alert after 2 days**. | Transcript | New |
 | R22 | A **manual flag**: even when the system did not flag something, an operator can raise an issue on any order. | Transcript | New |
 | R23 | **Remarks** on each issue/order: who called, when, what was said ("called hostel in-charge on this date, told them to fix chicken masala"). Remarks per stage too. | Both | New |
@@ -63,7 +63,7 @@ Every point below is traced back to one of those two. Nothing here is built yet 
 ### F. Order stages
 | # | Requirement | Source | State |
 |---|---|---|---|
-| R27 | Count **days in stage** for **Pending, DC, In-Transit only**. Once **Acknowledged**, stop counting and show the acknowledged **date in green**. | Transcript | **Partly** (we count every stage; rule changes) |
+| R27 | Count **days in stage** for **Pending, DC, In-Transit and Variation (D4)**. Once **Acknowledged**, stop counting and show the acknowledged **date in green**. | Transcript | **Partly** (we count every stage; rule changes) |
 | R28 | **Rejected / Cancelled are final actions**, not "waiting" stages. | Transcript | **Partly** |
 | R29 | Hostel **name + code + issue type** list for stuck orders, per stage. | Transcript | **Partly** |
 
@@ -85,8 +85,8 @@ Every point below is traced back to one of those two. Nothing here is built yet 
 | # | Requirement | Source | State |
 |---|---|---|---|
 | R36 | **Document vault**: files uploaded in the dashboard go to the client's **2 TB Google Drive** (shared drive), not the 8 GB server. Searchable by firm/date/name, viewable, downloadable, printable, mappable to a **party master**. | Both | New |
-| R37 | Host on the client's **GoDaddy server (8 GB RAM)**. We deploy, then **hand everything over**; their in-house person takes over hosting and data. | Transcript | New (today: Vercel + MongoDB + cron on this PC) |
-| R38 | The client has an **existing portal** (ERP, work desk, document manager, tools and quick links). Wants this built to fit it: "don't do a new one for what I have." | Transcript | New, **ASK** (see 3.1) |
+| R37 | Host on the client's **GoDaddy server (8 GB RAM)**. We deploy, then **hand everything over**; their in-house person takes over hosting and data. The client will send the hosting details (D2). | Transcript | New (today: Vercel + MongoDB + cron on this PC) |
+| R38 | The client has an **existing portal** (ERP, work desk, document manager). **Decision D1: we build on top of this repo only**, standalone, and may be linked from his quick links. | Transcript | **Closed (D1)** |
 
 ### J. Commercial and process
 | # | Requirement | Source | State |
@@ -117,27 +117,39 @@ Anomaly detection (own history, similar-size hostels, typing slips, whole-order,
 - **Design rule kept throughout:** the system uses hostel-level and order-level data only. It never requests, stores or shows student names or personal details.
 
 ---------------------------------------------------------------------
-## 3. Open questions for the client (ask once, in one call)
+## 3. Decisions made, and what is still needed
 
-Grouped by what they block. Each has our recommended default so work is not stuck.
+### 3.1 Decisions (confirmed by the project owner, 10 Nov 2026)
+| # | Question | Decision | Effect on the plan |
+|---|---|---|---|
+| D1 | Existing client portal (R38): separate or inside it? | **Build on top of this repository only.** Standalone app. We do not touch or merge into the client's other portal. A link from his portal's quick links is enough. | R38 is closed. No integration work. |
+| D2 | Hosting (R37) | **The client will send the hosting details.** | Phase 10 waits on those details. Until then we keep Vercel and Atlas as they are. |
+| D3 | "Reject" (R20) | **We never write anything to the government portal.** We have no permission to change it, and we are building only on top of it. Everything we do with the portal is **read-only**. "Issue" is a state **inside our app**. The operator rejects on the real portal themselves. Each hour we read the portal, see that the order became Rejected/Cancelled, and then track the wait for a new indent. | Hard rule for the whole project, see 3.3. |
+| D4 | Count days in Variation too? | **Yes, count it.** | Day counting covers Pending, DC Generated, In-Transit **and Variation**. Acknowledge stops the count. |
+| D5 | Black and white: which taste? | **We choose the design and build the whole theme.** The client wants black and white only. | Full theme spec in Phase 3. |
+| D6 | The 2-day wait after a reject: fixed, or changeable? | Decided for you (see 3.2). | Setting, default 2 days. |
 
-### 3.1 Blocks the build direction
-1. **Existing portal (R38).** Build ours as a separate site linked from his portal's quick links (recommended, fastest), or as a module inside his portal code? Who controls login there (single sign-on)? Can we see it?
-2. **Hosting (R37).** Will we get SSH access to the GoDaddy server, Node 22 and MongoDB allowed, a domain, and HTTPS? Is MongoDB Atlas (cloud) acceptable or must data be on his server?
-3. **"Reject" (R20).** Does the operator reject inside the **government portal** (we only record that it happened) or should **our dashboard press reject on the portal** for them? Recommended: record only, as writing to the government portal needs its own approval and testing.
+### 3.2 About D6 in plain words
+When an operator rejects an indent because of a mistake, the hostel has to send a **new** indent. The client said: "if the new one has not come in two days, show an alert."
+- The only thing to settle was whether "2" is hard-wired or a number an admin can change later, and whether it counts calendar days.
+- **Default we build:** an admin setting, **2 calendar days**, applies to every godown. If the client later wants a different number, it is one field, no code change. Nothing to decide now.
 
-### 3.2 Changes what we show
-4. **Variation stage (R27).** Count days in Variation too? The client named only Pending, DC, In-Transit, then Acknowledged.
-5. **Black and white (R15, R17).** Confirm the "similar hostels" bar and the three category boxes keep a colour (our reading: colour only for alerts).
-6. **Two-day alert (R21).** Is "two days" fixed, or a setting per godown? Does it count calendar days?
-7. **Unit mismatch.** If the same item appears as both 200 g and 250 g packs, do we compare them separately? (we need pack size in the comparison, see Phase 1).
+### 3.3 Hard rules from the project owner
+1. **Read-only toward the government portal.** No POST, PUT, DELETE, reject, edit, or any action. Only the existing login and the GET reports we already use.
+2. **Everything is built in this repository**, on top of the code that exists.
+3. **No student-level data** is requested, stored or shown. Hostel-level and order-level data only.
+4. Production deploys only when the owner says so.
 
-### 3.3 Needed from the client
-8. The **district → godown → supplier** mapping sheet (R1), and the **godown and hostel in-charge numbers** (or permission to read them from the portal).
-9. **Operator list** (name, phone, email, districts) (R5, R6).
-10. **WhatsApp:** a never-used SIM, business name ("NACO India Limited" was mentioned), a business mail ID, and Meta business verification (R32). The client said a "Meta profile" already exists, so confirm whether we can use it.
-11. **Google Drive:** shared-drive access for a service account (R36); folder structure; who owns the party master.
-12. **Message wording** for the in-transit reminder (draft sent once; reminders reuse it).
+### 3.4 Still needed from the client (nothing else blocks)
+1. **Hosting details** (server access, domain, whether MongoDB may run there or we keep Atlas).
+2. The **district → godown → supplier mapping sheet** (R1).
+3. The **operator list**: name, phone, email, districts (R5, R6).
+4. **WhatsApp:** a never-used SIM, business name, a business email, Meta verification (R32). Confirm whether the existing Meta profile can be used.
+5. **Google Drive:** shared-drive access for a service account (R36).
+6. The **in-transit reminder wording** (R30), and whether WhatsApp OTP login (R8) is wanted.
+7. **Godown and hostel in-charge numbers**, or permission to read them from the portal reports (R34).
+
+Assumption we will build unless told otherwise: if the same item comes in different pack sizes (200 g vs 250 g), we compare like with like (same item and pack size).
 
 ---------------------------------------------------------------------
 ## 4. Phased plan
@@ -146,7 +158,7 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 
 ### Phase 0 — Kick-off, decisions, and long-lead items (start immediately)
 **Goal:** unblock everything that waits on other people.
-- Run the single client call (section 3) and record answers in this file.
+- Collect the items in section 3.4 from the client and record them in this file.
 - Start the **WhatsApp** application now (R32): fresh number, business details, Meta verification. Approval runs while we build.
 - Ask for **server access** and **Drive access** (R37, R36).
 - **Rotate** the portal, database and dashboard passwords that were pasted in chat earlier. Store new ones only in the server's secret store.
@@ -179,11 +191,46 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 
 ### Phase 3 — Look and feel + global search → R14, R15, R16, R12
 **Goal:** a compact black-and-white working screen.
-- **Theme:** neutral black/white/grey. Colour kept only for severity (red/amber/green) and status tags (R15). Decide the "similar hostels" bar colour with the client (3.2 Q5).
+- **Theme (decision D5: we chose the design).** Direction: *a quiet, printed-ledger look.* Black ink on white paper, hairline rules, no decoration. Information first. The client wants black and white, so the design depends on **contrast, weight and spacing**, not colour.
+
+  **Palette (tokens, defined once in the stylesheet):**
+  | Token | Value | Use |
+  |---|---|---|
+  | `--paper` | `#ffffff` | page and card background |
+  | `--surface` | `#f5f5f5` | table header, zebra rows, inputs at rest |
+  | `--line` | `#e2e2e2` | hairline dividers (1 px) |
+  | `--line-strong` | `#0a0a0a` | focus ring, selected outline |
+  | `--ink` | `#0a0a0a` | text, primary buttons, selected tabs, sidebar |
+  | `--ink-2` | `#3d3d3d` | secondary text |
+  | `--muted` | `#6b6b6b` | labels, hints (passes 4.5:1 contrast on white) |
+  | `--alert-high` | `#b3261e` | **alerts only**: Check now, overdue |
+  | `--alert-mid` | `#8a5a00` on `#fff4d6` | **alerts only**: Take a look, waiting a while |
+  | `--ok` | `#1a6b3a` | **status only**: Acknowledged date, "Working" |
+
+  **Colour rule (the only places colour may appear):** (1) the three category tabs and severity tags, (2) a day count that has gone overdue, (3) the green Acknowledged date, (4) system errors. Never decorative, never a background of a whole card. Colour is never the only signal: every coloured item also carries a word or icon ("Check now", "66 days late"), so it still reads on a black-and-white printout.
+
+  **Components in black and white:**
+  - **Sidebar:** solid black (`--ink`), white text, the current page shown as a white bar with black text. Collapsible, as now.
+  - **Buttons:** primary = solid black, white text; secondary = white with a black 1.5 px outline; destructive wording but not colour (an "Issue" button is outlined with an icon, not red).
+  - **Tabs and filters:** the selected one is inverted (black fill, white text); the rest are white with an outline. Counts sit in a small outlined pill.
+  - **Tables:** no outer card shadow, hairline row rules, light grey header, tabular (fixed-width) digits, sticky header.
+  - **Tiles for flags (R16):** white, 1 px border, a left edge bar in black. The severity **tag** is the only coloured part.
+  - **History chart:** normal months = mid grey bar; the unusual month = **solid black** bar with its number printed above; "similar hostels" = **light grey bar with a black outline and a hatched fill** (so it stays distinct without colour).
+  - **Order stage cells:** a plain number and date. Overdue (7+ days amber text, 15+ days red text with the word "late"). Acknowledged shows the date in green. Rejected/Cancelled show "final", no count.
+  - **Inputs:** white, 1.5 px grey outline, black outline on focus (no blue glow).
+  - **Icons:** single-weight line icons in ink.
+  - **Login screen:** white card on a black page, no gradient.
+  - **Print / PDF / Excel:** already black and white, and the theme matches them.
+
+  **Type:** one neutral sans (the current Figtree stays, since it is already bundled). Page title 20 px / 600; section titles 15 px / 600; table and tile text 13.5 px; labels 12 px uppercase-spaced only where needed. Numbers use tabular figures.
+
+  **Dark mode:** not part of this release. The theme is built from the tokens above, so a true inverted dark mode is a later one-file change.
+
+  **Pages covered:** login, Unusual requests, Order tracking, Godowns, Past checks, hostel page, order page, report/print, plus every new page from later phases, which must use the tokens (no new colours allowed).
 - **Density:** smaller fonts, tighter spacing, compact tile list (hostel name, code, issue type on the surface; details open on click) (R16). Target: about 2–3× more records per screen than today. Adjustable "Compact / Comfortable" toggle.
 - **Global search bar** in the page header on every page (R12): hostel name (full or part), hostel code, request ID. Results respect the user's districts (Phase 2). Until Phase 2 lands, it searches everything.
 - **Shorter pages:** smaller summary, collapsed explanations, sticky table headers.
-- **Done when:** the same 8 hostels that filled a page now take about a third of it; search works from every page; no decorative colour remains.
+- **Done when:** the same 8 hostels that filled a page now take about a third of it; search works from every page; **no colour appears outside the four allowed places**; a printout in plain black and white still shows which items are urgent (words/icons, not colour).
 - **Effort:** 3 days.
 - **Quick release (the "basic version"):** the theme, density and search can ship **first and alone** (about 1.5 days) as Release 0.
 
@@ -196,13 +243,13 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 - **Remarks (R23):** a remarks thread on every order and every flag: author, date-time, text, optional call outcome. Shown on the order page, hostel page and the waiting list. Also usable per stage.
 - **Indent view with units (R25):** the order and flag pages show the **full item list with units and pack size** (from Phase 1's item master), highlighting the flagged items, so the operator never needs the portal.
 - **Rule kept:** no edit of indents (client: waste of time). The system never alters an indent.
-- **ASK 3.1 Q3:** whether pressing Issue also rejects on the portal. Default: **record only**, operator rejects on the portal as today.
+- **Decision D3:** pressing Issue **never touches the government portal**. It only records the issue in our app. The operator rejects on the real portal. When our hourly read sees the order become Rejected/Cancelled, we mark the issue "rejected on portal" and start the wait for the new indent. If the hostel raises a new order for the same month, we link it.
 - **Done when:** an operator can raise an issue with remarks, the order moves to the waiting list, a new matching indent closes it, and a missing one alerts after 2 days.
 - **Effort:** 4 days.
 
 ### Phase 5 — Stage rules and dashboards → R9, R10, R13, R27, R28, R29
 **Goal:** the "number game" views, with the client's counting rules.
-- **Counting rules (R27):** days are counted only for **Pending, DC Generated, In-Transit**. **Acknowledge** stops the clock and shows the date in **green**. **Rejected / Cancelled** are final actions with a date or "first seen", no day count. **ASK 3.2 Q4** for Variation.
+- **Counting rules (R27):** days are counted only for **Pending, DC Generated, In-Transit**. **Acknowledge** stops the clock and shows the date in **green**. **Rejected / Cancelled** are final actions with a date or "first seen", no day count. **Variation is counted too (D4).**
 - **Stage-wise dashboard (R9):** per stage, serial number, district, count; click through to the list.
 - **District-wise dashboard (R10):** per district, orders by stage, number of hostels/societies, stuck counts (over 7 and 14 days).
 - **Overall / godown-wise / district-wise** switch (R13), with **Excel export** on each view.
@@ -259,7 +306,7 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 
 ### Phase 10 — Hosting, reliability and hand-over → R37, R26, R4
 **Goal:** run on the client's GoDaddy server and hand it over cleanly.
-- **Move** the web app, the hourly worker and the database to the client's server (**ASK 3.1 Q2**); the hourly job becomes a managed background service, not this PC's cron.
+- **Move** the web app, the hourly worker and the database to the client's server (hosting details come from the client, D2); the hourly job becomes a managed background service, not this PC's cron.
 - **Packaging:** containers or a process manager with auto-restart; reverse proxy with HTTPS; secrets in the server's environment, not in files.
 - **Reliability:** health check for the hourly job (alert if no successful run for 2 hours), failed-login alerts per godown, nightly database backup copied to Drive.
 - **Hand-over pack for their in-house person:** install/upgrade steps, environment variables list, how to add a godown, how to restore a backup, a one-page "what to check each morning".
