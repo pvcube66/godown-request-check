@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { academicYearFor, academicYearWindows, daysBetween, daysInStage, orderPatch, parsePortalDay, portalSince, stageOf } from './orders.js';
+import { academicYearFor, academicYearWindows, daysBetween, daysInStage, orderPatch, parsePortalDay, portalSince, reachedFromRow, stageOf } from './orders.js';
 
 // Synthetic rows with the same field names the portal uses. No personal details.
 const row = (over: Record<string, unknown> = {}) => ({
@@ -87,5 +87,15 @@ describe('stage history', () => {
     expect(moved.entry.stage).toBe('dc');
     expect(moved.header.dcNumber).toBe('DC-1');
     expect(moved.entry.since.toISOString()).toBe('2026-11-05T18:30:00.000Z');
+  });
+});
+
+describe('main-line dates', () => {
+  it('keeps every portal date, so no stage is missed even if we only see the order later', () => {
+    const r = reachedFromRow(row({ status: 'Acknowledged', requested_date: '03-09-2026', dc_date: '05-09-2026', supplied_dt: '06-09-2026', received_dt: '27-10-2026' }));
+    expect(r.pending?.toISOString()).toBe('2026-09-02T18:30:00.000Z');
+    expect(r.dc?.toISOString()).toBe('2026-09-04T18:30:00.000Z');
+    expect(r.transit?.toISOString()).toBe('2026-09-05T18:30:00.000Z');
+    expect(r.received?.toISOString()).toBe('2026-10-26T18:30:00.000Z');
   });
 });

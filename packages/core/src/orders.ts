@@ -25,6 +25,19 @@ export const OPEN_STAGES: Stage[] = ['pending', 'dc', 'transit', 'variation'];
 
 export interface StageEntry { stage: Stage; since: Date; source: 'portal' | 'observed' }
 
+/** The main line an order follows, in order. Dates are the portal's own; null when not given yet. */
+export interface Reached { pending: Date | null; dc: Date | null; transit: Date | null; received: Date | null }
+
+/** Reads the portal's dates for the main line: placed, delivery note made, dispatched (on the way), received. */
+export function reachedFromRow(row: Row): Reached {
+  return {
+    pending: parsePortalDay(row.requested_date) ?? parsePortalDay(row.created_dt),
+    dc: parsePortalDay(row.dc_date),
+    transit: parsePortalDay(row.supplied_dt),
+    received: parsePortalDay(row.received_dt),
+  };
+}
+
 export interface OrderDoc {
   account: string;                  // portal login the order was fetched with (e.g. GDN-JGL)
   requestId: string;
@@ -32,7 +45,9 @@ export interface OrderDoc {
   monthName: string; academicYear: string;
   placedOn: Date | null;
   rawStatus: string; stage: Stage; stageSince: Date;
-  stages: StageEntry[];             // full history, oldest first
+  stages: StageEntry[];             // history we recorded, oldest first (includes cancel/reject first seen by us)
+  /** The portal's own date for each main stage, when it has one. Filled from every sync, so no stage is missed. */
+  reached: Reached;
   dcNumber: string | null; vehicleNo: string | null;
   firstSeenAt: Date; lastSeenAt: Date;
 }
@@ -103,7 +118,7 @@ export function academicYearWindows(now = new Date()): { monthName: string; acad
 }
 
 export interface OrderPatch {
-  header: Omit<OrderDoc, 'account' | 'requestId' | 'stages' | 'firstSeenAt'>;
+  header: Omit<OrderDoc, 'account' | 'requestId' | 'stages' | 'firstSeenAt'>;   // includes `reached`
   entry: StageEntry;
   stageChanged: boolean;
 }
@@ -121,6 +136,7 @@ export function orderPatch(row: Row, prev: Pick<OrderDoc, 'stage'> | undefined, 
       monthName: str(row.month_name),
       academicYear: str(row.academic_year),
       placedOn: parsePortalDay(row.requested_date) ?? parsePortalDay(row.created_dt),
+      reached: reachedFromRow(row),
       rawStatus: str(row.status),
       stage,
       stageSince: since,

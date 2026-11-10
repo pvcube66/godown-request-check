@@ -550,3 +550,8 @@ body[data-loading] main{opacity:.55;transition:opacity .2s;pointer-events:none}
 .timeline li::before{content:"";position:absolute;left:-7px;top:8px;width:12px;height:12px;border-radius:50%;background:#fff;border:2px solid var(--brand)}
 .timeline li.now::before{background:var(--brand)}
 .timeline li:last-child{border-left-color:transparent}
+.order-table td.stage-col{min-width:132px}
+.order-table td.stage-col.none{color:var(--mut);text-align:center}
+.order-table td.stage-col.current{background:var(--brand-tint)}
+.order-table td.stage-col.current.watch{background:var(--med-tint);color:var(--med)}
+.order-table td.stage-col.current.late{background:var(--high-tint);color:var(--high)}

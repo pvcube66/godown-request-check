@@ -72,18 +72,50 @@ export function urgency(o: Pick<OrderDoc, 'stage' | 'stageSince'>, now = new Dat
 export const daysSincePlaced = (o: Pick<OrderDoc, 'placedOn'>, now = new Date()) =>
   o.placedOn ? daysBetween(o.placedOn, now) : null;
 
-/** Days a stage lasted: from its start to the start of the next stage; the current stage runs until now. */
-export function stageDurations(o: Pick<OrderDoc, 'stages' | 'stage' | 'stageSince'>, now = new Date()) {
-  return o.stages.map((s, i) => {
-    const next = o.stages[i + 1];
-    const current = i === o.stages.length - 1;
-    const end = next ? next.since : now;
-    return { ...s, days: daysBetween(s.since, end), current: current && !next, label: STAGE_LABEL[s.stage] };
-  });
-}
-
 export const fmtDay = (d: Date | null | undefined) =>
   d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : '—';
 
 export const sourceNote = (source: 'portal' | 'observed') =>
   source === 'portal' ? 'Date from the portal' : 'Date we first saw this status (the portal does not give one)';
+
+/** The columns on the Orders screen, in the order the stages happen. "All" is a filter, not a stage. */
+export const STAGE_COLUMNS = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'dc', label: 'DC generated' },
+  { key: 'transit', label: 'In transit' },
+  { key: 'received', label: 'Acknowledged' },
+  { key: 'variation', label: 'Variation' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'cancelled', label: 'Cancelled' },
+] as const;
+
+export interface StageCell { since: Date; days: number; current: boolean; source: 'portal' | 'observed' }
+
+const MAIN_LINE = ['pending', 'dc', 'transit', 'received'] as const;
+const SIDE_STAGES = ['variation', 'rejected', 'cancelled'] as const;
+
+/** For each stage column: when the order reached it, how many days it stayed there, and whether it is still there.
+ *  Main-line stages use the portal's own dates. The stop at cancel/reject (or variation) is the moment we first saw it,
+ *  because the portal gives no date for that. A stage with no date comes back as null ("never reached"). */
+export function stageCells(o: Pick<OrderDoc, 'stage' | 'stages' | 'reached'>, now = new Date()): Record<string, StageCell | null> {
+  const out: Record<string, StageCell | null> = {};
+  const r = o.reached ?? { pending: null, dc: null, transit: null, received: null };
+  const open = OPEN_STAGES as readonly string[];
+  const sideEntries = o.stages.filter((s) => (SIDE_STAGES as readonly string[]).includes(s.stage));
+  MAIN_LINE.forEach((k, i) => {
+    const since = r[k];
+    if (!since) { out[k] = null; return; }
+    const laterMain = MAIN_LINE.slice(i + 1).map((n) => r[n]).find((d): d is Date => !!d);
+    const sideAfter = sideEntries.filter((s) => s.since > since).map((s) => s.since).sort((a, b) => a.getTime() - b.getTime())[0];
+    const end = laterMain ?? sideAfter ?? now;
+    out[k] = { since, days: daysBetween(since, end), current: !laterMain && !sideAfter && open.includes(k), source: 'portal' };
+  });
+  SIDE_STAGES.forEach((k) => {
+    const idx = o.stages.findIndex((s) => s.stage === k);
+    if (idx < 0) { out[k] = null; return; }
+    const entry = o.stages[idx]!;
+    const next = o.stages[idx + 1]?.since ?? now;
+    out[k] = { since: entry.since, days: daysBetween(entry.since, next), current: o.stage === k, source: entry.source };
+  });
+  return out;
+}

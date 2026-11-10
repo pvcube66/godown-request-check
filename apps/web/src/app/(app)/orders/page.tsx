@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { hostelLabel, num } from '@/lib/format';
-import { daysSincePlaced, fmtDay, loadOrders, orderMonths, stageCounts, TABS, urgency, type Urgency } from '@/lib/orders';
+import { daysSincePlaced, fmtDay, loadOrders, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, TABS, urgency, type Urgency } from '@/lib/orders';
 import { daysInStage, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
@@ -78,27 +78,35 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             <table className="order-table">
               <thead>
                 <tr>
-                  <th>S.No</th><th>Request ID</th><th>Hostel</th><th>District</th><th>Placed on</th>
-                  <th>Current stage</th><th>At this stage since</th><th>Days at this stage</th><th>Days since placed</th>
+                  <th>S.No</th><th>Request ID</th><th>Hostel</th><th>Placed on</th><th>Current stage</th>
+                  {STAGE_COLUMNS.map((c) => <th key={c.key} className="stage-col">{c.label}</th>)}
+                  <th>Days since placed</th>
                 </tr>
               </thead>
               <tbody>
                 {shown.map((o, i) => {
                   const u = urgency(o, now);
-                  const days = daysInStage(o, now);
                   const placed = daysSincePlaced(o, now);
+                  const cells = stageCells(o, now);
                   return (
                     <tr key={o.requestId}>
                       <td>{offset + i + 1}</td>
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>
-                      <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">Hostel ID {o.hostelCode}</div></td>
-                      <td>{o.districtName}</td>
+                      <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">Hostel ID {o.hostelCode} · {o.districtName}</div></td>
                       <td>{fmtDay(o.placedOn)}</td>
-                      <td>{STAGE_LABEL[o.stage]}</td>
-                      <td>{fmtDay(o.stageSince)}{o.stages.at(-1)?.source === 'observed' && <div className="mut small">first seen by us</div>}</td>
-                      <td className={`days ${u}`} title={URGENCY_TEXT[u] || undefined}>
-                        {num(days)} {days === 1 ? 'day' : 'days'}
-                      </td>
+                      <td><b>{STAGE_LABEL[o.stage]}</b><div className="mut small">for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div></td>
+                      {STAGE_COLUMNS.map((c) => {
+                        const cell = cells[c.key];
+                        if (!cell) return <td key={c.key} className="stage-col none">—</td>;
+                        const hot = cell.current ? u : 'ok';
+                        return (
+                          <td key={c.key} className={`stage-col ${cell.current ? 'current' : ''} ${hot === 'ok' ? '' : hot}`} title={cell.source === 'observed' ? 'Date we first saw this status' : 'Date from the portal'}>
+                            <b>{num(cell.days)} {cell.days === 1 ? 'day' : 'days'}</b>
+                            <div className="mut small">{cell.current ? 'still here' : 'done'} · since {fmtDay(cell.since)}</div>
+                            {cell.source === 'observed' && <div className="mut small">first seen by us</div>}
+                          </td>
+                        );
+                      })}
                       <td>{placed === null ? '—' : `${num(placed)} ${placed === 1 ? 'day' : 'days'}`}</td>
                     </tr>
                   );

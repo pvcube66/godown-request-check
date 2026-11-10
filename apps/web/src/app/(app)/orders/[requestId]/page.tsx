@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db';
 import { hostelLabel, itemLabel, num } from '@/lib/format';
-import { daysSincePlaced, fmtDay, sourceNote, stageDurations, urgency } from '@/lib/orders';
+import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
 import { daysInStage, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
@@ -16,7 +16,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   if (!o) notFound();
   const request = await c.requests.findOne({ requestId: o.requestId });
   const items = Object.entries(request?.items ?? {}).filter(([, q]) => q > 0);
-  const steps = stageDurations(o, now);
+  const cells = stageCells(o, now);
+  const steps = STAGE_COLUMNS.flatMap((c) => { const x = cells[c.key]; return x ? [{ key: c.key, label: c.label, ...x }] : []; });
   const u = urgency(o, now);
   const placed = daysSincePlaced(o, now);
 
@@ -37,8 +38,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
       <section className="summary" aria-labelledby="timeline">
         <h2 id="timeline">Timeline</h2>
         <ol className="timeline">
-          {steps.map((s, i) => (
-            <li key={`${s.stage}-${i}`} className={s.current ? 'now' : ''}>
+          {steps.map((s) => (
+            <li key={s.key} className={s.current ? 'now' : ''}>
               <b>{s.label}</b>
               <div>{fmtDay(s.since)} · {s.current ? `${num(s.days)} ${s.days === 1 ? 'day' : 'days'} so far` : `lasted ${num(s.days)} ${s.days === 1 ? 'day' : 'days'}`}</div>
               <div className="mut small">{sourceNote(s.source)}</div>
