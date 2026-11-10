@@ -7,6 +7,7 @@ import { groupFlags } from '@/lib/group';
 import { hostelKey, loadHistory, loadOrderItems, loadRequestsById, monthsWithRequests } from '@/lib/history';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
+import { STATE_TEXT } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,8 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const orderItems = await loadOrderItems(c, orders);
   const dupReqs = await loadRequestsById(c, duplicates.flatMap((a) => a.dup!.requestIds));
   const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer) };
+  const hostelIssues = await c.issues.find(scoped({ godownId, hostelCode: code }, names)).sort({ raisedAt: -1 }).limit(20).toArray();
+  const remarkCounts = hostelIssues.length ? new Map((await c.remarks.aggregate<{ _id: string; n: number }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $group: { _id: '$targetId', n: { $sum: 1 } } }]).toArray()).map((r) => [r._id, r.n])) : new Map<string, number>();
 
   const flaggedSet = new Map<string, number>();                       // item|month -> flagged requested
   for (const a of flagged) flaggedSet.set(`${a.item}|${a.month}`, a.requested);
@@ -79,6 +82,13 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         </ul>
         {!assignment.mapping && <p className="mut small">An administrator can import district assignments under Master data. Portal history is not reassigned or rewritten.</p>}
       </section>
+
+      {hostelIssues.length > 0 && (
+        <section className="summary" aria-labelledby="hostel-issues">
+          <h2 id="hostel-issues">Issues for this hostel</h2>
+          <ul>{hostelIssues.map((i) => <li key={i.issueId}><Link href={`/issues/${i.issueId}`}>{monthLabel(i.month)}</Link>: {STATE_TEXT[i.state]} · {remarkCounts.get(i.issueId) ?? 0} remark{(remarkCounts.get(i.issueId) ?? 0) === 1 ? '' : 's'}</li>)}</ul>
+        </section>
+      )}
 
       {nCards > 0 && (
         <section aria-labelledby="looks-wrong">

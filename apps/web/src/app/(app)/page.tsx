@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { PageSkeleton } from '@/components/Skeletons';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
+import { overdueCount } from '@/lib/issues';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
 import { loadHistory, loadOrderItems, loadRequestsById } from '@/lib/history';
@@ -11,7 +12,7 @@ import { Icon } from '@/components/Icons';
 import BarChart from './BarChart';
 import FilterSelect from './FilterSelect';
 import SearchBox from './SearchBox';
-import { scoped, canEdit, type AnomalyDoc } from '@anomaly/core';
+import { scoped, canEdit, getWaitDays, type AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
 type SP = { sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string };
@@ -87,7 +88,13 @@ async function HomeContent({ sp }: { sp: SP }) {
     loadOrderItems(c, shown.flatMap((g) => g.filter((a) => a.kind === 'order'))),
     loadRequestsById(c, shown.flatMap((g) => g.filter((a) => a.kind === 'duplicate').flatMap((a) => a.dup!.requestIds))),
   ]);
-  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer) };
+  const flagKeys = shown.flatMap((g) => g.map((a) => a.key));
+  const issueRows = view === 'confirmed' && flagKeys.length ? await c.issues.find(scoped({ anomalyKeys: { $in: flagKeys } }, names), { projection: { issueId: 1, anomalyKeys: 1 } }).toArray() : [];
+  const issues: Record<string, string> = {};
+  for (const i of issueRows) for (const k of i.anomalyKeys) issues[k] = i.issueId;
+  const waitDays = await getWaitDays(c);
+  const overdue = await overdueCount(c, names, waitDays);
+  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
   const reportQuery = new URLSearchParams(Object.entries({ month: sp.month ?? '', district: sp.district ?? '', q }).filter(([, v]) => v) as [string, string][]).toString();
@@ -96,7 +103,7 @@ async function HomeContent({ sp }: { sp: SP }) {
   const dateLine = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: IST });
   const headline = view === 'open'
     ? groups.length ? `${groups.length} hostel${groups.length > 1 ? 's' : ''} ${HEADLINE[sev]}` : q ? `No match for “${q}”` : 'All clear'
-    : view === 'confirmed' ? 'Requests you marked as wrong' : 'Requests you marked as fine';
+    : view === 'confirmed' ? 'Requests with an issue raised' : 'Requests you marked as fine';
   const checkedOk = lastRun?.ok;
 
   return (
@@ -113,6 +120,8 @@ async function HomeContent({ sp }: { sp: SP }) {
           {checkedOk === false && <b> The last check had a problem.</b>}
         </p>
       </section>
+
+      {overdue > 0 && <p className="alert-bar" role="status">{overdue} {overdue === 1 ? 'hostel has' : 'hostels have'} not sent a new indent {waitDays}+ {waitDays === 1 ? 'day' : 'days'} after a rejection. <Link href="/issues">See the list</Link></p>}
 
       {showSummary && top.length > 0 && (
         <details className="summary overview-details">
@@ -162,7 +171,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
         <div className="seg" role="group" aria-label="Which requests to show">
-          {[['open', 'To check'], ['confirmed', 'Marked wrong'], ['fine', 'Marked fine']].map(([v, l]) => (
+          {[['open', 'To check'], ['confirmed', 'Issues raised'], ['fine', 'Marked fine']].map(([v, l]) => (
             <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, p: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>
           ))}
         </div>

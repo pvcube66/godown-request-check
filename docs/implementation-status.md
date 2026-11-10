@@ -115,3 +115,29 @@ Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked 
 - WhatsApp login code (R8) is optional and waits for Phase 8.
 - District membership is matched on the district name the portal gives (case and spacing ignored). If the portal renames a district, the admin must re-assign it.
 - Tests of page rendering use mocks; real browser checks of each role are pending.
+
+
+## Phase 4 — Issue workflow, remarks, manual flags, indent view
+
+**Status:** implemented locally; unit tests, a real-MongoDB workflow check, a production build and a local server render check passed. Browser clicking of the buttons is pending.
+
+### Delivered
+
+- The two review buttons are now **Issue (reject this indent)** and **Fine**, with plain wording. Issue asks "What is wrong?" (required) and says it only records the issue here. The "normal for this hostel" button and the "learning" wording are gone. Old data keeps working (an old "marked wrong" flag says so).
+- **Issues** (`issues` collection, page `/issues`, page per issue). States: raised → rejected on portal → resolved (new indent came in), or closed by hand with a note. **We never write to the portal** (decision D3): the operator rejects on the real portal; the hourly check (`syncIssues`, run after every detection pass) sees the rejection from our stored copy of the portal data, starts the wait, and links the new indent when a request for the same hostel and month appears that we had not seen before.
+- **Alert:** an issue waiting for a new indent for N whole India calendar days (default 2, an admin setting on the Issues page, 1 to 30) shows as overdue on the Issues page and as a bar on the first page.
+- **Manual flag:** any order page has "Flag this order" (operators and admins). It joins the same workflow.
+- **Remarks:** a remarks thread with author, date-time and an optional call result on every issue and every order; the hostel page lists that hostel's issues.
+- **Indent view with units:** the issue page shows the full item list of the wrong indent (and the new one) with unit and pack size, highlighting the flagged items. The order page uses the same list.
+- All of it respects district limits and roles (viewers are read-only). Every raise, close and remark is in the audit log.
+
+### Behaviour worth knowing
+
+- Several flags for the same hostel and month join one open issue (a remark is added).
+- "Rejected" means the portal status of one of the issue's target requests starts with Reject or Cancel (in the requests report or the orders feed). If every request was already rejected when the issue is raised, the wait starts at once.
+- "New indent" = a live request for the same hostel and month that **we first saw after the issue was raised**. A request that arrives earlier than our hourly read could not be told apart, so it is matched at the next read.
+
+### Not done / limits
+
+- WhatsApp to the operator for overdue issues is optional and left for Phase 8.
+- The button flow is tested with mocked database calls and, for the core logic, against a real local MongoDB; the buttons were not clicked in a real browser.

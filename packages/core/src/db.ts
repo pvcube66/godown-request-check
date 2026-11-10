@@ -4,6 +4,7 @@ import type { OrderDoc } from './orders.js';
 import type { MasterDataCollections } from './masterData.js';
 import type { ItemMasterDoc } from './itemMaster.js';
 import type { UserDoc } from './users.js';
+import type { IssueDoc, RemarkDoc } from './issues.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -71,6 +72,8 @@ export interface RunDoc {
 export interface Collections extends MasterDataCollections {
   itemsMaster: Collection<ItemMasterDoc>;
   users: Collection<UserDoc>;
+  issues: Collection<IssueDoc>;
+  remarks: Collection<RemarkDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -110,6 +113,8 @@ export const collections = (d: Db): Collections => ({
   hostelsMaster: d.collection('hostelsMaster'),
   itemsMaster: d.collection('itemsMaster'),
   users: d.collection('users'),
+  issues: d.collection('issues'),
+  remarks: d.collection('remarks'),
   auditLog: d.collection('auditLog'),
   async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
     const session = d.client.startSession();
@@ -142,6 +147,11 @@ export async function ensureIndexes(c: Collections) {
   await c.auditLog.createIndex({ at: -1 });
   await c.users.createIndex({ email: 1 }, { unique: true });
   await c.users.createIndex({ userId: 1 }, { unique: true });
+  await c.issues.createIndex({ issueId: 1 }, { unique: true });
+  await c.issues.createIndex({ state: 1, raisedAt: -1 });
+  await c.issues.createIndex({ godownId: 1, hostelCode: 1, month: 1 });
+  await c.issues.createIndex({ anomalyKeys: 1 });
+  await c.remarks.createIndex({ targetType: 1, targetId: 1, at: 1 });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }

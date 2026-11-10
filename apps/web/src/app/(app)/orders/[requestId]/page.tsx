@@ -4,7 +4,11 @@ import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, itemLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
-import { daysInStage, STAGE_LABEL, itemVariantKey, effectiveItemMetadata, scoped } from '@anomaly/core';
+import { daysInStage, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
+import { loadIndent } from '@/lib/indent';
+import RemarksThread from '@/components/RemarksThread';
+import FlagOrderForm from '../../issues/FlagOrderForm';
+import RemarkForm from '../../issues/RemarkForm';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
@@ -13,18 +17,15 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const { requestId } = await params;
   const c = await getDb();
   const now = new Date();
-  const { names } = await scopeFor(c);
+  const { viewer, names } = await scopeFor(c);
   const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
-  const request = await c.requests.findOne({ requestId: o.requestId });
-  const items = Object.entries(request?.items ?? {}).filter(([, q]) => q > 0);
-  const snapshots = request?.itemSnapshots ?? [];
-  const masters = snapshots.length ? await c.itemsMaster.find({ key: { $in: snapshots.map(itemVariantKey) } }).toArray() : [];
-  const metadataFor = (sourceKey: string) => {
-    const snapshot = snapshots.find((s) => s.sourceKey === sourceKey);
-    const master = snapshot ? masters.find((m) => m.key === itemVariantKey(snapshot)) : undefined;
-    return master ? effectiveItemMetadata(master) : snapshot;
-  };
+  const rows = await loadIndent(c, o.requestId);
+  const [remarks, issues] = await Promise.all([
+    c.remarks.find({ targetType: 'order', targetId: o.requestId }).sort({ at: 1 }).toArray(),
+    c.issues.find(scoped({ $or: [{ targetRequestIds: o.requestId }, { requestIds: o.requestId }, { newRequestId: o.requestId }] }, names)).sort({ raisedAt: -1 }).limit(10).toArray(),
+  ]);
+  const openIssue = issues.some((i) => ACTIVE_STATES.includes(i.state));
   const cells = stageCells(o, now);
   const steps = STAGE_COLUMNS.flatMap((c) => { const x = cells[c.key]; return x ? [{ key: c.key, label: c.label, ...x }] : []; });
   const u = urgency(o, now);
@@ -72,17 +73,38 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
 
       <section aria-labelledby="items">
         <h2 id="items">Items requested</h2>
-        {items.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="mut">The item list for this order is not available yet. It appears after the next full check.</p>
         ) : (
           <div className="table-wrap">
             <table className="order-table">
               <thead><tr><th>Item</th><th>Quantity requested</th><th>Unit</th><th>Pack size</th></tr></thead>
-              <tbody>{items.map(([name, q]) => { const metadata = metadataFor(name); return <tr key={name}><td>{itemLabel(name)}</td><td>{num(q)}</td><td>{metadata?.unit || 'Unknown'}</td><td>{metadata?.packSize || 'Unknown'}</td></tr>; })}</tbody>
+              <tbody>{rows.map((r) => <tr key={r.name}><td>{itemLabel(r.name)}</td><td>{num(r.quantity)}</td><td>{r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
             </table>
           </div>
         )}
       </section>
+
+      {issues.length > 0 && (
+        <section className="summary" aria-labelledby="order-issues">
+          <h2 id="order-issues">Issues</h2>
+          <ul>{issues.map((i) => <li key={i.issueId}><Link href={`/issues/${i.issueId}`}>{STATE_TEXT[i.state]}</Link> · raised {fmtDay(i.raisedAt)} by {i.raisedByName}</li>)}</ul>
+        </section>
+      )}
+
+      <section className="summary" aria-labelledby="order-remarks">
+        <h2 id="order-remarks">Remarks</h2>
+        <RemarksThread remarks={remarks} />
+        {canEdit(viewer) && <RemarkForm targetType="order" targetId={o.requestId} />}
+      </section>
+
+      {canEdit(viewer) && !openIssue && (
+        <section className="summary" aria-labelledby="flag-order">
+          <h2 id="flag-order">Flag this order</h2>
+          <p className="master-note">Use this when you spot a problem the system did not. It adds the order to Issues so it can be followed. It does not change anything on the government portal.</p>
+          <FlagOrderForm requestId={o.requestId} />
+        </section>
+      )}
     </>
   );
 }
