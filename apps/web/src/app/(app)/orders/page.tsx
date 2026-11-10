@@ -42,19 +42,21 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
         <p className="status">{lastSeen ? <>Last updated from the portal {fmtDay(lastSeen)}.</> : 'No orders recorded yet. They appear after the next hourly check.'}</p>
       </section>
 
-      <nav className="order-tabs" aria-label="Order stages">
-        {TABS.map((t) => {
-          const n = (counts as Record<string, number | undefined>)[t.key] ?? 0;
-          const on = t.key === tab;
-          return (
-            <Link key={t.key} href={qs({ ...base, p: '' }, { stage: t.key === 'all' ? '' : t.key })} className={`order-tab ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined}>
-              {t.label} <span className="order-tab-n">{num(n)}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="order-seg-wrap">
+        <nav className="seg order-seg" aria-label="Order stages">
+          {TABS.map((t) => {
+            const n = (counts as Record<string, number | undefined>)[t.key] ?? 0;
+            const on = t.key === tab;
+            return (
+              <Link key={t.key} href={qs({ ...base, p: '' }, { stage: t.key === 'all' ? '' : t.key })} className={on ? 'on' : ''} aria-current={on ? 'page' : undefined}>
+                {t.label}<span className="order-tab-n">{num(n)}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
-      <form className="order-filters" method="get" action="/orders">
+      <form className="filters" method="get" action="/orders">
         {sp.stage && <input type="hidden" name="stage" value={sp.stage} />}
         <label className="select"><span>Placed in</span>
           <select name="month" defaultValue={sp.month ?? ''}>
@@ -62,11 +64,14 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             {months.map((m) => <option key={m} value={m}>{monthText(m)}</option>)}
           </select>
         </label>
-        <label className="search-box"><Icon name="search" size={18} />
-          <input name="q" defaultValue={sp.q ?? ''} placeholder="Request number or hostel name" autoComplete="off" aria-label="Search orders" />
-        </label>
-        <button className="btn" type="submit">Show</button>
-        {(sp.q || sp.month) && <Link href={qs({ stage: sp.stage ?? '' }, {})} className="link-arrow">Clear</Link>}
+        <div className="search">
+          <label htmlFor="order-q">Find an order or hostel</label>
+          <div className="search-row">
+            <span className="search-box"><Icon name="search" size={18} /><input id="order-q" name="q" defaultValue={sp.q ?? ''} placeholder="Request number or hostel name" autoComplete="off" /></span>
+            <button className="btn primary-ish" type="submit">Search</button>
+            {(sp.q || sp.month) && <Link href={qs({ stage: sp.stage ?? '' }, {})} className="link-arrow">Clear</Link>}
+          </div>
+        </div>
         <a className="btn" href={`/orders/csv?${new URLSearchParams(base)}`}><Icon name="download" size={16} /> Download Excel</a>
       </form>
 
