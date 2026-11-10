@@ -16,7 +16,15 @@ import SearchBox from './SearchBox';
 import { scoped, canEdit, getWaitDays, type AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
-type SP = { sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string };
+type SP = { sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string; kind?: string };
+/** The kinds of unusual request, as the screen names them. */
+const KIND_TABS = [
+  { key: '', label: 'All types' },
+  { key: 'spike', label: 'Unusual quantity' },
+  { key: 'typing', label: 'Same number typed' },
+  { key: 'order', label: 'Whole order too big' },
+  { key: 'duplicate', label: 'Possible duplicate' },
+] as const;
 const PAGE_SIZE = 8, CARDS_SHOWN = 3;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const qs = (cur: SP, patch: Partial<SP>) => {
@@ -47,6 +55,8 @@ async function HomeContent({ sp }: { sp: SP }) {
   const base0: Record<string, unknown> = { partOfOrder: { $ne: true } };
   if (sp.month) base0.month = sp.month;
   if (sp.district) base0.districtName = sp.district;
+  const kind = KIND_TABS.find((k) => k.key && k.key === sp.kind)?.key ?? '';
+  if (kind) base0.kind = kind;
   const q = (sp.q ?? '').trim().slice(0, 60);
   if (q) base0.hostelName = { $regex: escapeRe(q), $options: 'i' };
   const scope = scoped(base0, names);
@@ -174,6 +184,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         <SearchBox base={Object.fromEntries(Object.entries(base).filter(([k]) => k !== 'q' && k !== 'all'))} q={q} />
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
+        <FilterSelect label="Type of unusual request" name="kind" value={kind} base={base} options={KIND_TABS.map((k) => ({ value: k.key, label: k.label }))} />
         <div className="seg" role="group" aria-label="Which requests to show">
           {[['open', 'To check'], ['confirmed', 'Issues raised'], ['fine', 'Marked fine']].map(([v, l]) => (
             <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, p: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>
