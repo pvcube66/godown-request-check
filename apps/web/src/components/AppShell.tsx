@@ -8,10 +8,13 @@ import { Logo, Icon } from '@/components/Icons';
 export default function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+    const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('sidebar_collapsed');
+      const savedDensity = localStorage.getItem('dashboard_density');
+            if (savedDensity === 'comfortable') setDensity('comfortable');
+            const saved = localStorage.getItem('sidebar_collapsed');
       if (saved === 'true') {
         setCollapsed(true);
       }
@@ -33,7 +36,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className={`app-shell ${collapsed ? 'sidebar-collapsed' : ''}`} data-density={density}>
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={handleToggleCollapse}
@@ -56,6 +59,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <Logo size={26} />
             <span>Godown Request Check</span>
           </Link>
+        </header>
+
+        <header className="workspace-header noprint">
+          <form action="/search" className="global-search" role="search" aria-label="Search all hostels and orders">
+            <label htmlFor="global-query"><Icon name="search" size={18} /><span className="sr-only">Find a hostel or order</span></label>
+            <input id="global-query" name="q" type="search" maxLength={60} placeholder="Hostel name, code or request ID" autoComplete="off" />
+            <button type="submit">Search</button>
+          </form>
+          <div className="density-toggle" role="group" aria-label="Display density">
+            {(['compact', 'comfortable'] as const).map((value) => (
+              <button key={value} type="button" aria-pressed={density === value} onClick={() => {
+                setDensity(value);
+                try { localStorage.setItem('dashboard_density', value); } catch { /* Keep the setting for this session. */ }
+              }}>{value === 'compact' ? 'Compact' : 'Comfortable'}</button>
+            ))}
+          </div>
         </header>
 
         <main id="main">{children}</main>

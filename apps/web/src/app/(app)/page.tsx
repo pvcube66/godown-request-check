@@ -112,8 +112,8 @@ async function HomeContent({ sp }: { sp: SP }) {
       </section>
 
       {showSummary && top.length > 0 && (
-        <section className="summary" aria-labelledby="start-here">
-          <h2 id="start-here">Start here</h2>
+        <details className="summary overview-details">
+          <summary><h2>Start here</h2><span className="mut">{top.length} biggest jumps — expand to review</span></summary>
           <p className="sub-lede">These are the biggest jumps. Check these first.</p>
           <ul>
             {top.map(({ a, text, n }) => (
@@ -133,13 +133,16 @@ async function HomeContent({ sp }: { sp: SP }) {
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
       {showSummary && (byDistrict.length > 0 || byItem.length > 0) && (
-        <div className="charts">
+        <details className="summary overview-details">
+          <summary><h2>District and item overview</h2><span className="mut">Expand charts</span></summary>
+          <div className="charts">
           <BarChart title="Where are the unusual requests?" note="Hostels to check, by district." unit="hostel" data={byDistrict.map((d) => ({ label: d._id, value: d.n }))} />
           <BarChart title="What is asked for too much?" note="Items that many hostels asked for far more than usual." unit="hostel" data={byItem.map((d) => ({ label: itemLabel(d._id), value: d.n }))} />
-        </div>
+          </div>
+        </details>
       )}
 
       <nav className="tabs" aria-label="How big is the difference">
@@ -169,7 +172,7 @@ async function HomeContent({ sp }: { sp: SP }) {
 
       {groups.length === 0 && (
         <div className="empty">
-          <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="34" fill="#e3f1f0" /><path d="M23 37l9 9 18-20" fill="none" stroke="#0a5c63" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="34" fill="var(--surface)" /><path d="M23 37l9 9 18-20" fill="none" stroke="var(--ink)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" /></svg>
           <h2>{q ? 'No hostel found' : view === 'open' ? 'Nothing to check here' : 'Nothing here yet'}</h2>
           <p>{q ? `No hostel matching “${q}” has anything in this list.` : view === 'open' ? 'Everything in this group looks normal. Try the other tabs above.' : 'Requests you mark will appear here.'}</p>
         </div>
@@ -187,14 +190,17 @@ async function HomeContent({ sp }: { sp: SP }) {
         ];
         const numbered = cards.map((x, ci) => ({ ...x, node: cloneElement(x.node, { no: `${sn}.${ci + 1}` }) }));
         return (
-          <section className="hostel" key={`${top1.godownId}|${top1.hostelCode}`}>
-            <header className="hostel-head">
-              <div className="hostel-title"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><div><h2>{hostelLabel(top1.hostelName)}</h2><p className="where"><Icon name="pin" size={15} />{top1.districtName} district<span className="hid">Hostel ID {top1.hostelCode}</span></p></div></div>
-              <div className="hostel-meta">
-                <span className="count-chip">{cards.length} to look at</span>
-                <Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link>
-              </div>
-            </header>
+          <details className="hostel hostel-tile" key={`${top1.godownId}|${top1.hostelCode}`}>
+            <summary className="hostel-head">
+              <span className="hostel-title"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><span><span className="hostel-name">{hostelLabel(top1.hostelName)}</span><span className="where">{top1.districtName} district<span className="hid">Hostel ID {top1.hostelCode}</span></span></span></span>
+              <span className="hostel-meta">
+                <span className="issue-types">{[duplicates.length ? 'Duplicate request' : '', orders.length ? 'Whole-order anomaly' : '', typing.length ? 'Typing mistake' : '', spikes.length ? 'Unusual quantity' : ''].filter(Boolean).join(' / ')}</span>
+                <span className={`pill ${sev}`}>{SEVERITY[sev].label}</span>
+                <span className="count-chip">{cards.length} {cards.length === 1 ? 'issue' : 'issues'}</span>
+                <Icon name="chevron" size={16} />
+              </span>
+            </summary>
+            <p className="tile-profile"><Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link></p>
             {numbered.slice(0, CARDS_SHOWN).map((x) => x.node)}
             {cards.length > CARDS_SHOWN && (
               <details className="more">
@@ -202,7 +208,7 @@ async function HomeContent({ sp }: { sp: SP }) {
                 {numbered.slice(CARDS_SHOWN).map((x) => x.node)}
               </details>
             )}
-          </section>
+          </details>
         );
       })}
       {pages > 1 && (

@@ -27,7 +27,7 @@ function chartFor(a: AnomalyDoc, ctx: Ctx) {
 
 function Key({ peer }: { peer: boolean }) {
   return (
-    <ul className="key" aria-label="What the colours mean">
+    <ul className="key" aria-label="Chart legend">
       <li><i className="k-ok" />Normal months</li>
       <li><i className="k-bad" />Unusual month</li>
       {peer && <li><i className="k-peer" />What similar hostels ask</li>}
@@ -173,7 +173,7 @@ export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: Anomaly
         {shown.length > 0
           ? <HistoryChart itemName="Whole order" months={shown} values={values} flagMonth={a.month} peer={1} suffix="×" peerLabel="Similar hostels" />
           : <p className="chart-note">No earlier months to show yet.</p>}
-        <ul className="key" aria-label="What the colours mean">
+        <ul className="key" aria-label="Chart legend">
           <li><i className="k-ok" />Normal months</li><li><i className="k-bad" />Unusual month</li><li><i className="k-peer" />Normal for the size (1×)</li>
         </ul>
         <p className="chart-note"><Icon name="info" size={14} />Each bar shows how many times the normal order for this many students the hostel asked for.</p>
