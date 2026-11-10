@@ -1,4 +1,4 @@
-import { daysBetween, daysInStage, OPEN_STAGES, STAGE_LABEL, type OrderDoc, type Stage, type Collections } from '@anomaly/core';
+import { daysBetween, daysInStage, OPEN_STAGES, scoped, STAGE_LABEL, type OrderDoc, type Stage, type Collections } from '@anomaly/core';
 import { searchFilter } from './search';
 
 export const TABS = [
@@ -32,25 +32,25 @@ export function orderFilter(p: OrderParams) {
 }
 
 /** Oldest stage first, so the orders that have waited longest are at the top. */
-export async function loadOrders(c: Collections, p: OrderParams, limit = 0) {
-  const filter = orderFilter(p);
+export async function loadOrders(c: Collections, p: OrderParams, names: string[] | null, limit = 0) {
+  const filter = scoped(orderFilter(p), names);
   const cur = c.orders.find(filter as never).sort({ stageSince: 1 });
   if (limit) cur.limit(limit);
   return cur.toArray();
 }
 
 /** How many orders are in each stage (all months), for the tab counts. */
-export async function stageCounts(c: Collections): Promise<Record<string, number>> {
-  const rows = await c.orders.aggregate<{ _id: Stage; n: number }>([{ $group: { _id: '$stage', n: { $sum: 1 } } }]).toArray();
+export async function stageCounts(c: Collections, names: string[] | null): Promise<Record<string, number>> {
+  const rows = await c.orders.aggregate<{ _id: Stage; n: number }>([{ $match: scoped({}, names) }, { $group: { _id: '$stage', n: { $sum: 1 } } }]).toArray();
   const by = Object.fromEntries(rows.map((r) => [r._id, r.n]));
   const open = OPEN_STAGES.reduce((s, k) => s + (by[k] ?? 0), 0);
   return { open, all: rows.reduce((s, r) => s + r.n, 0), ...by };
 }
 
 /** Months (yyyy-mm, newest first) that have any orders, for the month picker. */
-export async function orderMonths(c: Collections): Promise<string[]> {
+export async function orderMonths(c: Collections, names: string[] | null): Promise<string[]> {
   const rows = await c.orders.aggregate<{ _id: string }>([
-    { $match: { placedOn: { $ne: null } } },
+    { $match: scoped({ placedOn: { $ne: null } }, names) },
     { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$placedOn', timezone: 'Asia/Kolkata' } } } },
     { $sort: { _id: -1 } },
   ]).toArray();

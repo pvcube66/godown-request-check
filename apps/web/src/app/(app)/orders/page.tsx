@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
+import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, loadOrders, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, TABS, urgency, type Urgency } from '@/lib/orders';
 import { daysInStage, STAGE_LABEL } from '@anomaly/core';
@@ -19,8 +20,9 @@ const monthText = (ym: string) => new Date(`${ym}-01T12:00:00+05:30`).toLocaleDa
 export default async function Orders({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const c = await getDb();
+  const { names } = await scopeFor(c);
   const now = new Date();
-  const [all, counts, months] = await Promise.all([loadOrders(c, sp), stageCounts(c), orderMonths(c)]);
+  const [all, counts, months] = await Promise.all([loadOrders(c, sp, names), stageCounts(c, names), orderMonths(c, names)]);
   const tab = TABS.find((t) => t.key === sp.stage)?.key ?? 'all';
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
   const pageNo = Math.min(Math.max(1, Number(sp.p) || 1), pages);

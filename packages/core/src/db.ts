@@ -3,6 +3,7 @@ import type { ParsedRequest } from './types.js';
 import type { OrderDoc } from './orders.js';
 import type { MasterDataCollections } from './masterData.js';
 import type { ItemMasterDoc } from './itemMaster.js';
+import type { UserDoc } from './users.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -69,6 +70,7 @@ export interface RunDoc {
 
 export interface Collections extends MasterDataCollections {
   itemsMaster: Collection<ItemMasterDoc>;
+  users: Collection<UserDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -107,6 +109,7 @@ export const collections = (d: Db): Collections => ({
   mappings: d.collection('mappings'),
   hostelsMaster: d.collection('hostelsMaster'),
   itemsMaster: d.collection('itemsMaster'),
+  users: d.collection('users'),
   auditLog: d.collection('auditLog'),
   async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
     const session = d.client.startSession();
@@ -137,6 +140,8 @@ export async function ensureIndexes(c: Collections) {
   await c.hostelsMaster.createIndex({ godownId: 1, hostelCode: 1 }, { unique: true });
   await c.itemsMaster.createIndex({ key: 1 }, { unique: true });
   await c.auditLog.createIndex({ at: -1 });
+  await c.users.createIndex({ email: 1 }, { unique: true });
+  await c.users.createIndex({ userId: 1 }, { unique: true });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }

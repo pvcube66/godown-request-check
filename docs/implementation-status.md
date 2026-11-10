@@ -69,7 +69,7 @@ Run `npm -w apps/web run dev` with the usual locally configured dashboard/databa
 - Item master corrections are stored separately from observed identity and displayed on order details. They do not silently rewrite historical order snapshots or detector identities.
 - Hostel pages resolve today's dated godown/supplier assignment and expose recorded business contacts. Full month-picker workflow remains Phase 6.
 
-### Temporary administrator boundary
+### Temporary administrator boundary (replaced in Phase 2, see below)
 
 Until Phase 2 introduces individual users/roles, configure **`MASTER_ADMIN_PASSWORD`**, at least 16 characters and different from `DASHBOARD_PASSWORD`. Set the value in your environment/secret store, never in source control. Restart the app, log into the existing dashboard and unlock `/master`.
 
@@ -94,3 +94,24 @@ The admin unlock is a separate HttpOnly, SameSite cookie, expires after one hour
 Release 0 was committed as `69128de` and merged through [PR #1](https://github.com/pvcube66/godown-request-check/pull/1), merge commit `092d4ae`. Phase 1 is isolated on `phase-1-master-data` for its own PR.
 
 Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked pending hosting details. No WhatsApp implementation may fabricate the required TELECRM source or reuse its secrets.
+
+
+## Phase 2 — Users, roles and district-wise access
+
+**Status:** implemented locally; unit tests, a real-MongoDB scoping check and the production build passed. Browser acceptance pending.
+
+### Delivered
+
+- `users` collection (name, phone, email, role, district codes, scrypt password hash, status, lockout counters). Roles: **admin** (everything, all districts), **operator** (works on chosen districts), **viewer** (reads chosen districts, cannot change anything).
+- Sign-in with email and password. Five wrong passwords lock that login for 15 minutes (an admin can unlock by resetting the password or turning it off and on). Unknown email and wrong password give the same answer and the same amount of work.
+- **Emergency (break-glass) admin:** type `admin` as the email and use `DASHBOARD_PASSWORD`. Use it to create the first real administrator, then keep it for emergencies. `MASTER_ADMIN_PASSWORD` is no longer used; Master data, Godowns, Users, Past checks and Accuracy are administrator-only by role.
+- Session cookie carries only a user id and expiry, signed. Every page, action and download checks the database on each request, so turning someone off takes effect at once.
+- **District limit is in the database query** for: Unusual requests (list, counts, district/month pickers), hostel page, orders list/counts/month picker/detail/Excel, report page and Excel, search, and the "this looks wrong / fine" action (a flag from another district cannot be changed even if its key is sent). A guessed link to another district's hostel or order shows "not found". An operator with no districts sees nothing.
+- Admin screen `/users`: add a person, change role/districts, set a new password, turn a login on or off, never leaving zero active admins. Recent-activity table shows sign-ins, failed sign-ins, downloads, user changes and flag decisions.
+- Audit log entries for logins, logouts, failed logins, user changes, exports and flag decisions.
+
+### Not done / limits
+
+- WhatsApp login code (R8) is optional and waits for Phase 8.
+- District membership is matched on the district name the portal gives (case and spacing ignored). If the portal renames a district, the admin must re-assign it.
+- Tests of page rendering use mocks; real browser checks of each role are pending.

@@ -22,7 +22,7 @@ describe('dashboard search', () => {
   it.each(['', ' ', '\t\n'])('does not build an unbounded blank query: %j', async (q) => {
     const db = fakeDb();
     expect(searchFilter(q)).toBeNull();
-    expect(await searchDashboard(db.c, q)).toEqual({ hostels: [], orders: [], moreHostels: false, moreOrders: false });
+    expect(await searchDashboard(db.c, q, null)).toEqual({ hostels: [], orders: [], moreHostels: false, moreOrders: false });
     expect(db.find).not.toHaveBeenCalled();
     expect(db.aggregate).not.toHaveBeenCalled();
   });
@@ -47,7 +47,7 @@ describe('dashboard search', () => {
 
   it('uses the same query for hostels and orders and groups by godown as well as code', async () => {
     const db = fakeDb();
-    await searchDashboard(db.c, 'Maldakal');
+    await searchDashboard(db.c, 'Maldakal', null);
     expect(db.find).toHaveBeenCalledWith(searchFilter('Maldakal'));
     const pipeline = db.aggregate.mock.calls[0] as unknown as [Record<string, unknown>[]];
     expect(pipeline[0][0]).toEqual({ $match: searchFilter('Maldakal') });
@@ -58,7 +58,7 @@ describe('dashboard search', () => {
 
   it('caps each section and reports that more matches exist', async () => {
     const db = fakeDb(Array.from({ length: 21 }, (_, id) => ({ hostelCode: String(id) })), Array.from({ length: 21 }, (_, id) => ({ requestId: String(id) })));
-    const result = await searchDashboard(db.c, 'hostel');
+    const result = await searchDashboard(db.c, 'hostel', null);
     expect(result.hostels).toHaveLength(20);
     expect(result.orders).toHaveLength(20);
     expect(result.moreHostels).toBe(true);
@@ -66,10 +66,28 @@ describe('dashboard search', () => {
   });
 
   it('does not claim additional results when all matches fit', async () => {
-    const result = await searchDashboard(fakeDb([{ hostelCode: '1' }]).c, '1');
+    const result = await searchDashboard(fakeDb([{ hostelCode: '1' }]).c, '1', null);
     expect(result.hostels).toHaveLength(1);
     expect(result.orders).toEqual([]);
     expect(result.moreHostels).toBe(false);
     expect(result.moreOrders).toBe(false);
+  });
+});
+
+describe('district limits', () => {
+  it('puts the district limit in both database queries, around the text filter', async () => {
+    const db = fakeDb();
+    await searchDashboard(db.c, 'Maldakal', ['Nalgonda']);
+    const arg = db.find.mock.calls[0] as unknown as [{ $and: [unknown, { districtName: { $in: RegExp[] } }] }];
+    expect(arg[0].$and[0]).toEqual(searchFilter('Maldakal'));
+    expect(arg[0].$and[1].districtName.$in[0]!.test('NALGONDA')).toBe(true);
+    const pipeline = db.aggregate.mock.calls[0] as unknown as [{ $match: { $and: unknown[] } }[]];
+    expect(pipeline[0][0]!.$match.$and).toHaveLength(2);
+  });
+  it('an operator with no districts matches nothing', async () => {
+    const db = fakeDb();
+    await searchDashboard(db.c, 'Maldakal', []);
+    const arg = db.find.mock.calls[0] as unknown as [{ $and: [unknown, { districtName: { $in: RegExp[] } }] }];
+    expect(arg[0].$and[1].districtName.$in).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSession } from 'mongodb';
 
 vi.mock('@/lib/db', () => ({ getDb: vi.fn() }));
-vi.mock('@/lib/master-auth', () => ({ masterAdminAccess: vi.fn(), requireMasterAdmin: vi.fn(), unlockMasterAdmin: vi.fn(), lockMasterAdmin: vi.fn() }));
+vi.mock('@/lib/master-auth', () => ({ masterAdminAccess: vi.fn(), requireMasterAdmin: vi.fn() }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('./import-file', () => ({ parseMappingUpload: vi.fn(), MAX_MAPPING_FILE_BYTES: 2 * 1024 * 1024 }));
 vi.mock('@anomaly/core', async () => ({
@@ -13,10 +13,10 @@ vi.mock('@anomaly/core', async () => ({
 }));
 
 import { getDb } from '@/lib/db';
-import { masterAdminAccess, requireMasterAdmin, unlockMasterAdmin, lockMasterAdmin } from '@/lib/master-auth';
+import { masterAdminAccess, requireMasterAdmin } from '@/lib/master-auth';
 import { revalidatePath } from 'next/cache';
 import { importMappings, reassignDistrict, seedMasterData, updateItemMaster } from '@anomaly/core';
-import { bootstrapAction, godownContactAction, hostelContactAction, importAction, itemCorrectionAction, lockAction, reassignAction, unlockAction } from './actions';
+import { bootstrapAction, godownContactAction, hostelContactAction, importAction, itemCorrectionAction, reassignAction } from './actions';
 import MasterPage from './page';
 import { parseMappingUpload } from './import-file';
 import { POST } from './import/route';
@@ -66,16 +66,16 @@ function database() {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(masterAdminAccess).mockResolvedValue({ configured: true, authorized: true });
+  vi.mocked(masterAdminAccess).mockResolvedValue({ authorized: true });
   vi.mocked(requireMasterAdmin).mockResolvedValue({ actor });
 });
 
 describe('master access isolation', () => {
-  it.each([{ configured: false, authorized: false }, { configured: false, authorized: true }, { configured: true, authorized: false }])('never reads DB/catalog for access %j', async (access) => {
-    vi.mocked(masterAdminAccess).mockResolvedValue(access);
+  it('never reads the DB or catalog for someone who is not an administrator', async () => {
+    vi.mocked(masterAdminAccess).mockResolvedValue({ authorized: false });
     const page = await MasterPage({ searchParams: Promise.resolve({}) });
     expect(getDb).not.toHaveBeenCalled();
-    expect(JSON.stringify(page)).toContain(access.configured ? 'Unlock master data' : 'Set up master admin access');
+    expect(JSON.stringify(page)).toContain('Administrators only');
     expect(JSON.stringify(page)).not.toContain('Synthetic Godown');
   });
   it('loads only master catalogs when unlocked, with escaped search filters and missing-data guidance', async () => {
@@ -94,7 +94,7 @@ describe('master access isolation', () => {
     expect(JSON.stringify(page)).toContain('No mapping history yet');
     expect(JSON.stringify(page)).toContain('No changes have been recorded yet');
   });
-  it.each([bootstrapAction, importAction, reassignAction, itemCorrectionAction, godownContactAction, hostelContactAction, lockAction])('guards every privileged action before DB access: %s', async (action) => {
+  it.each([bootstrapAction, importAction, reassignAction, itemCorrectionAction, godownContactAction, hostelContactAction])('guards every privileged action before DB access: %s', async (action) => {
     vi.mocked(requireMasterAdmin).mockRejectedValue(new Error('locked'));
     expect(await action({}, new FormData())).toHaveProperty('error');
     expect(requireMasterAdmin).toHaveBeenCalledOnce();
@@ -103,22 +103,6 @@ describe('master access isolation', () => {
     expect(importMappings).not.toHaveBeenCalled();
     expect(reassignDistrict).not.toHaveBeenCalled();
     expect(updateItemMaster).not.toHaveBeenCalled();
-    expect(lockMasterAdmin).not.toHaveBeenCalled();
-  });
-  it('unlocks through the separate auth helper without loading any DB or trimming the secret', async () => {
-    vi.mocked(masterAdminAccess).mockResolvedValue({ configured: true, authorized: false });
-    vi.mocked(unlockMasterAdmin).mockResolvedValue(true);
-    const password = ' synthetic separate password ';
-    expect(await unlockAction({}, form({ password }))).toHaveProperty('success');
-    expect(unlockMasterAdmin).toHaveBeenCalledWith(password);
-    expect(getDb).not.toHaveBeenCalled();
-    expect(revalidatePath).toHaveBeenCalledWith('/master');
-  });
-  it('shows a configuration hint without attempting unlock when unconfigured', async () => {
-    vi.mocked(masterAdminAccess).mockResolvedValue({ configured: false, authorized: false });
-    expect(await unlockAction({}, form({ password: 'synthetic' }))).toEqual({ error: expect.stringContaining('MASTER_ADMIN_PASSWORD') });
-    expect(unlockMasterAdmin).not.toHaveBeenCalled();
-    expect(getDb).not.toHaveBeenCalled();
   });
 });
 

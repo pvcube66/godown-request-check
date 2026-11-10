@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { istDay, resolveHostelMapping } from '@anomaly/core';
+import { canEdit, istDay, resolveHostelMapping, scoped } from '@anomaly/core';
 import { getDb } from '@/lib/db';
+import { getViewer, scopeFor, visibleDistricts } from '@/lib/viewer';
 import { hostelLabel, itemLabel, monthLabel, num } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
 import { hostelKey, loadHistory, loadOrderItems, loadRequestsById, monthsWithRequests } from '@/lib/history';
@@ -11,7 +12,9 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }) {
   const c = await getDb(); const { code } = await params;
-  const r = await c.requests.findOne({ hostelCode: code }, { projection: { hostelName: 1 } });
+  const v = await getViewer();
+  if (!v) return { title: 'Hostel' };
+  const r = await c.requests.findOne(scoped({ hostelCode: code }, await visibleDistricts(c, v)), { projection: { hostelName: 1 } });
   return { title: r ? hostelLabel(r.hostelName) : 'Hostel' };
 }
 
@@ -19,8 +22,9 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const { code } = await params;
   const { g } = await searchParams;
   const c = await getDb();
+  const { viewer, names } = await scopeFor(c);
   const filter = { hostelCode: code, ...(g ? { godownId: Number(g) } : {}) };
-  const reqs = await c.requests.find(filter).toArray();
+  const reqs = await c.requests.find(scoped(filter, names)).toArray();
   if (!reqs.length) return (
     <div className="empty"><h2>Hostel not found</h2><p>We could not find any requests for this hostel.</p><Link className="btn" href="/">Back to the list</Link></div>
   );
@@ -28,7 +32,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const size = await c.hostels.findOne({ godownId, hostelCode: code });
   const assignment = await resolveHostelMapping(c, { godownId, hostelCode: code }, istDay(new Date()));
   const phone = (value?: string) => value ? <a href={`tel:${value.replace(/[^+0-9]/g, '')}`}>{value}</a> : 'Not recorded';
-  const flagged = await c.anomalies.find({ ...filter, status: 'open' }).sort({ ratio: -1 }).toArray();
+  const flagged = await c.anomalies.find(scoped({ ...filter, status: 'open' }, names)).sort({ ratio: -1 }).toArray();
   const { history, months: allMonths } = await loadHistory(c, [{ godownId, hostelCode: code }]);
   const h = history[hostelKey(godownId, code)] ?? {};
   const months = [...monthsWithRequests(h)].sort();
@@ -36,7 +40,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const spikes = spikesAll.filter((a) => !a.partOfOrder);
   const orderItems = await loadOrderItems(c, orders);
   const dupReqs = await loadRequestsById(c, duplicates.flatMap((a) => a.dup!.requestIds));
-  const ctx = { history, months: allMonths, view: 'open' as const };
+  const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer) };
 
   const flaggedSet = new Map<string, number>();                       // item|month -> flagged requested
   for (const a of flagged) flaggedSet.set(`${a.item}|${a.month}`, a.requested);

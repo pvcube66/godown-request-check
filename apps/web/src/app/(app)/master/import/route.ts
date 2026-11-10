@@ -10,7 +10,7 @@ const MAX_BODY_BYTES = MAX_MAPPING_FILE_BYTES + 64 * 1024;
  * reading the body, require a same-origin browser, and bound multipart overhead too. */
 export async function POST(request: Request): Promise<Response> {
   try { await requireMasterAdmin(); }
-  catch { return Response.json({ error: 'Unlock master admin access before importing mappings.' }, { status: 403 }); }
+  catch { return Response.json({ error: 'Only an administrator can import mappings.' }, { status: 403 }); }
   const origin = request.headers.get('origin');
   try {
     if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw new Error('Cross-origin request');

@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db';
 import { masterAdminAccess } from '@/lib/master-auth';
 import ActionForm from './ActionForm';
 import ImportForm from './ImportForm';
-import { bootstrapAction, godownContactAction, hostelContactAction, itemCorrectionAction, lockAction, reassignAction, unlockAction } from './actions';
+import { bootstrapAction, godownContactAction, hostelContactAction, itemCorrectionAction, reassignAction } from './actions';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -36,25 +36,12 @@ function Pager({ query, page, total, field, anchor }: { query: Query; page: numb
 
 export default async function MasterPage({ searchParams }: { searchParams: Promise<Query> }) {
   const access = await masterAdminAccess();
-  // Do not connect to Mongo or load a catalog until both gates have passed.
-  if (!access.configured) return <div className="master-page">
-    <header className="master-header"><h1>Master data</h1><p>District assignments, item details and business contacts.</p></header>
-    <section className="master-section master-gate" aria-labelledby="master-setup-title">
-      <h2 id="master-setup-title">Set up master admin access</h2>
-      <p>Set <code>MASTER_ADMIN_PASSWORD</code> on the server to a secret of at least 16 characters, different from <code>DASHBOARD_PASSWORD</code>, then restart the app. No password values are shown here.</p>
-      <p>Master data stays locked until this is configured. No database or catalog has been loaded.</p>
-      <p className="master-note">This temporary admin session is separate from dashboard access. Individual staff roles arrive in Phase 2.</p>
-    </section>
-  </div>;
+  // Do not connect to Mongo or load a catalog unless the signed-in person is an administrator.
   if (!access.authorized) return <div className="master-page">
     <header className="master-header"><h1>Master data</h1><p>District assignments, item details and business contacts.</p></header>
-    <section className="master-section master-gate" aria-labelledby="master-unlock-title">
-      <h2 id="master-unlock-title">Unlock master data</h2>
-      <p>Use the separate master admin password. Dashboard access alone cannot change master data.</p>
-      <ActionForm action={unlockAction} submitLabel="Unlock master data" pendingLabel="Checking access…">
-        <label className="master-field">Master admin password<input name="password" type="password" autoComplete="current-password" maxLength={1024} required /></label>
-      </ActionForm>
-      <p className="master-note">Temporary admin access until Phase 2. No database or catalog has been loaded.</p>
+    <section className="master-section master-gate" aria-labelledby="master-denied-title">
+      <h2 id="master-denied-title">Administrators only</h2>
+      <p>Master data can be changed only by an administrator. Ask an administrator if something here needs to change.</p>
     </section>
   </div>;
 
@@ -85,7 +72,7 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
   return <div className="master-page">
     <header className="master-header">
       <div><h1>Master data</h1><p>Keep district assignments, item details and business contacts consistent without changing the government portal.</p></div>
-      <div className="master-session"><span>Temporary admin session</span><ActionForm action={lockAction} submitLabel="Lock master data" pendingLabel="Locking…" /></div>
+      
     </header>
     <nav className="master-nav" aria-label="Master data sections">
       <a href="#mappings">Mappings</a><a href="#items">Item master</a><a href="#contacts">Contacts</a><a href="#changes">Change log</a>

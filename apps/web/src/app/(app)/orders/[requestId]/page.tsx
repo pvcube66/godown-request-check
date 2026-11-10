@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db';
+import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, itemLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
-import { daysInStage, STAGE_LABEL, itemVariantKey, effectiveItemMetadata } from '@anomaly/core';
+import { daysInStage, STAGE_LABEL, itemVariantKey, effectiveItemMetadata, scoped } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const { requestId } = await params;
   const c = await getDb();
   const now = new Date();
-  const o = await c.orders.findOne({ requestId: decodeURIComponent(requestId) });
+  const { names } = await scopeFor(c);
+  const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
   const request = await c.requests.findOne({ requestId: o.requestId });
   const items = Object.entries(request?.items ?? {}).filter(([, q]) => q > 0);

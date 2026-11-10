@@ -1,4 +1,4 @@
-import type { Collections } from '@anomaly/core';
+import { scoped, type Collections } from '@anomaly/core';
 
 export const SEARCH_LIMIT = 20;
 export const searchQuery = (value = '') => value.trim().slice(0, 60);
@@ -19,9 +19,10 @@ export interface HostelResult {
   godownName: string;
 }
 
-export async function searchDashboard(c: Pick<Collections, 'requests' | 'orders'>, value: string) {
-  const filter = searchFilter(value);
-  if (!filter) return { hostels: [], orders: [], moreHostels: false, moreOrders: false };
+export async function searchDashboard(c: Pick<Collections, 'requests' | 'orders'>, value: string, names: string[] | null) {
+  const textFilter = searchFilter(value);
+  if (!textFilter) return { hostels: [], orders: [], moreHostels: false, moreOrders: false };
+  const filter = scoped(textFilter, names);
   const [hostels, orders] = await Promise.all([
     c.requests.aggregate<HostelResult>([
       { $match: filter },

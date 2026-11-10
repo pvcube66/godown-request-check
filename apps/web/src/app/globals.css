@@ -415,3 +415,12 @@ body[data-loading] main{opacity:.55;pointer-events:none}.btn .spin,.primary .spi
 @media(max-width:980px){.master-columns{grid-template-columns:1fr}.master-bootstrap{align-items:flex-start;flex-direction:column}.master-bootstrap .master-form{flex:auto;width:100%}}
 @media(max-width:600px){.master-header{flex-direction:column}.master-session{justify-items:start}.master-fields{grid-template-columns:1fr}.master-span{grid-column:auto}.master-section-heading{align-items:flex-start;flex-direction:column}.master-record>summary{align-items:flex-start}.master-edit-label{max-width:70px}.master-search{align-items:stretch;flex-direction:column}.master-search .master-field{width:100%}.master-search .master-button{align-self:flex-start}}
 @media print{.master-nav,.master-form,.master-search,.master-edit-label,.master-session,.master-help{display:none}.master-table-wrap{max-height:none;overflow:visible}.master-table th{position:static}.master-section{break-inside:avoid}.master-columns{display:block}}
+
+/* Users and sign-in (Phase 2) */
+.sidebar-user{display:grid;gap:1px;padding:0 10px 8px;color:var(--paper);font-size:13px;min-width:0}
+.sidebar-user b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-user span{color:#bdbdbd;font-size:11.5px}
+.sidebar.collapsed .sidebar-user{display:none}
+.district-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;font-weight:400}
+.district-picks label{display:flex;gap:6px;align-items:center;font-weight:400;font-size:13px}
+.login-form input#email{width:100%}

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
+import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, IMPORTANCE, itemLabel, METHOD_TEXT, monthLabel, num, timesMore } from '@/lib/format';
 import { loadReport } from '@/lib/report';
 import PrintButton from './PrintButton';
@@ -8,7 +9,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function Report({ searchParams }: { searchParams: Promise<{ month?: string; district?: string; q?: string }> }) {
   const sp = await searchParams;
-  const rows = await loadReport(await getDb(), sp);
+  const c = await getDb();
+  const { names } = await scopeFor(c);
+  const rows = await loadReport(c, sp, names);
   const byHostel = new Map<string, typeof rows>();
   for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}`; (byHostel.get(k) ?? byHostel.set(k, []).get(k)!).push(r); }
   const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });

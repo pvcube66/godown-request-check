@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { importMappings, reassignDistrict, seedMasterData, updateItemMaster, MappingValidationError, isCalendarDate } from '@anomaly/core';
 import { getDb } from '@/lib/db';
-import { lockMasterAdmin, masterAdminAccess, requireMasterAdmin, unlockMasterAdmin } from '@/lib/master-auth';
+import { requireMasterAdmin } from '@/lib/master-auth';
 import type { MasterActionState } from './action-state';
 import { parseMappingUpload } from './import-file';
 import { godownIdField, MasterInputError, phoneField, textField } from './validation';
@@ -21,28 +21,8 @@ async function mutate(task: (c: Awaited<ReturnType<typeof getDb>>, actor: string
     return { success };
   } catch (error) {
     if (error instanceof MasterInputError || error instanceof MappingValidationError) return { error: error.message };
-    return { error: 'Could not save this change. Check that master admin access is still unlocked, then try again. No portal changes are made.' };
+    return { error: 'Could not save this change. Check that you are still signed in as an administrator, then try again. No portal changes are made.' };
   }
-}
-
-export async function unlockAction(_state: MasterActionState, form: FormData): Promise<MasterActionState> {
-  try {
-    const access = await masterAdminAccess();
-    if (!access.configured) return { error: 'Set a separate MASTER_ADMIN_PASSWORD on the server before unlocking master data.' };
-    const raw = form.get('password');
-    if (typeof raw !== 'string' || !raw || raw.length > 1024 || !await unlockMasterAdmin(raw)) return { error: 'Master admin password was not accepted. Use the separate master admin password, not the dashboard password.' };
-    revalidatePath('/master');
-    return { success: 'Master data unlocked for this temporary admin session.' };
-  } catch { return { error: 'Could not unlock master data. Check the server configuration and try again.' }; }
-}
-
-export async function lockAction(_state: MasterActionState, _form: FormData): Promise<MasterActionState> {
-  try {
-    await requireMasterAdmin();
-    await lockMasterAdmin();
-    revalidatePath('/master');
-    return { success: 'Master data locked.' };
-  } catch { return { error: 'Could not lock this session. Refresh the page and try again.' }; }
 }
 
 export async function bootstrapAction(_state: MasterActionState, _form: FormData): Promise<MasterActionState> {

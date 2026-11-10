@@ -1,8 +1,11 @@
 import { getDb } from '@/lib/db';
+import { requireViewer } from '@/lib/viewer';
 import { ago, when } from '@/lib/format';
 export const dynamic = 'force-dynamic';
 
 export default async function Runs() {
+  const viewer = await requireViewer();
+  if (viewer.role !== 'admin') return <div className="hero"><h1>Past checks</h1><p className="lede">The hourly check log is for administrators only.</p></div>;
   const c = await getDb();
   const runs = await c.runs.find().sort({ startedAt: -1 }).limit(40).toArray();
   return (

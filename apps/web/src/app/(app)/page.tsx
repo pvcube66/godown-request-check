@@ -2,6 +2,7 @@ import { Suspense, cloneElement } from 'react';
 import Link from 'next/link';
 import { PageSkeleton } from '@/components/Skeletons';
 import { getDb } from '@/lib/db';
+import { scopeFor } from '@/lib/viewer';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
 import { loadHistory, loadOrderItems, loadRequestsById } from '@/lib/history';
@@ -10,7 +11,7 @@ import { Icon } from '@/components/Icons';
 import BarChart from './BarChart';
 import FilterSelect from './FilterSelect';
 import SearchBox from './SearchBox';
-import type { AnomalyDoc } from '@anomaly/core';
+import { scoped, canEdit, type AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
 type SP = { sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string };
@@ -39,12 +40,14 @@ async function HomeContent({ sp }: { sp: SP }) {
   const sev = (['high', 'medium', 'low'] as const).includes(sp.sev as 'high') ? (sp.sev as 'high' | 'medium' | 'low') : 'high';
   const view = (['open', 'confirmed', 'fine'].includes(sp.view ?? '') ? sp.view! : 'open') as 'open' | 'confirmed' | 'fine';
   const c = await getDb();
+  const { viewer, names } = await scopeFor(c);
 
-  const scope: Record<string, unknown> = { partOfOrder: { $ne: true } };
-  if (sp.month) scope.month = sp.month;
-  if (sp.district) scope.districtName = sp.district;
+  const base0: Record<string, unknown> = { partOfOrder: { $ne: true } };
+  if (sp.month) base0.month = sp.month;
+  if (sp.district) base0.districtName = sp.district;
   const q = (sp.q ?? '').trim().slice(0, 60);
-  if (q) scope.hostelName = { $regex: escapeRe(q), $options: 'i' };
+  if (q) base0.hostelName = { $regex: escapeRe(q), $options: 'i' };
+  const scope = scoped(base0, names);
   const statusFilter = view === 'fine' ? { $in: ['ignored', 'expected'] } : view;
   const attention = { ...scope, status: 'open', severity: { $in: ['high', 'medium'] } };
   const showSummary = view === 'open';
@@ -52,13 +55,13 @@ async function HomeContent({ sp }: { sp: SP }) {
   const [rows, counts, months, districts, topRows, byDistrict, byItem, lastRun, requestMonths] = await Promise.all([
     c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: '$severity', n: { $sum: 1 } } }]).toArray(),
-    c.anomalies.distinct('month'),
-    c.anomalies.distinct('districtName'),
+    c.anomalies.distinct('month', scoped({}, names)),
+    c.anomalies.distinct('districtName', scoped({}, names)),
     showSummary ? c.anomalies.find({ ...scope, status: 'open', severity: 'high' } as never).sort({ ratio: -1 }).limit(60).toArray() : [],
     showSummary ? c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: attention }, { $group: { _id: '$districtName', h: { $addToSet: '$hostelCode' } } }, { $project: { n: { $size: '$h' } } }, { $sort: { n: -1 } }, { $limit: 6 }]).toArray() : [],
     showSummary ? c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: attention }, { $group: { _id: '$item', h: { $addToSet: '$hostelCode' } } }, { $project: { n: { $size: '$h' } } }, { $sort: { n: -1 } }, { $limit: 6 }]).toArray() : [],
     c.runs.find().sort({ startedAt: -1 }).limit(1).next(),
-    c.requests.distinct('month'),
+    c.requests.distinct('month', scoped({}, names)),
   ]);
   const count = (s: string) => counts.find((x) => x._id === s)?.n ?? 0;
 
@@ -84,7 +87,7 @@ async function HomeContent({ sp }: { sp: SP }) {
     loadOrderItems(c, shown.flatMap((g) => g.filter((a) => a.kind === 'order'))),
     loadRequestsById(c, shown.flatMap((g) => g.filter((a) => a.kind === 'duplicate').flatMap((a) => a.dup!.requestIds))),
   ]);
-  const ctx = { history, months: allMonths, view };
+  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer) };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
   const reportQuery = new URLSearchParams(Object.entries({ month: sp.month ?? '', district: sp.district ?? '', q }).filter(([, v]) => v) as [string, string][]).toString();
