@@ -12,7 +12,7 @@ export default function BarChart({ title, note, data, unit }: {
           {data.map((d) => (
             <li key={d.label}>
               <span className="lab">{d.label}</span>
-              <span className="chart-track"><i style={{ width: `${Math.max(3, (d.value / max) * 100)}%` }} /></span>
+              <span className="chart-track" aria-hidden="true"><i style={{ width: `${Math.max(0, (d.value / max) * 100)}%` }} /></span>
               <b>{d.value} <small>{unit}{d.value === 1 ? '' : 's'}</small></b>
             </li>
           ))}

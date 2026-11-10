@@ -9,7 +9,7 @@ export function windowMonths(all: string[], flagMonth: string): string[] {
 }
 
 /**
- * One bar per month: green = normal, red = the unusual month.
+ * One bar per month: grey = normal, black = unusual, outlined hatching = peers.
  * When the hostel has no earlier months, `peer` adds a labelled bar for what other hostels ask,
  * so the "usual" number is always visible and never has to be explained.
  */
@@ -25,7 +25,7 @@ export default function HistoryChart({ itemName, months, values, flagMonth, peer
   const plotH = H - T - B, slot = (W - L - R) / n, barW = Math.min(40, slot * 0.58);
   const max = Math.max(1e-9, ...cols.map((c) => c.value ?? 0)) * 1.04;
   const y = (v: number) => T + plotH * (1 - v / max);
-  const summary = cols.map((c) => `${c.label} ${c.value === undefined ? 'not asked' : num(c.value)}`).join(', ');
+  const summary = cols.map((c) => `${c.label}${c.kind === 'bad' ? ' (unusual)' : c.kind === 'peer' ? ' (peer comparison)' : ' (normal)'}, ${c.value === undefined ? 'not asked' : `${num(c.value)}${suffix}`}`).join('; ');
 
   return (
     <svg className="hc" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${itemName}, month by month: ${summary}.`}>
@@ -38,7 +38,13 @@ export default function HistoryChart({ itemName, months, values, flagMonth, peer
             {c.value === undefined
               ? <text className="hc-none" x={cx} y={T + plotH - 8} textAnchor="middle">not asked</text>
               : <>
-                  <rect className="hc-bar" x={cx - barW / 2} y={T + plotH - h} width={barW} height={h} rx={5} style={{ animationDelay: `${i * 70}ms` }} />
+                  <rect className="hc-bar" x={cx - barW / 2} y={T + plotH - h} width={barW} height={h} />
+                  {c.kind === 'peer' && (
+                    // A nested SVG clips the hatch strokes without document-wide pattern IDs.
+                    <svg x={cx - barW / 2} y={T + plotH - h} width={barW} height={h} overflow="hidden" aria-hidden="true">
+                      <path className="hc-hatch" d={Array.from({ length: Math.ceil((barW + h) / 6) }, (_, j) => `M${j * 6 - h},${h}l${h},${-h}`).join(' ')} />
+                    </svg>
+                  )}
                   <text className="hc-val" x={cx} y={T + plotH - h - 8} textAnchor="middle">{num(c.value)}{suffix}</text>
                 </>}
             <text className="hc-month" x={cx} y={H - 11} textAnchor="middle">{c.label}</text>

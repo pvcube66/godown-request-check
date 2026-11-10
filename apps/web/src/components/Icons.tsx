@@ -36,9 +36,9 @@ export function Logo({ size = 30 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
       <rect width="32" height="32" rx="9" fill="#fff" fillOpacity=".14" />
-      <rect x="7" y="17" width="4.5" height="8" rx="2" fill="#bfe3df" />
-      <rect x="13.75" y="13" width="4.5" height="12" rx="2" fill="#bfe3df" />
-      <rect x="20.5" y="6" width="4.5" height="19" rx="2" fill="#f2b44d" />
+      <rect x="7" y="17" width="4.5" height="8" rx="2" fill="currentColor" />
+      <rect x="13.75" y="13" width="4.5" height="12" rx="2" fill="currentColor" />
+      <rect x="20.5" y="6" width="4.5" height="19" rx="2" fill="currentColor" />
     </svg>
   );
 }

@@ -1,4 +1,5 @@
 import { daysBetween, daysInStage, OPEN_STAGES, STAGE_LABEL, type OrderDoc, type Stage, type Collections } from '@anomaly/core';
+import { searchFilter } from './search';
 
 export const TABS = [
   { key: 'pending', label: 'Pending' },
@@ -13,15 +14,14 @@ export const TABS = [
 
 export interface OrderParams { stage?: string; q?: string; month?: string }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Builds the Mongo filter from the screen's choices. Unknown stage values show all orders. */
 export function orderFilter(p: OrderParams) {
   const f: Record<string, unknown> = {};
   const tab = TABS.find((t) => t.key === p.stage)?.key ?? 'all';
   if (tab !== 'all') f.stage = tab;
-  const q = (p.q ?? '').trim().slice(0, 60);
-  if (q) f.$or = [{ requestId: { $regex: escapeRe(q), $options: 'i' } }, { hostelName: { $regex: escapeRe(q), $options: 'i' } }, { hostelCode: q }];
+  const search = searchFilter(p.q ?? '');
+  if (search) f.$or = search.$or;
   const m = /^(\d{4})-(\d{2})$/.exec(p.month ?? '');
   if (m) {
     const start = new Date(`${m[1]}-${m[2]}-01T00:00:00+05:30`);

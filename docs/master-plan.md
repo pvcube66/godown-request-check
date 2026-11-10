@@ -1,7 +1,9 @@
 # Master plan — client meeting requirements
 
 Source: the translated meeting transcript (client, our developer, and a colleague) plus the client's handwritten checklist.
-Every point below is traced back to one of those two. Nothing here is built yet unless it says **Done**.
+Every point below is traced back to one of those two. The register below is the planning baseline; current local implementation progress and validation are recorded in [implementation-status.md](implementation-status.md).
+
+**Local implementation update (10 Nov 2026):** the owner authorized phase-wise local development. Release 0 (Phase 3 theme, density, and global search) is implemented locally and passes automated tests/build. Browser/print acceptance and client sign-off remain pending. This is not deployment authorization; Phase 0's external tasks are not marked complete.
 
 ---------------------------------------------------------------------
 ## 0. How to read this document
