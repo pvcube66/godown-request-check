@@ -26,7 +26,7 @@ export async function saveSettingsAction(_s: MasterActionState, f: FormData): Pr
     const viewer = await requireAccess('admin');
     const patch: SettingsPatch = {
       phoneNumberId: str(f, 'phoneNumberId', 40), wabaId: str(f, 'wabaId', 40), accessToken: str(f, 'accessToken', 1000), appSecret: str(f, 'appSecret', 200),
-      firstAfterDays: num(f, 'firstAfterDays'), everyDays: num(f, 'everyDays'), maxMessages: num(f, 'maxMessages'), windowFrom: num(f, 'windowFrom'), windowTo: num(f, 'windowTo'), mode: str(f, 'mode', 10),
+      firstAfterDays: num(f, 'firstAfterDays'), everyDays: num(f, 'everyDays'), maxMessages: num(f, 'maxMessages'), mode: str(f, 'mode', 10),
     };
     await saveWhatsAppSettings(await getDb(), patch, actorOf(viewer));
     done();

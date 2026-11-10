@@ -35,7 +35,7 @@ export default async function WhatsApp() {
         <ul>
           <li>Mode: <b>{MODE_TEXT[s.mode]}</b></li>
           <li>Reminder wording: <b>{s.templateName}</b> · approval: <b>{s.templateStatus ?? 'not submitted yet'}</b>{s.templateReason ? ` (${s.templateReason})` : ''}{s.templateCheckedAt ? <span className="mut small"> · checked {when(s.templateCheckedAt)}</span> : null}</li>
-          <li>Rules: first reminder after <b>{s.firstAfterDays}</b> days in transit, then every <b>{s.everyDays}</b> days, up to <b>{s.maxMessages}</b> reminders, one message per hostel per day, only between <b>{s.windowFrom}:00 and {s.windowTo}:00</b> India time.</li>
+          <li>Rules: first reminder after <b>{s.firstAfterDays}</b> days in transit, then every <b>{s.everyDays}</b> days, up to <b>{s.maxMessages}</b> reminders, one message per hostel per day.</li>
         </ul>
         {error && <p className="master-message master-error" role="alert">{error}{s.lastErrorAt ? ` (${when(s.lastErrorAt)})` : ''}</p>}
         {!s.phoneNumberId && <p className="master-note">Setup is not finished: the department’s WhatsApp details have not been added yet, so nothing can be sent. Preview still works.</p>}
@@ -44,7 +44,7 @@ export default async function WhatsApp() {
       <section className="master-section" aria-labelledby="wa-settings">
         <h2 id="wa-settings">Settings</h2>
         <p className="master-note">The access key and app secret are stored encrypted and are never shown again. “Live” stays unavailable until the reminder wording is approved by WhatsApp.</p>
-        <SettingsForm phoneNumberId={s.phoneNumberId} wabaId={s.wabaId} hasToken={!!s.accessTokenEnc} hasSecret={!!s.appSecretEnc} mode={s.mode} firstAfterDays={s.firstAfterDays} everyDays={s.everyDays} maxMessages={s.maxMessages} windowFrom={s.windowFrom} windowTo={s.windowTo} />
+        <SettingsForm phoneNumberId={s.phoneNumberId} wabaId={s.wabaId} hasToken={!!s.accessTokenEnc} hasSecret={!!s.appSecretEnc} mode={s.mode} firstAfterDays={s.firstAfterDays} everyDays={s.everyDays} maxMessages={s.maxMessages} />
       </section>
 
       <section className="master-section" aria-labelledby="wa-template">

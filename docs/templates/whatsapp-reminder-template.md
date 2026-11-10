@@ -45,7 +45,6 @@ Rules from Meta that this wording already follows: a variable cannot be the very
 - First message: an order is **In-Transit** and still **not acknowledged** after **3 days**.
 - Then every **2 days**, up to **4 messages** in total.
 - At most **one message per hostel per day**.
-- Only between **9:00 and 18:00 India time** (so nobody is messaged at night). Changeable.
 - **Stops immediately** when the order becomes Acknowledged, Rejected or Cancelled.
 - A **dry-run mode** shows who would be messaged without sending anything.
 

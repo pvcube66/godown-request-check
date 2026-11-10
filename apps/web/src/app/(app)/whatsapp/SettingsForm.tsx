@@ -2,7 +2,7 @@
 import ActionForm from '../master/ActionForm';
 import { saveSettingsAction } from './actions';
 
-export default function SettingsForm(p: { phoneNumberId: string; wabaId: string; hasToken: boolean; hasSecret: boolean; mode: string; firstAfterDays: number; everyDays: number; maxMessages: number; windowFrom: number; windowTo: number }) {
+export default function SettingsForm(p: { phoneNumberId: string; wabaId: string; hasToken: boolean; hasSecret: boolean; mode: string; firstAfterDays: number; everyDays: number; maxMessages: number }) {
   return (
     <ActionForm action={saveSettingsAction} submitLabel="Save" pendingLabel="Saving…">
       <div className="master-fields">
@@ -13,7 +13,6 @@ export default function SettingsForm(p: { phoneNumberId: string; wabaId: string;
         <label className="master-field">First reminder after this many days in transit<input name="firstAfterDays" type="number" min={1} max={30} defaultValue={p.firstAfterDays} required /></label>
         <label className="master-field">Days between reminders<input name="everyDays" type="number" min={1} max={30} defaultValue={p.everyDays} required /></label>
         <label className="master-field">Number of reminders (1 to 4)<input name="maxMessages" type="number" min={1} max={4} defaultValue={p.maxMessages} required /></label>
-        <label className="master-field">Send between (India time, hour 0 to 23)<span className="row-inline"><input name="windowFrom" type="number" min={0} max={23} defaultValue={p.windowFrom} required /> to <input name="windowTo" type="number" min={1} max={24} defaultValue={p.windowTo} required /></span></label>
         <label className="master-field master-span">What should happen
           <select name="mode" defaultValue={p.mode}>
             <option value="off">Off: do nothing</option>

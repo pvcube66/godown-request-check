@@ -32,7 +32,6 @@ export interface WhatsAppSettings {
   templateName: string; language: string;
   templateStatus: string | null; templateReason: string | null; templateCheckedAt: Date | null;
   firstAfterDays: number; everyDays: number; maxMessages: number;   // approved rules (D9)
-  windowFrom: number; windowTo: number;    // send only between these India-time hours (from inclusive, to exclusive)
   lastError: string | null; lastErrorAt: Date | null;
   updatedAt: Date;
 }
@@ -40,7 +39,7 @@ export interface WhatsAppSettings {
 export const DEFAULT_SETTINGS = (): WhatsAppSettings => ({
   mode: 'dry_run', phoneNumberId: '', wabaId: '', accessTokenEnc: null, appSecretEnc: null, verifyToken: randomBytes(18).toString('hex'),
   templateName: TEMPLATE_NAME, language: TEMPLATE_LANGUAGE, templateStatus: null, templateReason: null, templateCheckedAt: null,
-  firstAfterDays: 3, everyDays: 2, maxMessages: 4, windowFrom: 9, windowTo: 18,
+  firstAfterDays: 3, everyDays: 2, maxMessages: 4,
   lastError: null, lastErrorAt: null, updatedAt: new Date(),
 });
 
@@ -61,7 +60,7 @@ export async function ensureWhatsAppSettings(c: Pick<Collections, 'settings'>): 
 
 export interface SettingsPatch {
   phoneNumberId?: string; wabaId?: string; accessToken?: string; appSecret?: string; templateName?: string; language?: string;
-  firstAfterDays?: number; everyDays?: number; maxMessages?: number; windowFrom?: number; windowTo?: number; mode?: string;
+  firstAfterDays?: number; everyDays?: number; maxMessages?: number; mode?: string;
 }
 const int = (v: number, lo: number, hi: number, what: string) => {
   if (!Number.isInteger(v) || v < lo || v > hi) throw new WhatsAppInputError(`${what} must be a whole number from ${lo} to ${hi}.`);
@@ -86,9 +85,6 @@ export async function saveWhatsAppSettings(c: SettingsC, patch: SettingsPatch, a
   if (patch.firstAfterDays !== undefined) next.firstAfterDays = int(patch.firstAfterDays, 1, 30, 'Days before the first reminder');
   if (patch.everyDays !== undefined) next.everyDays = int(patch.everyDays, 1, 30, 'Days between reminders');
   if (patch.maxMessages !== undefined) next.maxMessages = int(patch.maxMessages, 1, MAX_REMINDERS, `Number of reminders (one to ${MAX_REMINDERS})`);
-  if (patch.windowFrom !== undefined) next.windowFrom = int(patch.windowFrom, 0, 23, 'Earliest hour');
-  if (patch.windowTo !== undefined) next.windowTo = int(patch.windowTo, 1, 24, 'Latest hour');
-  if (next.windowFrom >= next.windowTo) throw new WhatsAppInputError('The earliest hour must be before the latest hour.');
   if (patch.mode !== undefined) {
     if (!['off', 'dry_run', 'live'].includes(patch.mode)) throw new WhatsAppInputError('Choose off, preview only, or live.');
     next.mode = patch.mode as WhatsAppMode;
@@ -99,7 +95,7 @@ export async function saveWhatsAppSettings(c: SettingsC, patch: SettingsPatch, a
     if (next.templateStatus !== 'APPROVED') throw new WhatsAppInputError('Live sending needs the reminder template to be approved by WhatsApp. Submit it and refresh its status first.');
   }
   await c.settings.updateOne({ _id: 'whatsapp' }, { $set: { value: next } }, { upsert: true });
-  await c.auditLog.insertOne({ actor, action: 'whatsapp.settings', target: 'whatsapp', at: new Date(), details: { mode: next.mode, rules: [next.firstAfterDays, next.everyDays, next.maxMessages], window: [next.windowFrom, next.windowTo], changedKeys: Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== undefined && k !== 'accessToken' && k !== 'appSecret'), secretsChanged: [!!patch.accessToken?.trim() && 'accessToken', !!patch.appSecret?.trim() && 'appSecret'].filter(Boolean) } });
+  await c.auditLog.insertOne({ actor, action: 'whatsapp.settings', target: 'whatsapp', at: new Date(), details: { mode: next.mode, rules: [next.firstAfterDays, next.everyDays, next.maxMessages], changedKeys: Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== undefined && k !== 'accessToken' && k !== 'appSecret'), secretsChanged: [!!patch.accessToken?.trim() && 'accessToken', !!patch.appSecret?.trim() && 'appSecret'].filter(Boolean) } });
   return next;
 }
 

@@ -159,7 +159,7 @@ describe('settings', () => {
   });
   it('refuses bad numbers and odd values', async () => {
     const { c } = settingsDb();
-    for (const bad of [{ firstAfterDays: 0 }, { everyDays: 31 }, { maxMessages: 5 }, { maxMessages: 0 }, { windowFrom: 25 }, { windowFrom: 18, windowTo: 9 }, { phoneNumberId: 'abc' }, { templateName: 'Has Spaces' }, { language: 'english' }, { mode: 'sometimes' }]) {
+    for (const bad of [{ firstAfterDays: 0 }, { everyDays: 31 }, { maxMessages: 5 }, { maxMessages: 0 }, { phoneNumberId: 'abc' }, { templateName: 'Has Spaces' }, { language: 'english' }, { mode: 'sometimes' }]) {
       await expect(saveWhatsAppSettings(c, bad, 'admin')).rejects.toBeInstanceOf(WhatsAppInputError);
     }
   });

@@ -8,10 +8,10 @@ import { credentialsOf, getWhatsAppSettings, noteWhatsAppError, renderTemplate, 
  *  then again every M days, up to K messages, one per hostel per day, and stop the moment the order is Acknowledged, Rejected or Cancelled.
  *  In preview mode (dry run) this only works out who would be messaged. */
 
-export type SkipReason = 'too_early' | 'waiting_between' | 'max_reached' | 'no_phone' | 'opted_out' | 'hostel_cap' | 'outside_window';
+export type SkipReason = 'too_early' | 'waiting_between' | 'max_reached' | 'no_phone' | 'opted_out' | 'hostel_cap';
 export const SKIP_TEXT: Record<SkipReason, string> = {
   too_early: 'Not in transit long enough yet', waiting_between: 'Waiting for the gap after the last reminder', max_reached: 'All reminders already sent',
-  no_phone: 'No usable phone number for this hostel', opted_out: 'The hostel asked us to stop', hostel_cap: 'Already messaged this hostel today', outside_window: 'Outside the sending hours',
+  no_phone: 'No usable phone number for this hostel', opted_out: 'The hostel asked us to stop', hostel_cap: 'Already messaged this hostel today',
 };
 
 export interface ReminderCandidate {
@@ -23,10 +23,9 @@ export interface ReminderCandidate {
   /** A reminder already went to this hostel today (any order). */
   hostelMessagedToday: boolean;
 }
-export type Rules = Pick<WhatsAppSettings, 'firstAfterDays' | 'everyDays' | 'maxMessages' | 'windowFrom' | 'windowTo'>;
+export type Rules = Pick<WhatsAppSettings, 'firstAfterDays' | 'everyDays' | 'maxMessages'>;
 export type Decision = { send: true; reminderNo: number } | { send: false; reason: SkipReason };
 
-export const istHour = (d: Date) => Number(d.toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' })) % 24;
 
 /** Whether one order gets a reminder now, and which number it is. Pure. */
 export function decide(c: ReminderCandidate, rules: Rules, now: Date): Decision {
@@ -35,8 +34,6 @@ export function decide(c: ReminderCandidate, rules: Rules, now: Date): Decision 
   if (n >= rules.maxMessages) return { send: false, reason: 'max_reached' };
   if (n === 0 ? c.daysInTransit < rules.firstAfterDays : daysBetween(c.sentAt[n - 1]!, now) < rules.everyDays) return { send: false, reason: n === 0 ? 'too_early' : 'waiting_between' };
   if (!c.phone) return { send: false, reason: 'no_phone' };
-  const h = istHour(now);
-  if (h < rules.windowFrom || h >= rules.windowTo) return { send: false, reason: 'outside_window' };
   if (c.hostelMessagedToday) return { send: false, reason: 'hostel_cap' };
   return { send: true, reminderNo: n + 1 };
 }
