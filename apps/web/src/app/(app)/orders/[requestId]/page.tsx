@@ -7,6 +7,7 @@ import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency
 import { daysInStage, OPEN_STAGES, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
 import { loadIndent } from '@/lib/indent';
 import RemarksThread from '@/components/RemarksThread';
+import WhatsAppHistory from '@/components/WhatsAppHistory';
 import FlagOrderForm from '../../issues/FlagOrderForm';
 import RemarkForm from '../../issues/RemarkForm';
 import { Icon } from '@/components/Icons';
@@ -21,9 +22,10 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
   const rows = await loadIndent(c, o.requestId);
-  const [remarks, issues] = await Promise.all([
+  const [remarks, issues, whatsapp] = await Promise.all([
     c.remarks.find({ targetType: 'order', targetId: o.requestId }).sort({ at: 1 }).toArray(),
     c.issues.find(scoped({ $or: [{ targetRequestIds: o.requestId }, { requestIds: o.requestId }, { newRequestId: o.requestId }] }, names)).sort({ raisedAt: -1 }).limit(10).toArray(),
+    c.whatsappMessages.find({ requestId: o.requestId }).sort({ createdAt: 1 }).limit(50).toArray(),
   ]);
   const openIssue = issues.some((i) => ACTIVE_STATES.includes(i.state));
   const cells = stageCells(o, now);
@@ -108,6 +110,11 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
           <ul>{issues.map((i) => <li key={i.issueId}><Link href={`/issues/${i.issueId}`}>{STATE_TEXT[i.state]}</Link> · raised {fmtDay(i.raisedAt)} by {i.raisedByName}</li>)}</ul>
         </section>
       )}
+
+      <section className="summary" aria-labelledby="order-wa">
+        <h2 id="order-wa">WhatsApp reminders</h2>
+        <WhatsAppHistory messages={whatsapp} />
+      </section>
 
       <section className="summary" aria-labelledby="order-remarks">
         <h2 id="order-remarks">Remarks</h2>

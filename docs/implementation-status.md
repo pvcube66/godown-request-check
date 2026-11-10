@@ -200,3 +200,38 @@ Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked 
 - The meeting-demand limits are our starting values, not the client's. They are constants in one place (`MEETING` in the web library) and should be confirmed with the client.
 - Dispatch and DC dates on the portal are often the same day, so "DC to dispatch" may read 0.
 - Until the hourly job has read the item lists, the page shows how many orders are covered ("read for X of Y").
+
+
+## Phase 8 — WhatsApp reminders
+
+**Status:** implemented locally and **sending is off**. Unit tests, a real-MongoDB run of the whole reminder and webhook flow using a **stand-in sender** (no message was sent to anyone and WhatsApp/Meta was never contacted), a production build and a local server check passed. **Nothing has been tested against the real WhatsApp service**: that needs the client's own Meta details (D7), which have not arrived.
+
+### Delivered
+
+- **Reminder rules (D9):** an order In-Transit and not acknowledged after **3 days** gets a first reminder, then one every **2 days**, up to **4**, **one message per hostel per day** (the longest-waiting order of that hostel is the one reminded), and it **stops at once** when the order is Acknowledged, Rejected or Cancelled, or the hostel replied STOP. All numbers are settings on the new admin page `/whatsapp`.
+- **Sending hours (added, not in the plan):** only between 9:00 and 18:00 India time, so a warden is not messaged at night. Changeable on the same page.
+- **Three modes:** Off; **Preview only** (the default: works out who would be messaged and shows the exact message, sends and stores nothing); Live. Live cannot be switched on until the phone number ID, business account ID, access key and app secret are saved **and WhatsApp has approved the template**. If the template later stops being approved, sending falls back to preview.
+- **Reminder wording** is the approved template from `docs/templates/whatsapp-reminder-template.md`; only the last sentence changes with the reminder number. The page can submit it to Meta for approval and check its status.
+- **Safety:** each reminder has a unique key, so two overlapping runs can never send the same reminder twice; a refused send (for example an expired access key) stops the run, is shown in plain English on the page, does not use up a reminder, and is retried the next hour; numbers must be valid 10-digit Indian mobiles; only the last four digits of a phone number are kept in the history and shown; the access key and app secret are stored encrypted and never shown or written to the change log; every settings change is logged.
+- **History on the order (R31):** each reminder with its number, time and delivery state in words (Sent, Delivered, Read, Failed with a plain-English reason) plus replies, on the order page and the hostel page.
+- **Webhook** `/api/whatsapp/webhook` receives delivery ticks and replies. Setup steps and the verify token are shown on the WhatsApp page. A reply of STOP records an opt-out for that hostel; staff can also record or undo an opt-out on the hostel page.
+- Everything that needs sign-in is still protected; the webhook is the only address without sign-in and is protected by Meta's signature instead.
+
+### What was reused from TELECRM `crm_server` (as the owner asked), and what was deliberately not
+
+- **Reused, rewritten in TypeScript for one company:** Graph API v24.0 template send, template create, template status; the setup handshake (verify token / challenge); the plain-English error list (`metaErrorCopy`, same codes, wording changed because there is no "Retry Failed" button here); the repeat-delivery guard on status updates.
+- **Improved instead of copied:** the CRM accepts a webhook **with no signature** outside production and compares signatures in a way that leaks timing. Here every request must be signed with the app secret (constant-time check), and none is accepted before the secret is saved. The CRM's status guard only checks "different from stored", so a late "sent" can overwrite "read"; here statuses only move forward.
+- **Not copied:** flows, campaigns, groups, commerce, automations, analytics, live chat, media hosting, multi-company logic, and **none** of the CRM's keys, tokens or `.env` files.
+
+### Needed before going live
+
+1. The client's Meta details: phone number ID, business account ID, a permanent access key, the app secret.
+2. Fill them in on `/whatsapp`, set up the webhook in Meta with the URL and verify token shown there, submit the wording for approval, and check approval.
+3. Keep Preview on for a few days and compare the list with reality, then switch to Live with a test phone first. The hostel phone numbers used are the ones the portal gives (`mobile`) or an administrator entered under Master data.
+4. Confirm with the client the hours and the numbers in the rules.
+
+### Notes and limits
+
+- Delivery ticks only work once the webhook is set up. Until then messages stay "Sent".
+- Telugu wording, a reply button and a WhatsApp login code are not included (they need the client's decision).
+- Hosting: the webhook needs a public HTTPS address, which the current Vercel site has; it moves with the site when hosting details arrive (Phase 10).

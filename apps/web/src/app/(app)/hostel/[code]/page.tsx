@@ -10,6 +10,8 @@ import { groupFlags } from '@/lib/group';
 import { hostelKey, loadHistory, loadOrderItems, loadRequestsById, monthsWithRequests } from '@/lib/history';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
+import WhatsAppHistory from '@/components/WhatsAppHistory';
+import OptOutForm from '../../whatsapp/OptOutForm';
 import { ACTIVE_STATES as ACTIVE, STATE_TEXT } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
@@ -60,6 +62,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const orderItems = await loadOrderItems(c, orders);
   const dupReqs = await loadRequestsById(c, duplicates.flatMap((a) => a.dup!.requestIds));
   const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer) };
+  const whatsapp = await c.whatsappMessages.find(scoped({ hostelCode: code }, names)).sort({ createdAt: -1 }).limit(20).toArray();
   const hostelIssues = await c.issues.find(scoped({ godownId, hostelCode: code }, names)).sort({ raisedAt: -1 }).limit(20).toArray();
   const remarkCounts = hostelIssues.length ? new Map((await c.remarks.aggregate<{ _id: string; n: number }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $group: { _id: '$targetId', n: { $sum: 1 } } }]).toArray()).map((r) => [r._id, r.n])) : new Map<string, number>();
   const latestRows = hostelIssues.length ? await c.remarks.aggregate<{ _id: string; text: string }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $sort: { at: 1 } }, { $group: { _id: '$targetId', text: { $last: '$text' } } }]).toArray() : [];
@@ -101,6 +104,13 @@ export default async function Hostel({ params, searchParams }: { params: Promise
           <li>Hostel in-charge phone: {phone(assignment.hostel?.hostelPhone)}</li>
         </ul>
         {!assignment.mapping && <p className="mut small">An administrator can import district assignments under Master data. Portal history is not reassigned or rewritten.</p>}
+      </section>
+
+      <section className="summary" aria-labelledby="hostel-wa">
+        <h2 id="hostel-wa">WhatsApp reminders</h2>
+        {assignment.hostel?.whatsappOptOut && <p className="bad-text"><b>This hostel asked us to stop WhatsApp reminders.</b> None will be sent.</p>}
+        <WhatsAppHistory messages={whatsapp} />
+        {canEdit(viewer) && assignment.hostel && <OptOutForm godownId={assignment.hostel.godownId} hostelCode={code} optedOut={assignment.hostel.whatsappOptOut === true} />}
       </section>
 
       <section className="summary" aria-labelledby="needs-attention">

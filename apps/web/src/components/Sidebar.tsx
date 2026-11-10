@@ -22,6 +22,7 @@ const LINKS = [
   { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
   { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
   { href: '/users', label: 'Users', icon: 'user', admin: true },
+  { href: '/whatsapp', label: 'WhatsApp', icon: 'chat', admin: true },
   { href: '/exports', label: 'Full copy', icon: 'download', admin: true },
   { href: '/runs', label: 'Past checks', icon: 'clock', admin: true },
 ] as const;

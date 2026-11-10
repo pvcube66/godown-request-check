@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth';
 
-/** Everything except the login page needs a valid session cookie. The page itself then checks the database
+/** Everything except the login page needs a valid session cookie. (The WhatsApp webhook is the one exception: it has no sign-in and instead checks Meta's signature.) The page itself then checks the database
  *  (is this person still active, which districts), so a valid signature alone never grants data. */
 export function proxy(req: NextRequest) {
   if (!process.env.DASHBOARD_PASSWORD) return new NextResponse('Dashboard password is not configured.', { status: 503 });
@@ -12,4 +12,4 @@ export function proxy(req: NextRequest) {
   if (!ok && !onLogin) return NextResponse.redirect(new URL('/login', req.url));
   return NextResponse.next();
 }
-export const config = { matcher: '/((?!_next/static|_next/image|favicon.ico|robots.txt|icon.svg).*)' };
+export const config = { matcher: '/((?!_next/static|_next/image|favicon.ico|robots.txt|icon.svg|api/whatsapp/webhook).*)' };

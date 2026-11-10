@@ -5,6 +5,7 @@ import type { MasterDataCollections } from './masterData.js';
 import type { ItemMasterDoc } from './itemMaster.js';
 import type { UserDoc } from './users.js';
 import type { IssueDoc, RemarkDoc } from './issues.js';
+import type { WhatsAppMessageDoc } from './whatsapp.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -74,6 +75,7 @@ export interface Collections extends MasterDataCollections {
   users: Collection<UserDoc>;
   issues: Collection<IssueDoc>;
   remarks: Collection<RemarkDoc>;
+  whatsappMessages: Collection<WhatsAppMessageDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -115,6 +117,7 @@ export const collections = (d: Db): Collections => ({
   users: d.collection('users'),
   issues: d.collection('issues'),
   remarks: d.collection('remarks'),
+  whatsappMessages: d.collection('whatsappMessages'),
   auditLog: d.collection('auditLog'),
   async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
     const session = d.client.startSession();
@@ -152,6 +155,10 @@ export async function ensureIndexes(c: Collections) {
   await c.issues.createIndex({ godownId: 1, hostelCode: 1, month: 1 });
   await c.issues.createIndex({ anomalyKeys: 1 });
   await c.remarks.createIndex({ targetType: 1, targetId: 1, at: 1 });
+  await c.whatsappMessages.createIndex({ messageId: 1 }, { unique: true, partialFilterExpression: { messageId: { $type: 'string' } } });
+  await c.whatsappMessages.createIndex({ sendKey: 1 }, { unique: true, partialFilterExpression: { sendKey: { $type: 'string' } } });
+  await c.whatsappMessages.createIndex({ requestId: 1, createdAt: 1 });
+  await c.whatsappMessages.createIndex({ hostelCode: 1, createdAt: -1 });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }
