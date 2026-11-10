@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { STAGE_LABEL } from '@anomaly/core';
 import { getDb } from '@/lib/db';
+import { scopeFor } from '@/lib/viewer';
 import { hostelLabel } from '@/lib/format';
 import { fmtDay } from '@/lib/orders';
 import { searchDashboard, searchQuery, SEARCH_LIMIT } from '@/lib/search';
@@ -10,7 +11,9 @@ export const metadata = { title: 'Search' };
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const q = searchQuery((await searchParams).q);
-  const results = q ? await searchDashboard(await getDb(), q) : null;
+  const c = await getDb();
+  const { names } = await scopeFor(c);
+  const results = q ? await searchDashboard(c, q, names) : null;
   return (
     <>
       <section className="hero">

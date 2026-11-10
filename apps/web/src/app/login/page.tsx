@@ -3,7 +3,8 @@ import { Logo } from '@/components/Icons';
 
 export const metadata = { title: 'Sign in · Godown Request Check' };
 
-export default function Login() {
+export default async function Login({ searchParams }: { searchParams: Promise<{ ended?: string }> }) {
+  const ended = (await searchParams).ended === '1';
   return (
     <div className="login">
       <section className="login-side" aria-hidden="true">
@@ -21,7 +22,7 @@ export default function Login() {
       <section className="login-main">
         <div className="login-card">
           <h2>Welcome back</h2>
-          <p className="lead">Enter your password to see which godown requests need checking.</p>
+          <p className="lead">{ended ? 'Your access has ended or changed. Please sign in again, or ask an administrator.' : 'Sign in with your email and password to see which godown requests need checking.'}</p>
           <LoginForm />
         </div>
       </section>

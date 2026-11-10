@@ -1,7 +1,8 @@
-import { daysBetween, daysInStage, OPEN_STAGES, STAGE_LABEL, type OrderDoc, type Stage, type Collections } from '@anomaly/core';
+import { ACTIVE_STATES, daysBetween, daysInStage, districtRegex, istDay, OPEN_STAGES, scoped, STAGE_LABEL, type OrderDoc, type Stage, type Collections } from '@anomaly/core';
 import { searchFilter } from './search';
 
 export const TABS = [
+  { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
   { key: 'dc', label: 'DC Generated' },
   { key: 'transit', label: 'In-Transit' },
@@ -9,14 +10,16 @@ export const TABS = [
   { key: 'variation', label: 'Variation' },
   { key: 'rejected', label: 'Rejected' },
   { key: 'cancelled', label: 'Cancelled' },
-  { key: 'all', label: 'All' },
 ] as const;
 
-export interface OrderParams { stage?: string; q?: string; month?: string }
+export interface OrderParams { stage?: string; q?: string; month?: string; district?: string; account?: string; stuck?: string }
+
+/** "Stuck" thresholds, in whole days at the same open stage. They match the amber (7) and red (15) shading. */
+export const STUCK_DAYS = [7, 15] as const;
 
 
 /** Builds the Mongo filter from the screen's choices. Unknown stage values show all orders. */
-export function orderFilter(p: OrderParams) {
+export function orderFilter(p: OrderParams, now = new Date()) {
   const f: Record<string, unknown> = {};
   const tab = TABS.find((t) => t.key === p.stage)?.key ?? 'all';
   if (tab !== 'all') f.stage = tab;
@@ -28,29 +31,41 @@ export function orderFilter(p: OrderParams) {
     const end = new Date(start); end.setUTCMonth(end.getUTCMonth() + 1);
     f.placedOn = { $gte: start, $lt: end };
   }
+  if (p.district) f.districtName = districtRegex(p.district);
+  if (p.account) f.account = p.account;
+  const stuck = Number(p.stuck);
+  if ((STUCK_DAYS as readonly number[]).includes(stuck)) {
+    // days in stage >= stuck  <=>  the stage began on or before the India day that is `stuck` days ago
+    const day = new Date(`${istDay(now)}T00:00:00+05:30`);
+    day.setUTCDate(day.getUTCDate() - stuck + 1);
+    const wanted = typeof f.stage === 'string' ? (OPEN_STAGES.includes(f.stage as Stage) ? [f.stage] : []) : OPEN_STAGES;   // only open stages can be stuck
+    f.stage = { $in: wanted };
+    f.stageSince = { $lt: day };
+  }
   return f;
 }
 
 /** Oldest stage first, so the orders that have waited longest are at the top. */
-export async function loadOrders(c: Collections, p: OrderParams, limit = 0) {
-  const filter = orderFilter(p);
+export async function loadOrders(c: Collections, p: OrderParams, names: string[] | null, limit = 0, now = new Date()) {
+  const filter = scoped(orderFilter(p, now), names);
   const cur = c.orders.find(filter as never).sort({ stageSince: 1 });
   if (limit) cur.limit(limit);
   return cur.toArray();
 }
 
 /** How many orders are in each stage (all months), for the tab counts. */
-export async function stageCounts(c: Collections): Promise<Record<string, number>> {
-  const rows = await c.orders.aggregate<{ _id: Stage; n: number }>([{ $group: { _id: '$stage', n: { $sum: 1 } } }]).toArray();
+export async function stageCounts(c: Collections, names: string[] | null, only: { district?: string; account?: string } = {}): Promise<Record<string, number>> {
+  const base = orderFilter({ district: only.district, account: only.account });
+  const rows = await c.orders.aggregate<{ _id: Stage; n: number }>([{ $match: scoped(base, names) }, { $group: { _id: '$stage', n: { $sum: 1 } } }]).toArray();
   const by = Object.fromEntries(rows.map((r) => [r._id, r.n]));
   const open = OPEN_STAGES.reduce((s, k) => s + (by[k] ?? 0), 0);
   return { open, all: rows.reduce((s, r) => s + r.n, 0), ...by };
 }
 
 /** Months (yyyy-mm, newest first) that have any orders, for the month picker. */
-export async function orderMonths(c: Collections): Promise<string[]> {
+export async function orderMonths(c: Collections, names: string[] | null): Promise<string[]> {
   const rows = await c.orders.aggregate<{ _id: string }>([
-    { $match: { placedOn: { $ne: null } } },
+    { $match: scoped({ placedOn: { $ne: null } }, names) },
     { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$placedOn', timezone: 'Asia/Kolkata' } } } },
     { $sort: { _id: -1 } },
   ]).toArray();
@@ -87,12 +102,16 @@ export const STAGE_COLUMNS = [
   { key: 'cancelled', label: STAGE_LABEL.cancelled },
 ] as const;
 
-export interface StageCell { since: Date; days: number; current: boolean; source: 'portal' | 'observed' }
+/** counted = days are counted (Pending, DC Generated, In-Transit, Variation); ack = Acknowledge, the clock stops and the date is shown;
+ *  final = Rejected / Cancelled, a final action with a date (or "first seen") and no day count. */
+export type CellKind = 'counted' | 'ack' | 'final';
+export interface StageCell { since: Date; days: number | null; current: boolean; source: 'portal' | 'observed'; kind: CellKind }
 
 const MAIN_LINE = ['pending', 'dc', 'transit', 'received'] as const;
 const SIDE_STAGES = ['variation', 'rejected', 'cancelled'] as const;
 
 /** For each stage column: when the order reached it, how many days it stayed there, and whether it is still there.
+ *  Days are counted only for the open stages. Acknowledge stops the clock (date only). Rejected and Cancelled are final (no count).
  *  Main-line stages use the portal's own dates. The stop at cancel/reject (or variation) is the moment we first saw it,
  *  because the portal gives no date for that. A stage with no date comes back as null ("never reached"). */
 export function stageCells(o: Pick<OrderDoc, 'stage' | 'stages' | 'reached'>, now = new Date()): Record<string, StageCell | null> {
@@ -103,17 +122,36 @@ export function stageCells(o: Pick<OrderDoc, 'stage' | 'stages' | 'reached'>, no
   MAIN_LINE.forEach((k, i) => {
     const since = r[k];
     if (!since) { out[k] = null; return; }
+    if (k === 'received') { out[k] = { since, days: null, current: false, source: 'portal', kind: 'ack' }; return; }
     const laterMain = MAIN_LINE.slice(i + 1).map((n) => r[n]).find((d): d is Date => !!d);
     const sideAfter = sideEntries.filter((s) => s.since > since).map((s) => s.since).sort((a, b) => a.getTime() - b.getTime())[0];
     const end = laterMain ?? sideAfter ?? now;
-    out[k] = { since, days: daysBetween(since, end), current: !laterMain && !sideAfter && open.includes(k), source: 'portal' };
+    out[k] = { since, days: daysBetween(since, end), current: !laterMain && !sideAfter && open.includes(k), source: 'portal', kind: 'counted' };
   });
   SIDE_STAGES.forEach((k) => {
     const idx = o.stages.findIndex((s) => s.stage === k);
     if (idx < 0) { out[k] = null; return; }
     const entry = o.stages[idx]!;
+    if (k !== 'variation') { out[k] = { since: entry.since, days: null, current: o.stage === k, source: entry.source, kind: 'final' }; return; }
     const next = o.stages[idx + 1]?.since ?? now;
-    out[k] = { since: entry.since, days: daysBetween(entry.since, next), current: o.stage === k, source: entry.source };
+    out[k] = { since: entry.since, days: daysBetween(entry.since, next), current: o.stage === k, source: entry.source, kind: 'counted' };
   });
+  return out;
+}
+
+const FLAG_TEXT: Record<string, string> = { spike: 'Item too high', typing: 'Same number typed for many items', order: 'Whole order too big', duplicate: 'Possible duplicate' };
+
+/** For the hostels on screen: open issues and open unusual-request flags, in words ("issue type" column). District limits apply. */
+export async function hostelIssueTypes(c: Collections, names: string[] | null, hostelCodes: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const codes = [...new Set(hostelCodes)];
+  if (!codes.length) return out;
+  const add = (code: string, text: string) => { const l = out.get(code) ?? out.set(code, []).get(code)!; if (!l.includes(text)) l.push(text); };
+  const [issues, flags] = await Promise.all([
+    c.issues.find(scoped({ hostelCode: { $in: codes }, state: { $in: ACTIVE_STATES } }, names), { projection: { hostelCode: 1, state: 1 } }).toArray(),
+    c.anomalies.find(scoped({ hostelCode: { $in: codes }, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, kind: 1 } }).toArray(),
+  ]);
+  for (const i of issues) add(i.hostelCode, i.state === 'rejected_on_portal' ? 'Waiting for new indent' : 'Issue raised');
+  for (const f of flags) add(f.hostelCode, FLAG_TEXT[f.kind] ?? f.kind);
   return out;
 }

@@ -7,7 +7,7 @@ import FlagActions from './FlagActions';
 import HistoryChart, { windowMonths } from './HistoryChart';
 import { Icon } from './Icons';
 
-interface Ctx { history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean }
+interface Ctx { history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean; issues?: Record<string, string> }
 
 function chartFor(a: AnomalyDoc, ctx: Ctx) {
   const h = ctx.history[hostelKey(a.godownId, a.hostelCode)];
@@ -60,7 +60,7 @@ function Compare({ a, earlier }: { a: AnomalyDoc; earlier: { m: string; q: numbe
   );
 }
 
-const mode = (v: Ctx['view']) => (v === 'open' ? 'open' : 'done');
+const mode = (v: Ctx['view']) => v;
 
 export function SpikeCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string }) {
   const sev = SEVERITY[a.severity];
@@ -85,7 +85,7 @@ export function SpikeCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string
               : <>A zero may have been typed by mistake.</>}</span>
           </p>
         )}
-        {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} />}
+        {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} issueId={ctx.issues?.[a.key]} />}
       </div>
       <figure className="flag-chart">
         <figcaption>Month by month</figcaption>
@@ -115,7 +115,7 @@ export function TypingCard({ g, ctx, no }: { g: TypingGroup; ctx: Ctx; no?: stri
         <ul className="chips" aria-label="Items with the same number">
           {g.items.map((a) => <li key={a.key}><b>{itemLabel(a.item)}</b><span>{a.method === 'peers' ? 'similar hostels ask' : 'usually'} {num(a.expected)}</span></li>)}
         </ul>
-        {ctx.showActions !== false && <FlagActions keys={g.items.map((a) => a.key)} mode={mode(ctx.view)} />}
+        {ctx.showActions !== false && <FlagActions keys={g.items.map((a) => a.key)} mode={mode(ctx.view)} issueId={ctx.issues?.[g.items[0]!.key]} />}
       </div>
       <figure className="flag-chart">
         <figcaption>{itemLabel(first!.item)}, month by month</figcaption>
@@ -166,7 +166,7 @@ export function OrderCard({ a, items, ctx, no }: { a: AnomalyDoc; items: Anomaly
             <dd><b>1×</b><span className="mut"> This is the normal level. Worked out per student, across {n} items.</span></dd></div>
         </dl>
         <p className="hint"><Icon name="info" size={16} /><span>If this hostel really has more students than the portal shows, the order may be fine. Worth a quick check either way.</span></p>
-        {ctx.showActions !== false && <FlagActions keys={[a.key, ...items.map((i) => i.key)]} mode={mode(ctx.view)} />}
+        {ctx.showActions !== false && <FlagActions keys={[a.key, ...items.map((i) => i.key)]} mode={mode(ctx.view)} issueId={ctx.issues?.[a.key]} />}
       </div>
       <figure className="flag-chart">
         <figcaption>Whole order, month by month</figcaption>
@@ -235,7 +235,7 @@ export function DuplicateCard({ a, ctx, no, reqs = {} }: { a: AnomalyDoc; ctx: C
           </div>
         )}
         <p className="hint"><Icon name="info" size={16} /><span>If it is a duplicate, the second request can be cancelled before it is delivered. Until then, both are counted in this hostel's totals, because that is what it would receive, so some items may also be flagged as too high.</span></p>
-        {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} />}
+        {ctx.showActions !== false && <FlagActions keys={[a.key]} mode={mode(ctx.view)} issueId={ctx.issues?.[a.key]} />}
       </div>
     </article>
   );

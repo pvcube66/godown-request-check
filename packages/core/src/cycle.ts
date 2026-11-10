@@ -2,6 +2,8 @@ import type { Collections, RunDoc } from './db.js';
 import { refreshCancellationCheck } from './cancellations.js';
 import { runDetection } from './detector.js';
 import { syncAll } from './sync.js';
+import { syncIssues } from './issues.js';
+import { runReminders } from './reminders.js';
 
 let running = false;
 
@@ -18,6 +20,13 @@ export async function runCycle(c: Collections, trigger: string, mode: 'recent' |
     } catch (e) {
       run.ok = false;
       run.accounts.push({ username: '(detector)', ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    try { await syncIssues(c); } catch (e) {            // follow open issues: did the portal reject it, did a new indent arrive?
+      run.ok = false;
+      run.accounts.push({ username: '(issues)', ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    try { await runReminders(c); } catch (e) {          // WhatsApp reminders (preview or live, as set by an administrator)
+      run.accounts.push({ username: '(whatsapp)', ok: false, error: e instanceof Error ? e.message : String(e) });
     }
     run.finishedAt = new Date();
     await c.runs.insertOne({ ...run });

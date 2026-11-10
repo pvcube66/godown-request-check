@@ -10,21 +10,31 @@ export type SidebarProps = {
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  user: { name: string; role: 'admin' | 'operator' | 'viewer' };
 };
 
 const LINKS = [
-  { href: '/', label: 'Unusual requests', icon: 'alert' },
-  { href: '/accounts', label: 'Godowns', icon: 'warehouse' },
-  { href: '/orders', label: 'Order tracking', icon: 'truck' },
-  { href: '/master', label: 'Master data', icon: 'pencil' },
-  { href: '/runs', label: 'Past checks', icon: 'clock' },
+  { href: '/', label: 'Unusual requests', icon: 'alert', admin: false },
+  { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
+  { href: '/dashboards', label: 'Dashboards', icon: 'chart', admin: false },
+  { href: '/orders', label: 'Order tracking', icon: 'truck', admin: false },
+  { href: '/suppliers', label: 'Supplier performance', icon: 'scale', admin: false },
+  { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
+  { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
+  { href: '/users', label: 'Users', icon: 'user', admin: true },
+  { href: '/whatsapp', label: 'WhatsApp', icon: 'chat', admin: true },
+  { href: '/exports', label: 'Full copy', icon: 'download', admin: true },
+  { href: '/runs', label: 'Past checks', icon: 'clock', admin: true },
 ] as const;
+
+const ROLE_TEXT = { admin: 'Administrator', operator: 'Operator', viewer: 'View only' } as const;
 
 export default function Sidebar({
   collapsed,
   onToggleCollapse,
   mobileOpen,
   onCloseMobile,
+  user,
 }: SidebarProps) {
   const path = usePathname();
 
@@ -83,7 +93,7 @@ export default function Sidebar({
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">
-          {LINKS.map(({ href, label, icon }) => {
+          {LINKS.filter((l) => !l.admin || user.role === 'admin').map(({ href, label, icon }) => {
             const on =
               href === '/'
                 ? path === '/' || path.startsWith('/hostel') || path.startsWith('/report')
@@ -107,6 +117,7 @@ export default function Sidebar({
         </nav>
 
         <div className="sidebar-foot">
+          <p className="sidebar-user" title={`${user.name} · ${ROLE_TEXT[user.role]}`}><b>{user.name}</b><span>{ROLE_TEXT[user.role]}</span></p>
           <form action={logoutAction}>
             <button
               type="submit"

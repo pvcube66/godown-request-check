@@ -1,14 +1,19 @@
+import { csvCell as cell } from '@/lib/csv';
 import { getDb } from '@/lib/db';
+import { AccessError, actorOf, requireAccess, visibleDistricts } from '@/lib/viewer';
 import { hostelLabel, IMPORTANCE, itemLabel, METHOD_TEXT, monthLabel, timesMore } from '@/lib/format';
 import { loadReport } from '@/lib/report';
 
 export const dynamic = 'force-dynamic';
-const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
 
 /** CSV with a byte-order mark so Excel opens it with the right characters. */
 export async function GET(req: Request) {
+  let viewer;
+  try { viewer = await requireAccess('view'); } catch (e) { return new Response('Please sign in again.', { status: e instanceof AccessError ? e.status : 401 }); }
   const u = new URL(req.url);
-  const rows = await loadReport(await getDb(), { month: u.searchParams.get('month') ?? '', district: u.searchParams.get('district') ?? '', q: u.searchParams.get('q') ?? '' });
+  const c = await getDb();
+  const rows = await loadReport(c, { month: u.searchParams.get('month') ?? '', district: u.searchParams.get('district') ?? '', q: u.searchParams.get('q') ?? '' }, await visibleDistricts(c, viewer));
+  await c.auditLog.insertOne({ actor: actorOf(viewer), action: 'export.report', target: 'report', at: new Date(), details: { rows: rows.length } });
   const head = ['S.No', 'Hostel ID', 'Hostel', 'District', 'Month', 'Item', 'Asked for', 'Usually about', 'How much more', 'How important', 'How we compared'];
   const lines = rows.map((a, i) => [
     i + 1, a.hostelCode,

@@ -1,17 +1,21 @@
 
 'use server';
 import { revalidatePath } from 'next/cache';
-import { addAccount, runCycle } from '@anomaly/core';
+import { addAccount, runCycle, scoped } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { requireMasterAdmin } from '@/lib/master-auth';
+import { actorOf, requireAccess, visibleDistricts } from '@/lib/viewer';
 
 const STATUSES = ['open', 'confirmed', 'ignored', 'expected'] as const;
 
 export async function setAnomalyStatuses(keys: string[], status: string): Promise<void> {
   if (!Array.isArray(keys) || keys.length === 0 || keys.length > 100 || keys.some((k) => typeof k !== 'string')) throw new Error('Bad request');
   if (!(STATUSES as readonly string[]).includes(status)) throw new Error('Bad status');
+  const viewer = await requireAccess('edit');                          // viewers are read-only
   const c = await getDb();
-  await c.anomalies.updateMany({ key: { $in: keys } }, { $set: { status: status as (typeof STATUSES)[number], updatedAt: new Date() } });
+  // only flags in the person's own districts can be changed, even if a key from elsewhere is sent
+  const r = await c.anomalies.updateMany(scoped({ key: { $in: keys } }, await visibleDistricts(c, viewer)), { $set: { status: status as (typeof STATUSES)[number], updatedAt: new Date() } });
+  await c.auditLog.insertOne({ actor: actorOf(viewer), action: `flag.${status}`, target: `${keys.length} flag(s)`, at: new Date(), details: { keys, changed: r.modifiedCount } });
   revalidatePath('/'); revalidatePath('/report');
 }
 

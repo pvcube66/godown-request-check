@@ -3,6 +3,7 @@ import { getCancellationCheck, reviewStats, type ReviewGroup } from '@anomaly/co
 import { hostelLabel, monthLabel, num } from '@/lib/format';
 import { Icon } from '@/components/Icons';
 import { getDb } from '@/lib/db';
+import { requireViewer } from '@/lib/viewer';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'How accurate is it?' };
@@ -22,6 +23,8 @@ function Row({ g }: { g: ReviewGroup }) {
 }
 
 export default async function Accuracy() {
+  const viewer = await requireViewer();
+  if (viewer.role !== 'admin') return <div className="hero"><h1>How accurate is it?</h1><p className="lede">These figures cover every district, so only administrators can see them.</p></div>;
   const c = await getDb();
   const [r, cancelled] = await Promise.all([reviewStats(c), getCancellationCheck(c)]);
   const caught = cancelled.filter((x) => x.flagged).length;

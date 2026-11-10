@@ -8,7 +8,10 @@ export interface GodownMasterDoc {
 export interface SupplierDoc { code: string; name: string; contactPhone?: string; createdAt: Date; updatedAt: Date }
 export interface HostelMasterDoc {
   godownId: number; hostelCode: string; hostelName: string; districtName: string; districtCode: string;
-  hostelPhone?: string; contactPerson?: string; createdAt: Date; updatedAt: Date;
+  hostelPhone?: string; contactPerson?: string;
+  /** The hostel asked us to stop WhatsApp reminders (by replying STOP, or an administrator recorded it). */
+  whatsappOptOut?: boolean; whatsappOptOutAt?: Date;
+  createdAt: Date; updatedAt: Date;
 }
 /** ISO calendar dates, [from, to): the end date belongs to the next mapping. */
 export interface MappingDoc {
