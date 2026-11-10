@@ -114,10 +114,17 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
               </tbody>
             </table>
           </div>
-          <nav className="pager" aria-label="More orders">
-            <span className="mut">Orders {offset + 1} to {Math.min(offset + PAGE_SIZE, all.length)} of {all.length}</span>
-            {pageNo > 1 ? <Link className="btn" href={qs(base, { p: String(pageNo - 1) })}>Previous</Link> : <span />}
-            {pageNo < pages ? <Link className="btn primary-ish" href={qs(base, { p: String(pageNo + 1) })}>Next</Link> : <span />}
+          <nav className="pager-bar" aria-label="Pages of orders">
+            <span className="mut">Showing {num(offset + 1)} to {num(Math.min(offset + PAGE_SIZE, all.length))} of {num(all.length)}</span>
+            <div className="pager-ctrl">
+              {pageNo > 1
+                ? <Link className="pager-btn" href={qs(base, { p: String(pageNo - 1) })} rel="prev"><Icon name="chevronLeft" size={16} /> Previous</Link>
+                : <span className="pager-btn off" aria-disabled="true"><Icon name="chevronLeft" size={16} /> Previous</span>}
+              <span className="pager-page">Page {pageNo} of {pages}</span>
+              {pageNo < pages
+                ? <Link className="pager-btn" href={qs(base, { p: String(pageNo + 1) })} rel="next">Next <Icon name="chevronRight" size={16} /></Link>
+                : <span className="pager-btn off" aria-disabled="true">Next <Icon name="chevronRight" size={16} /></span>}
+            </div>
           </nav>
           <p className="mut small">
             Days are counted from the date the portal gives for each stage. For cancelled and rejected orders the portal gives no date, so the count starts from when we first saw that status.
