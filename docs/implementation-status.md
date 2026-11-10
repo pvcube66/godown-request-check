@@ -178,3 +178,25 @@ Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked 
 
 - "Earlier months" are only months in which the hostel placed a request; rejected indents are not counted, as elsewhere.
 - Units show "Unknown" until the item master has them for that item (never guessed).
+
+
+## Phase 7 — Supplier performance
+
+**Status:** implemented locally; unit tests, a real-MongoDB check of the portal-read step (with a stand-in reader), a production build and a local server render check (seeded data) passed. **No live portal read of the item lists was made.**
+
+### Delivered
+
+- **Supplied and received quantities** (`fulfilment` on each order). For every order that has a delivery note (DC Generated, In-Transit, Acknowledge, Variation) the hourly check reads the portal's item list (read-only, the same endpoint as before) and stores a small summary: for each item, supplied against asked for, received against supplied, lines with a variation, and the items supplied short. It is re-read only when the order's stage changes. At most 120 orders per godown login per hour with a pause between calls, so the first catch-up takes a few hours. Failures are retried; a rejected login stops the step and shows in the run log.
+- **Never adds across units.** Each item is compared with itself ("supplied ÷ asked for", capped at 100%) and the items are averaged. Orders still Pending are not "short" because nothing has been supplied yet.
+- **Supplier performance page** (`/suppliers`): Supplier view, Godown, District and Hostel view. For each row: orders, supplied %, received %, days to DC, DC to dispatch, dispatch to acknowledge (the portal's own dates), open orders and how many are 7+ and 15+ days old, rejected share, variation share, the difference from the average of everyone in view, and **Meeting demand?** (Meeting / Watch / Not meeting / Not enough data) with the limits written on the page (90% supplied and under 10% of open orders waiting 15+ days to meet; under 75% supplied or over 25% waiting 15+ days to fail). The weakest are listed first.
+- **Supplier attribution** uses the dated district-to-supplier mapping (Phase 1) at the day the order was placed, so re-assigning a district does not rewrite history. Until the client's mapping sheet is imported, orders show as "No supplier mapped yet" and the page says so; Godown and District views work from day one.
+- **Click through:** a row opens its own page view with its districts (weakest first), how many hostels were served in full, were short, or are still waiting, and the 15 weakest hostels. Order counts link to the matching orders (so the numbers reconcile with the orders list).
+- **Month-by-month checkpoint** per supplier (by month placed) with the numbers behind each verdict.
+- **Excel download** for every view; the order page now shows "Supplied against requested" with the items supplied short and their units.
+- District limits and the audit log apply as everywhere else.
+
+### Notes and limits
+
+- The meeting-demand limits are our starting values, not the client's. They are constants in one place (`MEETING` in the web library) and should be confirmed with the client.
+- Dispatch and DC dates on the portal are often the same day, so "DC to dispatch" may read 0.
+- Until the hourly job has read the item lists, the page shows how many orders are covered ("read for X of Y").

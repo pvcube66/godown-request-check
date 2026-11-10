@@ -17,3 +17,4 @@ export * from './itemMaster.js';
 export * from './seedMasterData.js';
 export * from './users.js';
 export * from './issues.js';
+export * from './fulfilment.js';

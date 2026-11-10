@@ -65,6 +65,20 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
         <p className="mut small">Days are whole calendar days in India time. Dates marked “from the portal” come from the portal's own records.</p>
       </section>
 
+      {o.fulfilment && o.fulfilment.linesWithSupply > 0 && (
+        <section className="summary" aria-labelledby="supply">
+          <h2 id="supply">Supplied against requested</h2>
+          <p>{o.fulfilment.lineFill !== null && <><b>{Math.round(o.fulfilment.lineFill * 100)}%</b> of what was asked for was supplied ({o.fulfilment.fullLines} of {o.fulfilment.linesWithSupply} items in full).</>}{o.fulfilment.receivedFill !== null && <> The hostel received <b>{Math.round(o.fulfilment.receivedFill * 100)}%</b> of what was supplied.</>}{o.fulfilment.variationLines > 0 && <> {o.fulfilment.variationLines} item{o.fulfilment.variationLines === 1 ? '' : 's'} had a variation.</>}</p>
+          {o.fulfilment.short.length > 0 && (
+            <div className="table-wrap"><table className="order-table">
+              <thead><tr><th>Item supplied short</th><th>Unit</th><th className="num">Asked for</th><th className="num">Supplied</th></tr></thead>
+              <tbody>{o.fulfilment.short.map((s) => <tr key={s.name}><td>{itemLabel(s.name)}</td><td>{s.unit ?? 'Unknown'}</td><td className="num">{num(s.requested)}</td><td className="num">{num(s.supplied)}</td></tr>)}</tbody>
+            </table></div>
+          )}
+          <p className="mut small">Read from the portal’s item list at the {STAGE_LABEL[o.fulfilment.stage]} stage. Items are compared one by one; different units are never added together.</p>
+        </section>
+      )}
+
       <section className="summary" aria-labelledby="details">
         <h2 id="details">Delivery details</h2>
         <ul>

@@ -1,6 +1,7 @@
 import type { AccountDoc, Collections } from './db.js';
 import { getToken } from './accounts.js';
 import { fetchGodownOrders, PortalAuthError } from './portalClient.js';
+import type { Fulfilment } from './fulfilment.js';
 
 /** Order tracking: where every order is in its life (placed -> DC -> in transit -> received), and since when.
  *  The portal gives day-only dates for most stages and no date at all for cancel/reject, so for those we
@@ -50,6 +51,8 @@ export interface OrderDoc {
   /** The portal's own date for each main stage, when it has one. Filled from every sync, so no stage is missed. */
   reached: Reached;
   dcNumber: string | null; vehicleNo: string | null;
+  /** How much was supplied / received, read from the item list (see fulfilment.ts). Absent until read. */
+  fulfilment?: Fulfilment;
   firstSeenAt: Date; lastSeenAt: Date;
 }
 

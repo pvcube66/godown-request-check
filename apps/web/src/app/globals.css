@@ -455,3 +455,7 @@ td.stage-col.final b{font-weight:600}
 .timeline.compact{display:flex;flex-wrap:wrap;gap:4px 16px;list-style:none;padding:0;margin:4px 0 0;font-size:12.5px}
 .timeline.compact li{border:0;padding:0}
 .timeline.compact li.now{font-weight:600}
+
+/* Supplier performance (Phase 7) */
+.perf-table th,.perf-table td{white-space:normal;vertical-align:top}
+.perf-table th.num{font-size:12px}

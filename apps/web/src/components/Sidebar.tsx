@@ -18,6 +18,7 @@ const LINKS = [
   { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
   { href: '/dashboards', label: 'Dashboards', icon: 'chart', admin: false },
   { href: '/orders', label: 'Order tracking', icon: 'truck', admin: false },
+  { href: '/suppliers', label: 'Supplier performance', icon: 'scale', admin: false },
   { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
   { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
   { href: '/users', label: 'Users', icon: 'user', admin: true },
