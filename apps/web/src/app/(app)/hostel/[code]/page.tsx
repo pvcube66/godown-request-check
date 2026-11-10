@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { istDay, resolveHostelMapping } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { hostelLabel, itemLabel, monthLabel, num } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
@@ -25,6 +26,8 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   );
   const godownId = reqs[0]!.godownId;
   const size = await c.hostels.findOne({ godownId, hostelCode: code });
+  const assignment = await resolveHostelMapping(c, { godownId, hostelCode: code }, istDay(new Date()));
+  const phone = (value?: string) => value ? <a href={`tel:${value.replace(/[^+0-9]/g, '')}`}>{value}</a> : 'Not recorded';
   const flagged = await c.anomalies.find({ ...filter, status: 'open' }).sort({ ratio: -1 }).toArray();
   const { history, months: allMonths } = await loadHistory(c, [{ godownId, hostelCode: code }]);
   const h = history[hostelKey(godownId, code)] ?? {};
@@ -60,6 +63,17 @@ export default async function Hostel({ params, searchParams }: { params: Promise
           <li><b>{months.length}</b> month{months.length > 1 ? 's' : ''} of history</li>
           <li className={nCards ? 'warn' : 'good'}><b>{nCards}</b> to look at</li>
         </ul>
+      </section>
+
+      <section className="summary" aria-labelledby="hostel-assignment">
+        <h2 id="hostel-assignment">Assignment and business contacts</h2>
+        <ul>
+          <li>Assigned godown: <b>{assignment.godown?.name ?? 'Not mapped for today'}</b></li>
+          <li>Supplier: <b>{assignment.supplier?.name ?? 'Not mapped for today'}</b></li>
+          <li>Godown in-charge: {assignment.godown?.contactPerson || 'Not recorded'} · {phone(assignment.godown?.contactPhone)}</li>
+          <li>Hostel in-charge phone: {phone(assignment.hostel?.hostelPhone)}</li>
+        </ul>
+        {!assignment.mapping && <p className="mut small">An administrator can import district assignments under Master data. Portal history is not reassigned or rewritten.</p>}
       </section>
 
       {nCards > 0 && (

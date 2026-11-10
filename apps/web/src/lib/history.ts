@@ -1,4 +1,4 @@
-import type { Collections } from '@anomaly/core';
+import { comparisonItems, type Collections } from '@anomaly/core';
 
 /** hostel key -> item -> month -> total quantity (rejected requests ignored) */
 export type History = Record<string, Record<string, Record<string, number>>>;
@@ -11,13 +11,13 @@ export async function loadHistory(c: Collections, pairs: { godownId: number; hos
   const wanted = new Set(pairs.map((p) => hostelKey(p.godownId, p.hostelCode)));
   const reqs = await c.requests.find(
     { hostelCode: { $in: [...new Set(pairs.map((p) => p.hostelCode))] } },
-    { projection: { godownId: 1, hostelCode: 1, month: 1, status: 1, items: 1 } },
+    { projection: { godownId: 1, hostelCode: 1, month: 1, status: 1, items: 1, itemSnapshots: 1 } },
   ).toArray();
   for (const r of reqs) {
     const k = hostelKey(r.godownId, r.hostelCode);
     if (!wanted.has(k) || /^reject/i.test(r.status)) continue;
     const h = (history[k] ??= {});
-    for (const [it, q] of Object.entries(r.items)) { const row = (h[it] ??= {}); row[r.month] = (row[r.month] ?? 0) + q; }
+    for (const [it, q] of Object.entries(comparisonItems(r))) { const row = (h[it] ??= {}); row[r.month] = (row[r.month] ?? 0) + q; }
   }
   return { history, months };
 }
@@ -33,8 +33,8 @@ export function monthsWithRequests(h: History[string] | undefined): Set<string> 
 export async function loadRequestsById(c: Collections, ids: string[]) {
   const map: Record<string, { requestId: string; requestDate: string; status: string; items: Record<string, number> }> = {};
   if (!ids.length) return map;
-  const rows = await c.requests.find({ requestId: { $in: [...new Set(ids)] } }, { projection: { requestId: 1, requestDate: 1, status: 1, items: 1 } }).toArray();
-  for (const r of rows) map[r.requestId] = { requestId: r.requestId, requestDate: r.requestDate, status: r.status, items: r.items };
+  const rows = await c.requests.find({ requestId: { $in: [...new Set(ids)] } }, { projection: { requestId: 1, requestDate: 1, status: 1, items: 1, itemSnapshots: 1 } }).toArray();
+  for (const r of rows) map[r.requestId] = { requestId: r.requestId, requestDate: r.requestDate, status: r.status, items: comparisonItems(r) };
   return map;
 }
 

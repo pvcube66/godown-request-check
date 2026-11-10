@@ -50,14 +50,47 @@ Run `npm -w apps/web run dev` with the usual locally configured dashboard/databa
 7. Print a report in black and white. Verify unusual/peer chart bars remain distinguishable and tags still carry urgency words.
 8. Check keyboard focus on black navigation and toast controls. Confirm no decorative colour remains and acknowledged-date/day-count behaviour is checked again when Phase 5 implements those rules.
 
-## Next phase — Phase 1 master data
+## Phase 1 — Master data
 
-**Status:** not started. Next implementation work follows the master plan, not a new scope:
+**Status:** implementation complete locally; automated validation passed. Client-data, real Mongo transaction, and browser acceptance remain pending. Stop here: no Phase 2 work is authorized by this implementation pass.
 
-1. Add master collections and history-preserving dated district → godown → supplier assignments, with validation and audit events.
-2. Ingest item unit/pack-size/brand/category and business contacts from the existing read-only portal responses. Add mixed-unit/pack-size detector regression tests before changing comparisons.
-3. Add validated import matching the client's mapping template, mapping reassignment controls, and the godown-creation hook.
-4. Ensure new administrative mutations are protected; the shared gate does not distinguish admin/operator today, so role enforcement must be coordinated with Phase 2 rather than claiming admin-only access prematurely.
-5. Validate mapping history, item snapshots, importer error handling, and missing-input behaviour before declaring Phase 1 done.
+### Delivered
 
-Later phases remain unimplemented unless separately recorded here. Phase 9 stays removed; Phase 10 stays parked pending hosting details. No WhatsApp implementation may fabricate the required TELECRM source or reuse its secrets.
+- Typed/indexed district, godown, supplier, dated mapping, hostel master, item master and audit collections.
+- Master data screen at `/master`, with stored-data bootstrap, mapping history, district reassignment, item corrections, editable business contacts and change log.
+- CSV/XLSX import matching sheet `1 Mapping` in the supplied template. All rows validate before transactional writes. Sample rows, invalid dates, ambiguous godowns, overlapping assignments and contradictory supplier assignments are rejected. Exact repeat imports do not rewrite history.
+- Calendar intervals are **[from, to)**: the end date is excluded. Reassignment preserves prior history and future scheduled assignments. UI explicitly explains this convention.
+- Mapping operations lock district/godown records inside retryable Mongo transactions; history and audit commit together. These operations require MongoDB Atlas or another **replica set**—a standalone Mongo server is not sufficient. No non-atomic fallback is used.
+- Administrator bootstrap reads already stored accounts/requests, not the government portal. It creates no invented mappings, supplier assignments or godown IDs.
+- New verified portal accounts create their godown master records and prompt the administrator to assign districts under Master data.
+- Item metadata hydration uses only the existing read-only items endpoint. Up to 40 requests per account per sync are hydrated, with rate limiting. Successful empty reads are recorded, transient failures remain retryable, and authentication failures propagate.
+- Units, pack sizes, brand/category and supplied/received quantities are retained as item snapshots. Raw report quantities remain intact. Unknown or ambiguous units are explicitly unknown, never guessed.
+- Detection and history comparisons distinguish unit/pack variants (including 200 g vs 250 g). Known units do not borrow unknown legacy history; no kg-to-packet conversion is inferred. This can temporarily reduce comparison coverage while metadata backfills.
+- Item master corrections are stored separately from observed identity and displayed on order details. They do not silently rewrite historical order snapshots or detector identities.
+- Hostel pages resolve today's dated godown/supplier assignment and expose recorded business contacts. Full month-picker workflow remains Phase 6.
+
+### Temporary administrator boundary
+
+Until Phase 2 introduces individual users/roles, configure **`MASTER_ADMIN_PASSWORD`**, at least 16 characters and different from `DASHBOARD_PASSWORD`. Set the value in your environment/secret store, never in source control. Restart the app, log into the existing dashboard and unlock `/master`.
+
+The admin unlock is a separate HttpOnly, SameSite cookie, expires after one hour, and is cryptographically bound to the existing dashboard session. Missing/invalid configuration fails closed. Master reads, every master mutation and godown account management require the additional gate. Audit actor is `master-admin`, not a fabricated individual user. This is **not** district-scoped operator access; that remains Phase 2.
+
+### Validation and limitations
+
+- Unit/action/import/security tests, core/worker/web TypeScript checks, and the web production build passed. Tests include real generated XLSX workbooks and the supplied template's required rejection of its sample row.
+- Mapping transaction tests use mocks; no production database migration, bootstrap/import, portal sync, or WhatsApp call was run for validation.
+- Browser/mobile/print acceptance remains pending because browser tooling is unavailable.
+- The live detector benchmark was not run: its CLI connects to Mongo and ensures indexes. Mixed-unit/pack-size detector regression tests were run instead.
+- ExcelJS is used only on the server. XLSX parsing bounds compressed size, actual expanded sizes, ZIP entries and worksheet dimensions, and rejects formulas/hyperlinks. The ExcelJS UUID dependency is overridden to patched 11.1.1. npm audit still reports the existing worker `node-cron`/UUID moderate advisory; no unrelated cron upgrade was made.
+
+### Local acceptance
+
+1. Configure the separate admin secret and a replica-set Mongo database; unlock `/master`.
+2. Bootstrap stored data, replace the template's sample row with real mappings and import. Verify invalid/overlapping files leave no partial changes.
+3. Reimport the same file; expect skipped rows. Reassign a district on a chosen date; verify both history intervals and the hostel's current supplier.
+4. Run the normal worker sync when authorized; verify item metadata/contacts appear incrementally. Unknown/ambiguous units must remain labelled unknown.
+5. Correct a business contact/item display field; verify the change log and hostel/order view. Lock master access; direct actions and account management must be denied.
+
+Release 0 was committed as `69128de` and merged through [PR #1](https://github.com/pvcube66/godown-request-check/pull/1), merge commit `092d4ae`. Phase 1 is isolated on `phase-1-master-data` for its own PR.
+
+Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked pending hosting details. No WhatsApp implementation may fabricate the required TELECRM source or reuse its secrets.

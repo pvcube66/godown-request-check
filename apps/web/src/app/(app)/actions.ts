@@ -1,7 +1,9 @@
+
 'use server';
 import { revalidatePath } from 'next/cache';
 import { addAccount, runCycle } from '@anomaly/core';
 import { getDb } from '@/lib/db';
+import { requireMasterAdmin } from '@/lib/master-auth';
 
 const STATUSES = ['open', 'confirmed', 'ignored', 'expected'] as const;
 
@@ -18,12 +20,14 @@ export async function addAccountAction(_prev: unknown, formData: FormData): Prom
   const password = String(formData.get('password') ?? '');
   if (!username || !password) return { ok: false, message: 'Enter both username and password.' };
   try {
+    const { actor } = await requireMasterAdmin();
     const c = await getDb();
     const r = await addAccount(c, username, password);
+    await c.auditLog.insertOne({ actor, action: 'godown.add', target: r.username, at: new Date(), details: { godowns: r.godowns } });
     // first pull in the background-safe way: fetch all months so history exists straight away
     await runCycle(c, 'new-account', 'backfill');
-    revalidatePath('/accounts'); revalidatePath('/');
-    return { ok: true, message: `Added ${r.username} (godowns: ${r.godowns.map((g) => g.name).join(', ')}). History loaded.` };
+    revalidatePath('/accounts'); revalidatePath('/master'); revalidatePath('/');
+    return { ok: true, message: `Added ${r.username} (godowns: ${r.godowns.map((g) => g.name).join(', ')}). History loaded. Open Master data to assign its districts.` };
   } catch (e) {
     return { ok: false, message: `We could not add this login: ${e instanceof Error ? e.message : String(e)}` };
   }

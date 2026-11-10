@@ -22,6 +22,14 @@ export async function addAccount(c: Collections, username: string, password: str
     },
     { upsert: true },
   );
+  await c.godowns.bulkWrite(godowns.map((gd) => ({ updateOne: {
+    filter: { godownId: gd.id },
+    update: {
+      $set: { portalLogin: username, name: gd.name, updatedAt: now },
+      $setOnInsert: { godownId: gd.id, status: 'active' as const, createdAt: now },
+    },
+    upsert: true,
+  } })));
   return { username, godowns };
 }
 

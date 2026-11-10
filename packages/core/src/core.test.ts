@@ -1,10 +1,69 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { newScode, portalDecrypt, portalEncrypt } from './portalCrypto.js';
 import { openSecret, sealSecret } from './secretBox.js';
 import { parseGodownRows, parseQty, resolveMonth } from './parser.js';
-import { parsePortalTime } from './portalClient.js';
+import { fetchRequestItems, fetchRequestRemark, parsePortalTime, PortalAuthError } from './portalClient.js';
 
 const KEY = 'a'.repeat(64);
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('request item GET reads', () => {
+  const reply = (body: unknown, status = 200) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+
+  it('reads the permitted endpoint and whitelists raw metadata/quantity fields only', async () => {
+    const fetchMock = reply({ success: true, data: [{
+      item_id: 17, item_name: 'Rice', uom: 'pack', pack_size: '200g', brand: 'Test', item_category: 'Grain',
+      requested_quantity: '10.5', supplied_quantity: '9', received_quantity: 8, variation_quantity: -1, final_quantity: 7,
+      student_name: 'Must not retain', student_id: 'private', remarks: ' business remark ',
+    }] });
+    const items = await fetchRequestItems('token', 'IR /1');
+    expect(items).toEqual([{
+      itemId: '17', name: 'Rice', unit: 'pack', packSize: '200g', brand: 'Test', category: 'Grain',
+      requestedQuantity: 10.5, suppliedQuantity: 9, receivedQuantity: 8, variationQuantity: -1, finalQuantity: 7,
+      remarks: 'business remark',
+    }]);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('GetIndentHostelToVendorRequestItems?requestId=IR%20%2F1'), expect.objectContaining({ headers: { Authorization: 'Bearer token', Accept: 'application/json' } }));
+    expect(fetchMock.mock.calls[0]![1].method).toBe('GET');
+  });
+
+  it('accepts explicit no-record and empty-array responses but rejects unexpected/error responses', async () => {
+    reply({ success: false, data: { status: 0, msg: 'No records found' } });
+    expect(await fetchRequestItems('token', 'id')).toEqual([]);
+    reply({ success: true, data: [] });
+    expect(await fetchRequestItems('token', 'id')).toEqual([]);
+    reply({ success: false, message: 'Session expired' });
+    await expect(fetchRequestItems('token', 'id')).rejects.toThrow(PortalAuthError);
+    reply({ success: false, data: { msg: 'Database unavailable' } });
+    await expect(fetchRequestItems('token', 'id')).rejects.toThrow('unexpected response');
+    reply({ success: false, data: [], message: 'Database unavailable' });
+    await expect(fetchRequestItems('token', 'id')).rejects.toThrow('unsuccessful');
+    reply({ success: false, data: [], message: 'Session expired' });
+    await expect(fetchRequestItems('token', 'id')).rejects.toThrow(PortalAuthError);
+    reply({ success: false, data: [{ item_name: 'Rice' }] });
+    await expect(fetchRequestItems('token', 'id')).rejects.toThrow('unsuccessful');
+    reply({}, 500);
+    await expect(fetchRequestItems('token', 'id')).rejects.toThrow('HTTP 500');
+    for (const status of [401, 403]) {
+      reply({}, status);
+      await expect(fetchRequestItems('token', 'id')).rejects.toThrow(PortalAuthError);
+    }
+  });
+
+  it('reuses the read for remarks without writes and preserves auth errors', async () => {
+    const fetchMock = reply({ data: [{ item_name: 'Rice', remarks: '', supplier_remarks: ' Corrected order ' }] });
+    expect(await fetchRequestRemark('token', 'id')).toBe('Corrected order');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    reply({ data: [] });
+    expect(await fetchRequestRemark('token', 'id')).toBeNull();
+    reply({}, 401);
+    await expect(fetchRequestRemark('token', 'id')).rejects.toThrow(PortalAuthError);
+  });
+});
 
 describe('portal crypto', () => {
   it('round-trips and uses a fresh IV each time', () => {

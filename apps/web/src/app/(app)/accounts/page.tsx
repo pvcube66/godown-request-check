@@ -1,10 +1,13 @@
 import { getDb } from '@/lib/db';
 import { ago } from '@/lib/format';
 import AddForm from './AddForm';
+import Link from 'next/link';
+import { masterAdminAccess } from '@/lib/master-auth';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;     // adding a godown loads its whole history, which can take most of a minute
 
 export default async function Accounts() {
+  if (!(await masterAdminAccess()).authorized) return <section className="hero"><h1>Godowns</h1><p className="lede">Godown credentials are managed by administrators. <Link href="/master">Unlock master admin access</Link> to continue.</p></section>;
   const c = await getDb();
   const accts = await c.accounts.find({}, { projection: { passwordEnc: 0, tokenEnc: 0 } }).toArray();
   return (

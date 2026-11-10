@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectAnomalies, DEFAULT_CONFIG } from './detector.js';
+import type { Req } from './detector.js';
+import { comparisonItems, itemVariantKey } from './itemMaster.js';
 
 const BASE: Record<string, number> = { A: 100, B: 50, C: 20, D: 80, E: 10, F: 40, IddliRavva: 30 };
 const mk = (hostel: string, month: string, items: Record<string, number>, status = 'Pending') => ({
@@ -10,6 +12,71 @@ const mk = (hostel: string, month: string, items: Record<string, number>, status
 const peers = (month: string) => Array.from({ length: 12 }, (_, i) => mk(`P${i}`, month, { A: 100 + i, IddliRavva: 28 + (i % 5) }));
 const world = (extra: ReturnType<typeof mk>[]) => [...peers('2026-09'), ...peers('2026-10'), ...peers('2026-11'), ...extra];
 const find = (res: ReturnType<typeof detectAnomalies>, h: string, item = 'IddliRavva') => res.find((a) => a.hostelCode === h && a.item === item);
+
+describe('unit-aware detection', () => {
+  const make = (month: string, quantity: number, unit?: string, packSize?: string): Req => ({
+    godownId: 2, hostelCode: 'UNIT', hostelName: 'Unit Hostel', districtName: 'D', status: 'Pending', month,
+    items: { Rice: quantity },
+    ...(unit === undefined ? {} : { itemSnapshots: [{ sourceKey: 'Rice', name: 'Rice', unit, packSize, requestedQuantity: quantity }] }),
+  });
+
+  it('never borrows legacy, kg, or different pack-size history for a known variant', () => {
+    for (const [oldUnit, oldPack, newUnit, newPack] of [
+      [undefined, undefined, 'kg', undefined], ['kg', undefined, 'pack', undefined],
+      ['pack', '200g', 'pack', '250g'], ['pack', undefined, 'pack', '200g'],
+      ['kg', undefined, undefined, undefined],
+    ]) {
+      const rows = [make('2026-09', 10, oldUnit, oldPack), make('2026-10', 10, oldUnit, oldPack), make('2026-11', 100, newUnit, newPack)];
+      expect(detectAnomalies(rows, ['2026-11'])).toEqual([]);
+    }
+  });
+
+  it('does not compare different-unit peers, but flags a same-variant spike with a readable item', () => {
+    const peerRows = Array.from({ length: 12 }, (_, i) => ({ ...make('2026-11', 10, 'kg'), hostelCode: `P${i}` }));
+    expect(detectAnomalies([...peerRows, make('2026-11', 100, 'pack')], ['2026-11'])).toEqual([]);
+    const rows = [make('2026-09', 10, 'pack', '200g'), make('2026-10', 10, 'pack', '200g'), make('2026-11', 100, 'pack', '200g')];
+    const original = structuredClone(rows);
+    const flags = detectAnomalies(rows, ['2026-11']);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ item: itemVariantKey(rows[2]!.itemSnapshots![0]!), requested: 100, expected: 10 });
+    expect(flags[0]!.item).toContain('pack:200g');
+    expect(comparisonItems(rows[2]!)[flags[0]!.item]).toBe(100);
+    expect(rows).toEqual(original);
+  });
+
+  it('does not call different units/packs duplicates', () => {
+    const makeOrder = (id: string, unit: string, packSize: string): Req => ({
+      ...make('2026-11', 10), requestId: id,
+      items: { A: 10, B: 10, C: 10, D: 10 },
+      itemSnapshots: ['A', 'B', 'C', 'D'].map((name) => ({ sourceKey: name, name, unit, packSize, requestedQuantity: 10 })),
+    });
+    const rows = [makeOrder('1', 'kg', '200g'), makeOrder('2', 'pack', '200g'), makeOrder('3', 'pack', '250g')];
+    expect(detectAnomalies(rows, ['2026-11']).some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+
+  it('does not hide a small incompatible variant behind large matching duplicate quantities', () => {
+    const order = (unit: string, packSize: string, requestId: string): Req => ({
+      ...make('2026-11', 1, unit, packSize), requestId,
+      items: { Rice: 1, A: 1000, B: 1000, C: 1000, D: 1000 },
+    });
+    const rows = [order('pack', '200g', '1'), order('pack', '250g', '2'), order('kg', '', '3')];
+    expect(detectAnomalies(rows, ['2026-11']).some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+
+  it('does not manufacture typing slips or duplicate item counts from variants of one name', () => {
+    const order = (month: string, quantity: number, id: string): Req => ({
+      ...make(month, quantity), requestId: id,
+      items: { Small: quantity, Medium: quantity, Large: quantity, Extra: quantity },
+      itemSnapshots: ['Small', 'Medium', 'Large', 'Extra'].map((sourceKey, i) => ({
+        sourceKey, name: 'Rice', unit: 'pack', packSize: `${200 + i * 50}g`, requestedQuantity: quantity,
+      })),
+    });
+    const rows = [order('2026-09', 10, '1'), order('2026-10', 10, '2'), order('2026-11', 100, '3'), order('2026-11', 100, '4')];
+    const flags = detectAnomalies(rows, ['2026-11']);
+    expect(flags.some((f) => f.kind === 'typing' || f.kind === 'duplicate')).toBe(false);
+    expect(flags.filter((f) => f.kind === 'spike')).toHaveLength(4);
+  });
+});
 
 describe('detector', () => {
   it('flags 30,30 -> 300 using the hostel\'s own history (the headline case)', () => {

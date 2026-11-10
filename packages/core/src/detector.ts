@@ -1,4 +1,5 @@
 import type { AnomalyDoc, Collections, RequestDoc } from './db.js';
+import { comparisonItems, itemVariantKey, normalizedItemName } from './itemMaster.js';
 
 export interface DetectorConfig {
   ownRatio: number;        // flag if request >= this x the hostel's own usual quantity
@@ -36,7 +37,7 @@ export const DEFAULT_CONFIG: DetectorConfig = {
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
-type Req = Pick<RequestDoc, 'godownId' | 'hostelCode' | 'hostelName' | 'districtName' | 'month' | 'status' | 'items'> & { societyId?: string; requestId?: string; requestDate?: string };
+export type Req = Pick<RequestDoc, 'godownId' | 'hostelCode' | 'hostelName' | 'districtName' | 'month' | 'status' | 'items' | 'itemSnapshots'> & { societyId?: string; requestId?: string; requestDate?: string };
 
 const median = (a: number[]) => {
   if (!a.length) return 0;
@@ -66,6 +67,12 @@ function severity(ratio: number, method: 'own-history' | 'peers' | 'blend', z: n
 /** `sizes` maps "godownId|hostelCode" to the number of students (when known). With it, requests are compared per student
  *  against hostels of a similar size; without it the size is estimated from the order itself. */
 export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: DetectorConfig = DEFAULT_CONFIG, sizes: Map<string, number> = new Map()): Candidate[] {
+  const baseNames = new Map<string, string>();
+  for (const r of reqs) for (const s of r.itemSnapshots ?? []) {
+    if (s.unit?.trim() || s.packSize?.trim()) baseNames.set(itemVariantKey(s), normalizedItemName(s.name));
+  }
+  const baseName = (item: string) => baseNames.get(item) ?? normalizedItemName(item);
+  reqs = reqs.map((r) => r.itemSnapshots ? { ...r, items: comparisonItems(r) } : r);
   // 0. duplicate requests: two live requests from one hostel in one month that are almost identical.
   //    The later copy is flagged. It is still counted in the totals, because if nobody cancels it the hostel really does receive
   //    everything twice (or three times), and the amounts should be judged as they would actually be delivered.
@@ -81,13 +88,31 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
       for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
         if (dropped.has(rs[j]!) || dropped.has(rs[i]!)) continue;
         const a = rs[i]!, b = rs[j]!;
-        let sumMin = 0, sumMax = 0, nA = 0, nB = 0, totalB = 0;
+        // A small quantity in another unit/pack must not disappear under a large common item.
+        const variants = (r: Req) => {
+          const byName = new Map<string, Set<string>>();
+          for (const [item, qty] of Object.entries(r.items)) if (qty > 0) {
+            const name = baseName(item);
+            (byName.get(name) ?? byName.set(name, new Set()).get(name)!).add(item);
+          }
+          return byName;
+        };
+        const variantsA = variants(a), variantsB = variants(b);
+        if ([...variantsA].some(([name, keys]) => {
+          const other = variantsB.get(name);
+          return other && (keys.size !== other.size || [...keys].some((key) => !other.has(key)));
+        })) continue;
+        let sumMin = 0, sumMax = 0, totalB = 0;
+        const namesA = new Set<string>(), namesB = new Set<string>();
         for (const it of new Set([...Object.keys(a.items), ...Object.keys(b.items)])) {
           const x = a.items[it] ?? 0, y = b.items[it] ?? 0;
           if (x <= 0 && y <= 0) continue;
-          sumMin += Math.min(x, y); sumMax += Math.max(x, y); if (x > 0) nA++; if (y > 0) nB++; totalB += y;
+          sumMin += Math.min(x, y); sumMax += Math.max(x, y);
+          if (x > 0) namesA.add(baseName(it));
+          if (y > 0) namesB.add(baseName(it));
+          totalB += y;
         }
-        const sim = sumMax > 0 ? sumMin / sumMax : 0, n = Math.min(nA, nB);
+        const sim = sumMax > 0 ? sumMin / sumMax : 0, n = Math.min(namesA.size, namesB.size);
         if (sim < cfg.dupSimilarity || n < cfg.dupMinItems) continue;
         dropped.add(b);
         const [g, h, m] = k.split('|') as [string, string, string];
@@ -319,7 +344,8 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
               const x = expectation.get(it);
               return x && value >= cfg.slipRatio * x.expected && value - x.expected >= floorOf(it);
             });
-            if (over.length < cfg.slipMinGroup || over.length < cfg.slipFraction * names.length) continue;
+            const count = new Set(over.map(baseName)).size;
+            if (count < cfg.slipMinGroup || count < cfg.slipFraction * new Set(names.map(baseName)).size) continue;
             for (const it of over) {
               const x = expectation.get(it)!;
               const qty = e.items[it]!;
@@ -332,9 +358,9 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
                   requested: round(qty), expected: round(x.expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
                   method: x.method, peer: peerStat(it), ...(students ? { students } : {}), reason: '',
                 }),
-                severity: 'high', kind: 'typing', slip: { value, count: over.length, items: over },
+                severity: 'high', kind: 'typing', slip: { value, count, items: over },
                 looksLikeExtraZero: false,
-                reason: `The same number (${value}) was entered for ${over.length} different items, far above what is usual for each. Likely a typing mistake.`,
+                reason: `The same number (${value}) was entered for ${count} different items, far above what is usual for each. Likely a typing mistake.`,
               });
             }
           }
@@ -397,7 +423,7 @@ export function defaultEvalMonths(now = new Date()): string[] {
 export async function runDetection(c: Collections, evalMonths = defaultEvalMonths()): Promise<{ found: number; created: number }> {
   const saved = await c.settings.findOne({ _id: 'detector' });
   const cfg = { ...DEFAULT_CONFIG, ...((saved?.value as Partial<DetectorConfig>) ?? {}) };
-  const reqs = await c.requests.find({}, { projection: { items: 1, godownId: 1, hostelCode: 1, hostelName: 1, districtName: 1, month: 1, status: 1, societyId: 1, requestId: 1, requestDate: 1 } }).toArray();
+  const reqs = await c.requests.find({}, { projection: { items: 1, itemSnapshots: 1, godownId: 1, hostelCode: 1, hostelName: 1, districtName: 1, month: 1, status: 1, societyId: 1, requestId: 1, requestDate: 1 } }).toArray();
   const sizes = new Map((await c.hostels.find({ students: { $gt: 0 } }).toArray()).map((h) => [`${h.godownId}|${h.hostelCode}`, h.students!] as const));
   const found = detectAnomalies(reqs, evalMonths, cfg, sizes);
   const now = new Date();

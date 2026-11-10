@@ -1,4 +1,5 @@
 import { newScode, portalDecrypt, portalEncrypt } from './portalCrypto.js';
+import type { RequestItemSnapshot } from './itemMaster.js';
 
 export interface PortalSession { token: string; createdAt: Date; expiresAt: Date; }
 
@@ -110,13 +111,64 @@ export async function fetchHostelStudents(token: string, hostelCode: string): Pr
   return total > 0 ? total : null;
 }
 
-/** The reason written when a request was cancelled/rejected (empty when none was given). Reads only the free-text remarks. */
+export interface PortalRequestItem extends Omit<RequestItemSnapshot, 'sourceKey'> {
+  remarks?: string;
+  supplierRemarks?: string;
+  vendorRemarks?: string;
+}
+
+const portalText = (value: unknown): string | undefined =>
+  typeof value === 'string' || typeof value === 'number' ? String(value).trim() || undefined : undefined;
+const portalQuantity = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') return undefined;
+  const n = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/** Read-only item metadata endpoint. Whitelists business/item fields; no student data is retained. */
+export async function fetchRequestItems(token: string, requestId: string): Promise<PortalRequestItem[]> {
+  const path = 'GetIndentHostelToVendorRequestItems';
+  const r = await fetch(`${base()}Mess/api/mess/${path}?requestId=${encodeURIComponent(requestId)}`, { method: 'GET', headers: authHeaders(token), signal: AbortSignal.timeout(30_000) });
+  if (r.status === 401 || r.status === 403) throw new PortalAuthError(`Token rejected (${r.status})`);
+  if (!r.ok) throw new Error(`${path} HTTP ${r.status}`);
+  const j = await r.json() as { success?: boolean; data?: unknown; msg?: unknown; message?: unknown };
+  if (!j || typeof j !== 'object') throw new Error(`${path}: unexpected response`);
+  const data = j.data as { msg?: unknown; message?: unknown } | undefined;
+  const message = String(data?.msg ?? data?.message ?? j.msg ?? j.message ?? '');
+  if (/unauthori[sz]ed|invalid token|token expired|session expired/i.test(message)) throw new PortalAuthError(`${path}: token rejected`);
+  if (!Array.isArray(j.data)) {
+    if (/no records/i.test(message)) return [];
+    throw new Error(`${path}: unexpected response`);
+  }
+  if (j.success === false) {
+    if (!j.data.length && /no records/i.test(message)) return [];
+    throw new Error(`${path}: unsuccessful response`);
+  }
+  return j.data.map((value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${path}: invalid item row`);
+    const row = value as Record<string, unknown>;
+    const item: PortalRequestItem = { name: portalText(row.item_name) ?? '', requestedQuantity: portalQuantity(row.requested_quantity) ?? 0 };
+    for (const [source, target] of [
+      ['item_id', 'itemId'], ['uom', 'unit'], ['pack_size', 'packSize'], ['brand', 'brand'], ['item_category', 'category'],
+      ['remarks', 'remarks'], ['supplier_remarks', 'supplierRemarks'], ['vendor_remarks', 'vendorRemarks'],
+    ] as const) {
+      const text = portalText(row[source]);
+      if (text !== undefined) item[target] = text;
+    }
+    for (const [source, target] of [
+      ['supplied_quantity', 'suppliedQuantity'], ['received_quantity', 'receivedQuantity'],
+      ['variation_quantity', 'variationQuantity'], ['final_quantity', 'finalQuantity'],
+    ] as const) {
+      const quantity = portalQuantity(row[source]);
+      if (quantity !== undefined) item[target] = quantity;
+    }
+    return item;
+  });
+}
+
+/** The reason written when a request was cancelled/rejected (empty when none was given). */
 export async function fetchRequestRemark(token: string, requestId: string): Promise<string | null> {
-  const r = await fetch(`${base()}Mess/api/mess/GetIndentHostelToVendorRequestItems?requestId=${encodeURIComponent(requestId)}`, { headers: authHeaders(token), signal: AbortSignal.timeout(30_000) });
-  if (r.status === 401) throw new PortalAuthError('Token rejected (401)');
-  if (!r.ok) return null;
-  const j = (await r.json()) as { data?: { remarks?: string | null; supplier_remarks?: string | null; vendor_remarks?: string | null }[] };
-  const rows = Array.isArray(j.data) ? j.data : [];
-  for (const row of rows) for (const t of [row.remarks, row.supplier_remarks, row.vendor_remarks]) if (t && t.trim()) return t.trim().slice(0, 400);
+  const rows = await fetchRequestItems(token, requestId);
+  for (const row of rows) for (const t of [row.remarks, row.supplierRemarks, row.vendorRemarks]) if (t?.trim()) return t.trim().slice(0, 400);
   return null;
 }
