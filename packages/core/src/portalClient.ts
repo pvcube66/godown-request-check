@@ -81,6 +81,21 @@ export async function fetchGodownsForUser(token: string, username: string): Prom
   return arr as { id: number; name: string }[];
 }
 
+/** Every request for one month with its current stage (Pending, DC generated, in transit, received, variation, rejected, cancelled).
+ *  The portal only filters by a single stage reliably when given "All", so we always ask for All and sort it out ourselves. */
+export async function fetchGodownOrders(token: string, username: string, monthName: string, academicYear: string): Promise<Record<string, unknown>[]> {
+  const q = new URLSearchParams({ id: username, status: 'All', month: monthName, academicYear });
+  const r = await fetch(`${base()}Mess/api/mess/GetIndentHostelToVendorRequests?${q}`, {
+    headers: authHeaders(token), signal: AbortSignal.timeout(60_000),
+  });
+  if (r.status === 401) throw new PortalAuthError('Token rejected (401)');
+  if (!r.ok) throw new Error(`GetIndentHostelToVendorRequests HTTP ${r.status}`);
+  const j = (await r.json()) as { success: boolean; data?: Record<string, unknown>[] | { msg?: string } };
+  if (Array.isArray(j.data)) return j.data;
+  if (/no records/i.test((j.data as { msg?: string } | undefined)?.msg ?? '')) return [];
+  throw new Error('GetIndentHostelToVendorRequests: unexpected response');
+}
+
 /** Number of students in a hostel: the sum of every class in the portal's attendance report.
  *  (Only the totals are read. Student names and other personal details are never requested or stored.) */
 export async function fetchHostelStudents(token: string, hostelCode: string): Promise<number | null> {

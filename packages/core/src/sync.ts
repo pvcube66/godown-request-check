@@ -1,6 +1,7 @@
 import { getToken } from './accounts.js';
 import { AccountDoc, Collections, RunDoc } from './db.js';
 import { parseGodownRows } from './parser.js';
+import { syncOrders } from './orders.js';
 import { fetchGodownMonth, fetchHostelStudents, fetchRequestRemark, PortalAuthError } from './portalClient.js';
 
 export const MONTH_NAMES = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
@@ -45,6 +46,7 @@ export async function syncAccount(c: Collections, acct: AccountDoc, months: stri
   }
   try { await syncCancelReasons(c, acct, token); } catch (e) { console.error('cancel reasons failed:', e instanceof Error ? e.message : e); }
   try { await syncHostelSizes(c, acct, token); } catch (e) { console.error('hostel size refresh failed:', e instanceof Error ? e.message : e); }
+  try { await syncOrders(c, acct, token); } catch (e) { console.error('order tracking failed:', e instanceof Error ? e.message : e); }
   await c.accounts.updateOne({ username: acct.username }, { $set: { lastSyncAt: new Date(), lastError: null } });
   return total;
 }

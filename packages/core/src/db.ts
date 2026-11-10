@@ -1,5 +1,6 @@
 import { Collection, Db, MongoClient } from 'mongodb';
 import type { ParsedRequest } from './types.js';
+import type { OrderDoc } from './orders.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -67,6 +68,7 @@ export interface RunDoc {
 export interface Collections {
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
+  orders: Collection<OrderDoc>;
   anomalies: Collection<AnomalyDoc>;
   runs: Collection<RunDoc>;
   hostels: Collection<HostelDoc>;
@@ -91,6 +93,7 @@ export async function connectDb(uri = process.env.MONGODB_URI, name = process.en
 export const collections = (d: Db): Collections => ({
   accounts: d.collection<AccountDoc>('accounts'),
   requests: d.collection<RequestDoc>('requests'),
+  orders: d.collection<OrderDoc>('orders'),
   anomalies: d.collection<AnomalyDoc>('anomalies'),
   runs: d.collection<RunDoc>('runs'),
   hostels: d.collection<HostelDoc>('hostels'),
@@ -101,6 +104,8 @@ export async function ensureIndexes(c: Collections) {
   await c.accounts.createIndex({ username: 1 }, { unique: true });
   await c.requests.createIndex({ godownId: 1, requestId: 1 }, { unique: true });
   await c.requests.createIndex({ godownId: 1, month: 1, hostelCode: 1 });
+  await c.orders.createIndex({ account: 1, requestId: 1 }, { unique: true });
+  await c.orders.createIndex({ stage: 1, stageSince: 1 });
   await c.anomalies.createIndex({ key: 1 }, { unique: true });
   await c.anomalies.createIndex({ status: 1, severity: 1, month: -1 });
   await c.anomalies.createIndex({ status: 1, severity: 1, ratio: -1 });      // the main list: open flags by seriousness, biggest first

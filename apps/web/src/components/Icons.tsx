@@ -21,6 +21,7 @@ const P: Record<string, ReactElement> = {
   menu: <><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></>,
   chevronLeft: <path d="M15 18l-6-6 6-6" />,
   chevronRight: <path d="M9 18l6-6-6-6" />,
+  truck: <><path d="M3 6h11v10H3z" /><path d="M14 10h4l3 3v3h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17" cy="17.5" r="1.8" /></>,
 };
 
 export function Icon({ name, size = 18, className }: { name: keyof typeof P | string; size?: number; className?: string }) {
