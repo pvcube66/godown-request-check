@@ -20,7 +20,7 @@ Every point below is traced back to one of those two. Nothing here is built yet 
 | R1 | Map **33 districts → 18 godowns → 8 suppliers**. A godown can serve several districts, a supplier several godowns. The map **changes over time** (districts get re-assigned to a different godown), so it must be editable, with history. Client will supply the data. | Checklist "Core mapping"; transcript | New |
 | R2 | Units on every quantity (kg, packets, 200 g vs 250 g packs). Client: "pick it once from the indent, mapping is there for all, put it under master". | Transcript (units discussion) | New (data exists, see 2.3) |
 | R3 | Adding a godown login should load that godown automatically ("add all credentials and everything is added"). | Transcript | **Partly** (Godowns page has an add form; needs admin-only and mapping hook) |
-| R4 | Keep **one year** of data carefully, then hand it all over / offload. Client keeps copies in his Google Drive. | Transcript | New |
+| R4 | Keep **one year** of data carefully, then hand it all over / offload. The one-year hand-over copy is made as **downloadable Excel/CSV exports** of all orders, flags and remarks (no Google Drive, see D8). | Transcript | New |
 
 ### B. Access
 | # | Requirement | Source | State |
@@ -84,7 +84,7 @@ Every point below is traced back to one of those two. Nothing here is built yet 
 ### I. Documents and hosting
 | # | Requirement | Source | State |
 |---|---|---|---|
-| R36 | **Document vault**: files uploaded in the dashboard go to the client's **2 TB Google Drive** (shared drive), not the 8 GB server. Searchable by firm/date/name, viewable, downloadable, printable, mappable to a **party master**. | Both | New |
+| R36 | ~~Document vault in Google Drive.~~ **Removed (D8).** It was only an idea from the meeting. | Transcript | **Removed** |
 | R37 | Host on the client's **GoDaddy server (8 GB RAM)**. We deploy, then **hand everything over**; their in-house person takes over hosting and data. The client will send the hosting details (D2). | Transcript | New (today: Vercel + MongoDB + cron on this PC) |
 | R38 | The client has an **existing portal** (ERP, work desk, document manager). **Decision D1: we build on top of this repo only**, standalone, and may be linked from his quick links. | Transcript | **Closed (D1)** |
 
@@ -128,6 +128,10 @@ Anomaly detection (own history, similar-size hostels, typing slips, whole-order,
 | D4 | Count days in Variation too? | **Yes, count it.** | Day counting covers Pending, DC Generated, In-Transit **and Variation**. Acknowledge stops the count. |
 | D5 | Black and white: which taste? | **We choose the design and build the whole theme.** The client wants black and white only. | Full theme spec in Phase 3. |
 | D6 | The 2-day wait after a reject: fixed, or changeable? | Decided for you (see 3.2). | Setting, default 2 days. |
+| D7 | Which Meta account sends WhatsApp? | **The client's own business account**, with a fresh number that has never been on WhatsApp. | Phase 8 waits on the client's Meta details. |
+| D8 | Google Drive document vault? | **Removed.** | Phase 9 is cancelled. No Drive access is needed. The one-year hand-over copy uses Excel/CSV exports instead. |
+| D9 | Reminder rules | **Approved:** first message after 3 days In-Transit without acknowledgement, then every 2 days, up to 4 messages, one per hostel per day, stop once acknowledged. | Built as admin settings, so the numbers can change without code. |
+| D10 | Build order | **Requirements first.** No building, not even Release 0, until the client has confirmed the requirement list. | Phase 0 sign-off comes before everything. |
 
 ### 3.2 About D6 in plain words
 When an operator rejects an indent because of a mistake, the hostel has to send a **new** indent. The client said: "if the new one has not come in two days, show an alert."
@@ -149,35 +153,33 @@ The order now is **requirements first, hosting later**. Nothing below blocks Rel
 | 2 | District → godown → supplier mapping sheet | **Template written**, data comes later | `docs/templates/client-data-template.xlsx`, sheet "1 Mapping". The import in Phase 1 reads exactly these columns. |
 | 3 | Operator list | **Template written**, data comes later | Same file, sheet "2 Operators" (see 3.5 for what this means). |
 | 4 | WhatsApp sending code | **Reuse from the TELECRM CRM** | Copy the needed parts from `crm_server`; list in Phase 8. |
-| 5 | Google Drive | **Questioned, now optional** | Phase 9 is only built if the client confirms he still wants it (see 3.6). |
+| 5 | Google Drive | **Removed (D8)** | Nothing to collect. |
 | 6 | In-transit reminder wording | **Simple template written** | `docs/templates/whatsapp-reminder-template.md`. |
 | 7 | Hostel and godown in-charge numbers | **Later** | Sheet "3 Contacts". We also read what the portal already gives (hostel mobile, godown contact). |
 
 ### 3.5 What "operator list" means
 These are the **staff who will log in to our dashboard**: the telecallers and district people. In the meeting the client said "Vikas has four districts, I will create Vikas, give phone number, give email, select his districts, hit add, and it only shows him those." To create those logins we need, for each person: **name, phone, email, which districts they look after, and whether they are an admin, an operator or view-only.** It has nothing to do with the portal's own users.
 
-### 3.6 Why Google Drive appeared, and what would be uploaded
-Nothing in the anomaly checks or order tracking needs Drive. It came only from the client's "document vault" idea in the meeting: he runs another system where **tender documents and firm/party documents** are uploaded and stored in his 2 TB Google Drive instead of his small server, and he asked whether this could work the same way. So what would be uploaded: **only files that his own staff choose to upload** (tender papers, party documents), plus, if we choose, a **monthly backup of our order data** so he keeps a copy. We would not upload anything by ourselves, and **never student data.**
-- This is a separate feature from the anomaly work, and the client did not list it as a must.
-- **Decision: Phase 9 is optional and moves to the end.** We confirm with the client whether he still wants it before spending any time on it.
+### 3.6 Google Drive: closed
+Drive came only from the client's "document vault" idea in the meeting (tender and party documents stored in his 2 TB Drive). The owner removed it (D8). Nothing in the anomaly checks, order tracking or WhatsApp needs it.
 
 Assumption we will build unless told otherwise: if the same item comes in different pack sizes (200 g vs 250 g), we compare like with like (same item and pack size).
 
 ---------------------------------------------------------------------
 ## 4. Phased plan
 
-Order is chosen so the client sees value early, shared groundwork is done once, and the slow external items (WhatsApp approval, server access, Drive access) start on day one in parallel.
+Order is chosen so the client sees value early, shared groundwork is done once, and the slow external items (WhatsApp approval, server access) start on day one in parallel.
 
 ### Phase 0 — Kick-off, decisions, and long-lead items (start immediately)
 **Goal:** unblock everything that waits on other people.
 - **Requirements sign-off first (owner's instruction):** send the client the requirement list (R1 to R41) and the data templates, and record his confirmation or corrections here before building anything beyond Release 0.
 - Collect the items in section 3.4 from the client and record them in this file.
 - Start the **WhatsApp** application now (R32): fresh number, business details, Meta verification. Approval runs while we build.
-- Ask for **server access** and **Drive access** (R37, R36).
+- Ask for **server access** when the client is ready to send it (R37).
 - **Rotate** the portal, database and dashboard passwords that were pasted in chat earlier. Store new ones only in the server's secret store.
 - Agree the **release plan** (section 5) in writing, so "basic version tomorrow" is not read as "everything tomorrow".
 - Confirm how the **costing** is presented (section 7).
-- **Done when:** answers recorded; WhatsApp application submitted; server and Drive access requested; secrets rotated.
+- **Done when:** answers recorded; WhatsApp application submitted; server access requested when the client is ready; secrets rotated; **requirement list confirmed by the client (D10)**.
 - **Effort:** 1 day (mostly waiting, not coding).
 
 ### Phase 1 — Master data (the backbone) → R1, R2, R3, R34 data, R41
@@ -265,7 +267,7 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 - **Counting rules (R27):** days are counted only for **Pending, DC Generated, In-Transit**. **Acknowledge** stops the clock and shows the date in **green**. **Rejected / Cancelled** are final actions with a date or "first seen", no day count. **Variation is counted too (D4).**
 - **Stage-wise dashboard (R9):** per stage, serial number, district, count; click through to the list.
 - **District-wise dashboard (R10):** per district, orders by stage, number of hostels/societies, stuck counts (over 7 and 14 days).
-- **Overall / godown-wise / district-wise** switch (R13), with **Excel export** on each view.
+- **Overall / godown-wise / district-wise** switch (R13), with **Excel export** on each view. A full export of all orders, flags and remarks is the one-year hand-over copy (R4).
 - Reuse what is built: Order tracking tabs, stage columns, counts, CSV.
 - **Done when:** counts on every dashboard equal the portal's own totals for the same filters; Acknowledged orders show a green date and no running days.
 - **Effort:** 2–3 days.
@@ -314,29 +316,20 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 
   **Not copied:** flows, campaigns, groups, commerce, automations, analytics, templates library, live chat and socket events, Google-storage media, multi-company logic.
   **Never copied:** the CRM's `.env`, `key.json`, `deploy_key.json`, `sheets_key.json` or any stored tokens. Our WhatsApp keys come from the client's own Meta app and live only in this project's settings.
-  **Open point:** which Meta account sends the messages. Options: (a) the client's own business account and a fresh number (the transcript's plan); (b) a new number added to an account the CRM already uses. Decide when the client sends his Meta details.
+  **Decided (D7):** the messages go out from the **client's own business account** and a fresh number. We wait for his Meta details; until then everything is built and tested in dry-run mode.
 - **Optional:** WhatsApp OTP login (R8/R33) as a second utility template, after the client confirms.
 - **Possible reuse:** the team already has a WhatsApp CRM project, so check whether its sending layer can be reused rather than rebuilt.
 - **Done when:** in a test with a team phone, an in-transit order triggers the message, the ticks show on the order, the reminder fires on schedule, and it stops after acknowledgement.
 - **Effort:** 4–5 days of work, plus 2–3 days of approval waiting that overlaps other phases.
 
-### Phase 9 — Document vault (Google Drive) → R36 **(OPTIONAL: build only if the client confirms; see 3.6)**
-**Goal:** uploads go to Drive, not the server; users never leave the portal.
-- **Auth:** a Google service account with access to the shared drive (no personal login).
-- **Upload** from the dashboard with metadata: party/firm, date, category, tender, tags.
-- **Party master** (create parties, map documents to them), as the client described.
-- **Search** by firm, date, name and tags; **view, download, print** inside our UI by streaming from Drive.
-- **Index** kept in our database (metadata only), files stay in Drive. Server holds no document copies.
-- **Safety:** file-type and size limits, virus scan on upload, role permissions per category, audit log.
-- **Also used for R4:** scheduled **monthly export** of all indents, orders, remarks and flags as CSV/JSON to a Drive folder (the one-year offload).
-- **Done when:** a PDF uploaded in the dashboard appears in the shared drive, is found by typing the firm name, and opens and downloads from our UI.
-- **Effort:** 3–4 days.
+### Phase 9 — ~~Document vault (Google Drive)~~ **REMOVED (decision D8)**
+Cancelled by the owner on 10 Nov 2026. The phase number is kept so the other phase numbers do not change. The one-year hand-over copy (R4) is covered by Excel/CSV exports in Phase 5 and Phase 10.
 
 ### Phase 10 — Hosting, reliability and hand-over → R37, R26, R4 **(PARKED: starts when the client sends the hosting details)**
 **Goal:** run on the client's GoDaddy server and hand it over cleanly.
 - **Move** the web app, the hourly worker and the database to the client's server (hosting details come from the client, D2); the hourly job becomes a managed background service, not this PC's cron.
 - **Packaging:** containers or a process manager with auto-restart; reverse proxy with HTTPS; secrets in the server's environment, not in files.
-- **Reliability:** health check for the hourly job (alert if no successful run for 2 hours), failed-login alerts per godown, nightly database backup copied to Drive.
+- **Reliability:** health check for the hourly job (alert if no successful run for 2 hours), failed-login alerts per godown, nightly database backup (where it is stored is decided with the hosting details).
 - **Hand-over pack for their in-house person:** install/upgrade steps, environment variables list, how to add a godown, how to restore a backup, a one-page "what to check each morning".
 - **Cut-over plan:** run both for a few days, compare counts, then switch the address; Vercel kept as fallback until sign-off.
 - **Done when:** the in-house person can redeploy and restore from the written steps alone, and the hourly job has run unattended for 3 days.
@@ -359,21 +352,21 @@ The client heard "10 days". Adding up the phases, that covers the basic version 
 |---|---|---|---|---|
 | **R0: "basic version"** | Phase 0 + Phase 3 theme, density, search | Nothing | **1–2** | The "tomorrow" version. Looks right, but has no roles or WhatsApp. |
 | **R1: core** | Phases 1, 2, 4, 5, 6 | Mapping sheet, operator list | **about 15** | Master data, logins, workflow, dashboards, hostel view. The team's "10 days" was for this, without the testing buffer. |
-| **R2: extras** | Phases 7, 8, 9, 10 | WhatsApp approval, Drive access, server access | **about 15** | WhatsApp goes live only after Meta approval (2–3 days) plus about a day per template. That wait runs alongside R1. |
+| **R2: extras** | Phases 7, 8, 10 | WhatsApp approval, server access | **about 11** | WhatsApp goes live only after Meta approval (2–3 days) plus about a day per template. That wait runs alongside R1. |
 | **Close** | Phase 11 | UAT time | **2–3** | |
 
-**Total about 33–36 working days of work** for one developer (matches the phase table in section 7). Calendar time is about 5–7 weeks and depends on how fast the client sends the section 3 inputs. If the client needs a firm shorter date, the honest options are: ship R0 + R1 first and treat R2 as a second delivery, or add a second developer.
+**Total about 29–36 working days of work** for one developer (matches the phase table in section 7). Calendar time is about 5–7 weeks and depends on how fast the client sends the section 3 inputs. If the client needs a firm shorter date, the honest options are: ship R0 + R1 first and treat R2 as a second delivery, or add a second developer.
 
 ```
 Week 1   P0 + R0 (theme, search) | P1 master data starts
 Week 2   P1 finish | P2 roles/districts | P4 workflow
 Week 3   P5 dashboards | P6 hostel view | start P7
 Week 4   P7 supplier | P8 WhatsApp (approval done by now)
-Week 5   P9 vault | P10 hosting | P11 test + train
+Week 5   P10 hosting (when details arrive) | P11 test + train
 ```
 
 **Dependency chain (what blocks what):**
-`P0 → P1 → { P2, P6, P7 }`, `P2 → P3 district search`, `P1 → P4 (units in indent view)`, `P4 → P8 (alerts reuse workflow)`, `P0 WhatsApp → P8`, `P0 Drive → P9`, `P0 server → P10`.
+`P0 → P1 → { P2, P6, P7 }`, `P2 → P3 district search`, `P1 → P4 (units in indent view)`, `P4 → P8 (alerts reuse workflow)`, `P0 WhatsApp → P8`, `P0 server → P10`.
 
 ---------------------------------------------------------------------
 ## 6. Data model changes (summary)
@@ -391,8 +384,6 @@ Week 5   P9 vault | P10 hosting | P11 test + train
 | `remarks` | New | targetType, targetId, author, text, time, outcome |
 | `issues` | New (replaces the review buttons' status) | orderId, raisedBy, state, raisedAt, waitingUntil, linkedNewRequestId |
 | `whatsappMessages` | New | orderId, template, reminderNo, sentAt, status, replies |
-| `documents` | New | driveFileId, party, category, tags, uploadedBy, time |
-| `parties` | New | name, contact |
 | `orders` | Changed | add item snapshot, supplier, godown, acknowledgedOn, per-stage counting flags |
 | `anomalies` | Changed | link to issue state, manual-flag source |
 
@@ -412,17 +403,16 @@ Week 5   P9 vault | P10 hosting | P11 test + train
 | 6 Hostel drill-down | 2 |
 | 7 Supplier performance | 3–4 |
 | 8 WhatsApp | 4–5 |
-| 9 Document vault | 3–4 |
+| 9 ~~Document vault~~ (removed) | 0 |
 | 10 Hosting and hand-over | 3 |
 | 11 Testing, training, go-live | 2–3 |
-| **Total** | **about 33–40** |
+| **Total** | **about 29–36** |
 
-(This agrees with the release table in section 5: R0 about 2 + R1 about 15 + R2 about 15 + close about 3. The quote should be based on this number, and should say that calendar time also depends on the client's inputs.)
+(This agrees with the release table in section 5: R0 about 2 + R1 about 15 + R2 about 11 + close about 3. The quote should be based on this number, and should say that calendar time also depends on the client's inputs.)
 
 **Running costs the client should know about (amounts to be filled from current price lists, not guessed here):**
 - WhatsApp Business messages (Meta charges per conversation/template category) and the SIM.
 - Server (GoDaddy 8 GB, already owned) and domain/HTTPS.
-- Google Drive storage (2 TB already owned).
 - Database (if Atlas stays, its plan; if self-hosted, backups).
 - Support and changes after hand-over (agree a monthly figure or per-change rate).
 
@@ -436,11 +426,11 @@ Week 5   P9 vault | P10 hosting | P11 test + train
 | R1 | 1 | R15 | 3 | R29 | 5 |
 | R2 | 1 | R16 | 3 | R30 | 8 |
 | R3 | 1 | R17 | 3 (ask) | R31 | 8 |
-| R4 | 9, 10 | R18 | Done | R32 | 0, 8 |
+| R4 | 5, 10 | R18 | Done | R32 | 0, 8 |
 | R5 | 2 | R19 | 4 | R33 | 8 (opt.) |
 | R6 | 2 | R20 | 4 | R34 | 1, 6 |
 | R7 | 2 | R21 | 4 | R35 | 6 |
-| R8 | 2/8 (opt.) | R22 | 4 | R36 | 9 |
+| R8 | 2/8 (opt.) | R22 | 4 | R36 | Removed |
 | R9 | 5 | R23 | 4 | R37 | 10 |
 | R10 | 5 | R24 | Done | R38 | 0 (ask), 10 |
 | R11 | 7 | R25 | 4 | R39 | 7 |
@@ -448,7 +438,7 @@ Week 5   P9 vault | P10 hosting | P11 test + train
 | R13 | 5 | R27 | 5 | R41 | Done |
 | R14 | 3 | R28 | 5 | | |
 
-**Checklist items (client's paper) → phase:** Core mapping → 1 · Master dashboard hostel vs supplier → 7 · Login district-wise → 2 · 1 Server hosting and document vault → 9, 10 · 2 Dashboard and search → 3, 5 · 3 UI font/card/B&W → 3 · 4 Indent view → 4 · 5 Remarks and rejections → 4 · 6 Hostel view → 6.
+**Checklist items (client's paper) → phase:** Core mapping → 1 · Master dashboard hostel vs supplier → 7 · Login district-wise → 2 · 1 Server hosting → 10 (document vault removed) · 2 Dashboard and search → 3, 5 · 3 UI font/card/B&W → 3 · 4 Indent view → 4 · 5 Remarks and rejections → 4 · 6 Hostel view → 6.
 
 ---------------------------------------------------------------------
 ## 9. Risks and how we handle them
@@ -470,7 +460,7 @@ Week 5   P9 vault | P10 hosting | P11 test + train
 ## 10. Immediate next actions (this week)
 
 1. Get section 3 answered on one call (the 12 questions).
-2. Submit the WhatsApp application and request server and Drive access.
+2. Submit the WhatsApp application (when the client sends his Meta details) and request server access (when he is ready).
 3. Rotate the old passwords.
 4. Ship **R0** (theme, density, search) as the "basic version".
 5. Start Phase 1 with the item/unit master, since it needs nothing from the client and unlocks the indent view.
