@@ -11,6 +11,9 @@
     "worker": "npm -w apps/worker run start",
     "web": "npm -w apps/web run start"
   },
+  "overrides": {
+    "exceljs": { "uuid": "^11.1.1" }
+  },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/node-cron": "^3.0.11",

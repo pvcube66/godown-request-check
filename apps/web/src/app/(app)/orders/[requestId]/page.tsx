@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db';
 import { hostelLabel, itemLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
-import { daysInStage, STAGE_LABEL } from '@anomaly/core';
+import { daysInStage, STAGE_LABEL, itemVariantKey, effectiveItemMetadata } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +16,13 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   if (!o) notFound();
   const request = await c.requests.findOne({ requestId: o.requestId });
   const items = Object.entries(request?.items ?? {}).filter(([, q]) => q > 0);
+  const snapshots = request?.itemSnapshots ?? [];
+  const masters = snapshots.length ? await c.itemsMaster.find({ key: { $in: snapshots.map(itemVariantKey) } }).toArray() : [];
+  const metadataFor = (sourceKey: string) => {
+    const snapshot = snapshots.find((s) => s.sourceKey === sourceKey);
+    const master = snapshot ? masters.find((m) => m.key === itemVariantKey(snapshot)) : undefined;
+    return master ? effectiveItemMetadata(master) : snapshot;
+  };
   const cells = stageCells(o, now);
   const steps = STAGE_COLUMNS.flatMap((c) => { const x = cells[c.key]; return x ? [{ key: c.key, label: c.label, ...x }] : []; });
   const u = urgency(o, now);
@@ -68,8 +75,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
         ) : (
           <div className="table-wrap">
             <table className="order-table">
-              <thead><tr><th>Item</th><th>Quantity requested</th></tr></thead>
-              <tbody>{items.map(([name, q]) => <tr key={name}><td>{itemLabel(name)}</td><td>{num(q)}</td></tr>)}</tbody>
+              <thead><tr><th>Item</th><th>Quantity requested</th><th>Unit</th><th>Pack size</th></tr></thead>
+              <tbody>{items.map(([name, q]) => { const metadata = metadataFor(name); return <tr key={name}><td>{itemLabel(name)}</td><td>{num(q)}</td><td>{metadata?.unit || 'Unknown'}</td><td>{metadata?.packSize || 'Unknown'}</td></tr>; })}</tbody>
             </table>
           </div>
         )}

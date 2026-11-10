@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/', label: 'Unusual requests', icon: 'alert' },
   { href: '/accounts', label: 'Godowns', icon: 'warehouse' },
   { href: '/orders', label: 'Order tracking', icon: 'truck' },
+  { href: '/master', label: 'Master data', icon: 'pencil' },
   { href: '/runs', label: 'Past checks', icon: 'clock' },
 ] as const;
 

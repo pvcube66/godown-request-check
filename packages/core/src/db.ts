@@ -1,6 +1,8 @@
 import { Collection, Db, MongoClient } from 'mongodb';
 import type { ParsedRequest } from './types.js';
 import type { OrderDoc } from './orders.js';
+import type { MasterDataCollections } from './masterData.js';
+import type { ItemMasterDoc } from './itemMaster.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -65,7 +67,8 @@ export interface RunDoc {
   newAnomalies?: number;
 }
 
-export interface Collections {
+export interface Collections extends MasterDataCollections {
+  itemsMaster: Collection<ItemMasterDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -98,6 +101,21 @@ export const collections = (d: Db): Collections => ({
   runs: d.collection<RunDoc>('runs'),
   hostels: d.collection<HostelDoc>('hostels'),
   settings: d.collection('settings'),
+  districts: d.collection('districts'),
+  godowns: d.collection('godowns'),
+  suppliers: d.collection('suppliers'),
+  mappings: d.collection('mappings'),
+  hostelsMaster: d.collection('hostelsMaster'),
+  itemsMaster: d.collection('itemsMaster'),
+  auditLog: d.collection('auditLog'),
+  async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
+    const session = d.client.startSession();
+    try {
+      return await session.withTransaction(() => fn(session), {
+        readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' }, maxCommitTimeMS: 15000,
+      }) as T;
+    } finally { await session.endSession(); }
+  },
 });
 
 export async function ensureIndexes(c: Collections) {
@@ -111,6 +129,14 @@ export async function ensureIndexes(c: Collections) {
   await c.anomalies.createIndex({ status: 1, severity: 1, ratio: -1 });      // the main list: open flags by seriousness, biggest first
   await c.runs.createIndex({ startedAt: -1 });
   await c.hostels.createIndex({ godownId: 1, hostelCode: 1 }, { unique: true });
+  await c.districts.createIndex({ code: 1 }, { unique: true });
+  await c.godowns.createIndex({ godownId: 1 }, { unique: true });
+  await c.suppliers.createIndex({ code: 1 }, { unique: true });
+  await c.mappings.createIndex({ districtCode: 1, from: 1 }, { unique: true });
+  await c.mappings.createIndex({ godownId: 1, from: 1 });
+  await c.hostelsMaster.createIndex({ godownId: 1, hostelCode: 1 }, { unique: true });
+  await c.itemsMaster.createIndex({ key: 1 }, { unique: true });
+  await c.auditLog.createIndex({ at: -1 });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }

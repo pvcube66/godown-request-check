@@ -1,3 +1,5 @@
+import type { RequestItemSnapshot } from './itemMaster.js';
+
 export interface ParsedRequest {
   godownId: number;
   requestId: string;
@@ -11,4 +13,6 @@ export interface ParsedRequest {
   status: string;
   dcNumber: string | null;
   items: Record<string, number>;   // item name -> quantity (zeros kept)
+  itemSnapshots?: RequestItemSnapshot[];
+  itemMetadataSyncedAt?: Date;
 }
