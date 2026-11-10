@@ -2,13 +2,14 @@ import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, num } from '@/lib/format';
-import { daysSincePlaced, fmtDay, loadOrders, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, TABS, urgency, type Urgency } from '@/lib/orders';
-import { daysInStage, STAGE_LABEL } from '@anomaly/core';
+import { daysSincePlaced, fmtDay, hostelIssueTypes, loadOrders, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
+import { godownLabels } from '@/lib/dashboard';
+import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
 
-type SP = { stage?: string; q?: string; month?: string; p?: string };
+type SP = { stage?: string; q?: string; month?: string; p?: string; district?: string; account?: string; stuck?: string };
 const PAGE_SIZE = 25;
 const URGENCY_TEXT: Record<Urgency, string> = { late: 'Waiting a long time', watch: 'Waiting a while', ok: '' };
 const qs = (cur: SP, patch: Partial<SP>) => {
@@ -22,7 +23,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const c = await getDb();
   const { names } = await scopeFor(c);
   const now = new Date();
-  const [all, counts, months] = await Promise.all([loadOrders(c, sp, names), stageCounts(c, names), orderMonths(c, names)]);
+  const [all, counts, months] = await Promise.all([loadOrders(c, sp, names, 0, now), stageCounts(c, names, { district: sp.district, account: sp.account }), orderMonths(c, names)]);
   const tab = TABS.find((t) => t.key === sp.stage)?.key ?? 'all';
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
   const pageNo = Math.min(Math.max(1, Number(sp.p) || 1), pages);
@@ -30,6 +31,9 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const shown = all.slice(offset, offset + PAGE_SIZE);
   const base = Object.fromEntries(Object.entries(sp).filter(([k, v]) => v && k !== 'p')) as Record<string, string>;
   const late = all.filter((o) => urgency(o, now) === 'late').length;
+  const shownCodes = shown.map((o) => o.hostelCode);
+  const [issueTypes, label] = await Promise.all([hostelIssueTypes(c, names, shownCodes), godownLabels(c)]);
+  const stuckDays = (STUCK_DAYS as readonly number[]).includes(Number(sp.stuck)) ? Number(sp.stuck) : 0;
   const lastSeen = all.reduce<Date | null>((m, o) => (!m || o.lastSeenAt > m ? o.lastSeenAt : m), null);
 
   return (
@@ -58,8 +62,15 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
         </nav>
       </div>
 
+      {(sp.district || sp.account || stuckDays > 0) && (
+        <p className="status" role="status">Showing{sp.district && <> district <b>{sp.district}</b></>}{sp.account && <> godown <b>{label(sp.account)}</b></>}{stuckDays > 0 && <> orders that have been at the same open stage for <b>{stuckDays}+ days</b></>}. <Link href={qs({ stage: sp.stage ?? '', q: sp.q ?? '', month: sp.month ?? '' }, {})} className="link-arrow">Show everything</Link></p>
+      )}
+
       <form className="filters" method="get" action="/orders">
         {sp.stage && <input type="hidden" name="stage" value={sp.stage} />}
+        {sp.district && <input type="hidden" name="district" value={sp.district} />}
+        {sp.account && <input type="hidden" name="account" value={sp.account} />}
+        {sp.stuck && <input type="hidden" name="stuck" value={sp.stuck} />}
         <label className="select"><span>Placed in</span>
           <select name="month" defaultValue={sp.month ?? ''}>
             <option value="">Any month</option>
@@ -71,7 +82,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
           <div className="search-row">
             <span className="search-box"><Icon name="search" size={18} /><input id="order-q" name="q" defaultValue={sp.q ?? ''} placeholder="Request number or hostel name" autoComplete="off" /></span>
             <button className="btn primary-ish" type="submit">Search</button>
-            {(sp.q || sp.month) && <Link href={qs({ stage: sp.stage ?? '' }, {})} className="link-arrow">Clear</Link>}
+            {(sp.q || sp.month || sp.district || sp.account || sp.stuck) && <Link href={qs({ stage: sp.stage ?? '' }, {})} className="link-arrow">Clear</Link>}
           </div>
         </div>
         <a className="btn" href={`/orders/csv?${new URLSearchParams(base)}`}><Icon name="download" size={16} /> Download Excel</a>
@@ -85,7 +96,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             <table className="order-table">
               <thead>
                 <tr>
-                  <th>S.No</th><th>Request ID</th><th>Hostel</th><th>Placed on</th><th>Current stage</th>
+                  <th>S.No</th><th>Request ID</th><th>Hostel</th><th>Placed on</th><th>Current stage</th><th>Issue type</th>
                   {STAGE_COLUMNS.map((c) => <th key={c.key} className="stage-col">{c.label}</th>)}
                   <th>Days since placed</th>
                 </tr>
@@ -101,15 +112,20 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>
                       <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">Hostel ID {o.hostelCode} · {o.districtName}</div></td>
                       <td>{fmtDay(o.placedOn)}</td>
-                      <td><b>{STAGE_LABEL[o.stage]}</b><div className="mut small">for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div></td>
+                      <td><b>{STAGE_LABEL[o.stage]}</b>{OPEN_STAGES.includes(o.stage)
+                        ? <div className="mut small">for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div>
+                        : o.stage === 'received' ? <div className="small ack-date">on {fmtDay(o.stageSince)}</div>
+                        : <div className="mut small">final action</div>}</td>
+                      <td className="small">{(issueTypes.get(o.hostelCode) ?? []).map((t) => <div key={t}>{t}</div>)}{!issueTypes.get(o.hostelCode) && <span className="mut">—</span>}</td>
                       {STAGE_COLUMNS.map((c) => {
                         const cell = cells[c.key];
                         if (!cell) return <td key={c.key} className="stage-col none">—</td>;
                         const hot = cell.current ? u : 'ok';
                         return (
-                          <td key={c.key} className={`stage-col ${cell.current ? 'current' : ''} ${hot === 'ok' ? '' : hot}`} title={cell.source === 'observed' ? 'Date we first saw this status' : 'Date from the portal'}>
-                            <b>{num(cell.days)} {cell.days === 1 ? 'day' : 'days'}</b>
-                            <div className="mut small">{cell.current ? 'still here' : 'done'} · since {fmtDay(cell.since)}</div>
+                          <td key={c.key} className={`stage-col ${cell.kind} ${cell.current ? 'current' : ''} ${hot === 'ok' ? '' : hot}`} title={cell.source === 'observed' ? 'Date we first saw this status' : 'Date from the portal'}>
+                            {cell.kind === 'counted' && <><b>{num(cell.days ?? 0)} {cell.days === 1 ? 'day' : 'days'}</b><div className="mut small">{cell.current ? 'still here' : 'done'} · since {fmtDay(cell.since)}</div></>}
+                            {cell.kind === 'ack' && <><b className="ack-date">{fmtDay(cell.since)}</b><div className="mut small">acknowledged</div></>}
+                            {cell.kind === 'final' && <><b>{fmtDay(cell.since)}</b><div className="mut small">final</div></>}
                             {cell.source === 'observed' && <div className="mut small">first seen by us</div>}
                           </td>
                         );
@@ -134,7 +150,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             </div>
           </nav>
           <p className="mut small">
-            Days are counted from the date the portal gives for each stage. For cancelled and rejected orders the portal gives no date, so the count starts from when we first saw that status.
+            Days are counted from the date the portal gives for each stage, and only while an order is Pending, DC Generated, In-Transit or in Variation. Acknowledge stops the count and shows its date in green. Rejected and Cancelled are final actions with no count; the portal gives no date for them, so the date shown is when we first saw that status.
           </p>
         </>
       )}

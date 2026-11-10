@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, itemLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
-import { daysInStage, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
+import { daysInStage, OPEN_STAGES, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
 import { loadIndent } from '@/lib/indent';
 import RemarksThread from '@/components/RemarksThread';
 import FlagOrderForm from '../../issues/FlagOrderForm';
@@ -38,7 +38,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
         <p className="greet">Order {o.requestId}</p>
         <h1>{hostelLabel(o.hostelName)}</h1>
         <p className="lede">
-          Currently: <b>{STAGE_LABEL[o.stage]}</b> for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}
+          Currently: <b>{STAGE_LABEL[o.stage]}</b>
+          {OPEN_STAGES.includes(o.stage) ? <> for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</> : o.stage === 'received' ? <> on <span className="ack-date">{fmtDay(o.stageSince)}</span></> : <> (final action)</>}
           {u === 'late' && <> · <span className="bad-text">waiting over two weeks</span></>}
           {u === 'watch' && <> · waiting over a week</>}
         </p>
@@ -51,7 +52,9 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
           {steps.map((s) => (
             <li key={s.key} className={s.current ? 'now' : ''}>
               <b>{s.label}</b>
-              <div>{fmtDay(s.since)} · {s.current ? `${num(s.days)} ${s.days === 1 ? 'day' : 'days'} so far` : `lasted ${num(s.days)} ${s.days === 1 ? 'day' : 'days'}`}</div>
+              {s.kind === 'counted' && <div>{fmtDay(s.since)} · {s.current ? `${num(s.days ?? 0)} ${s.days === 1 ? 'day' : 'days'} so far` : `lasted ${num(s.days ?? 0)} ${s.days === 1 ? 'day' : 'days'}`}</div>}
+              {s.kind === 'ack' && <div className="ack-date">{fmtDay(s.since)} · received. The count stops here.</div>}
+              {s.kind === 'final' && <div>{fmtDay(s.since)} · final action, no day count</div>}
               <div className="mut small">{sourceNote(s.source)}</div>
             </li>
           ))}

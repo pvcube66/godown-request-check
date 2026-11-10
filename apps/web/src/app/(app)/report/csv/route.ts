@@ -1,10 +1,10 @@
+import { csvCell as cell } from '@/lib/csv';
 import { getDb } from '@/lib/db';
 import { AccessError, actorOf, requireAccess, visibleDistricts } from '@/lib/viewer';
 import { hostelLabel, IMPORTANCE, itemLabel, METHOD_TEXT, monthLabel, timesMore } from '@/lib/format';
 import { loadReport } from '@/lib/report';
 
 export const dynamic = 'force-dynamic';
-const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
 
 /** CSV with a byte-order mark so Excel opens it with the right characters. */
 export async function GET(req: Request) {

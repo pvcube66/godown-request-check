@@ -437,3 +437,13 @@ body[data-loading] main{opacity:.55;pointer-events:none}.btn .spin,.primary .spi
 .issue-note{font-size:12px;color:var(--muted);max-width:60ch}
 .alert-bar{border:1.5px solid var(--alert-high);color:var(--alert-high);padding:8px 12px;border-radius:var(--r1);margin-bottom:12px;font-weight:600}
 .alert-bar a{color:inherit;text-decoration:underline}
+
+/* Dashboards and stage rules (Phase 5) */
+.dash-table .num,.dash-table th.num{text-align:right;font-variant-numeric:tabular-nums}
+.dash-table td.watch{color:var(--alert-mid);font-weight:600}
+.dash-table td.late{color:var(--alert-high);font-weight:600}
+.dash-table tfoot td{border-top:2px solid var(--ink);font-weight:600}
+.dash-table caption.sr-only{position:absolute}
+td.stage-col.ack b{color:var(--ok)}
+td.stage-col.final b{font-weight:600}
+.ack-date{color:var(--ok);font-weight:600}

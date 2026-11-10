@@ -141,3 +141,22 @@ Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked 
 
 - WhatsApp to the operator for overdue issues is optional and left for Phase 8.
 - The button flow is tested with mocked database calls and, for the core logic, against a real local MongoDB; the buttons were not clicked in a real browser.
+
+
+## Phase 5 — Stage rules and dashboards
+
+**Status:** implemented locally; unit tests, a production build and a local server render check (seeded test data, local MongoDB) passed. Not yet checked against the live portal totals or in a browser.
+
+### Delivered
+
+- **Counting rules (R27, R28, D4).** Days are counted only while an order is Pending, DC Generated, In-Transit or in Variation. Acknowledge stops the count and shows its date in green. Rejected and Cancelled are final actions with a date (or "first seen by us") and no day count. Applies to the Order tracking table, the order timeline, the stage columns and the Excel download.
+- **Dashboards** (`/dashboards`): an **Overall** view (orders and hostels per stage), a **District-wise** view and a **Godown-wise** view (orders per stage, hostels, total, and how many are stuck 7+ and 15+ days). Every number opens the matching orders. Month filter. **Download Excel** on every view, with a totals row.
+- **"Stuck" thresholds** are 7+ days and 15+ days at the same open stage, matching the amber and red shading on Order tracking, so the dashboard counts equal what the table shows in colour. (The plan wrote "over 7 and 14 days"; "over 14 days" is the same as 15+.)
+- **Order tracking** can now also be filtered by district, godown and stuck days (from the dashboards), shows an **Issue type** column (open issue, waiting for a new indent, or the kind of unusual-request flag) next to hostel name and code (R29), and the stage-tab counts follow the district and godown filter. The "All" tab is now first, as asked earlier.
+- **Full copy (R4):** `/exports` (administrators only) downloads Excel files of all orders, all unusual-request flags, all issues and all remarks. Every download is in the audit log. Spreadsheet formulas typed into remarks or names are neutralised in all downloads.
+- All views and downloads respect the person's districts.
+
+### Notes
+
+- "Hostels" counts hostels with at least one order in the row, not the hostel master list (which needs the client's mapping data).
+- Totals on every view come from the same stored orders as the Order tracking tabs, so they agree by construction. A comparison with the portal's own page totals needs a live read and was not done here.
