@@ -140,14 +140,26 @@ When an operator rejects an indent because of a mistake, the hostel has to send 
 3. **No student-level data** is requested, stored or shown. Hostel-level and order-level data only.
 4. Production deploys only when the owner says so.
 
-### 3.4 Still needed from the client (nothing else blocks)
-1. **Hosting details** (server access, domain, whether MongoDB may run there or we keep Atlas).
-2. The **district → godown → supplier mapping sheet** (R1).
-3. The **operator list**: name, phone, email, districts (R5, R6).
-4. **WhatsApp:** a never-used SIM, business name, a business email, Meta verification (R32). Confirm whether the existing Meta profile can be used.
-5. **Google Drive:** shared-drive access for a service account (R36).
-6. The **in-transit reminder wording** (R30), and whether WhatsApp OTP login (R8) is wanted.
-7. **Godown and hostel in-charge numbers**, or permission to read them from the portal reports (R34).
+### 3.4 Inputs: status after the owner's answers (10 Nov 2026)
+The order now is **requirements first, hosting later**. Nothing below blocks Release 0.
+
+| # | Input | Status | What we did / will do |
+|---|---|---|---|
+| 1 | Hosting details | **Later** | Phase 10 is parked. We stay on Vercel and Atlas until the client sends them. |
+| 2 | District → godown → supplier mapping sheet | **Template written**, data comes later | `docs/templates/client-data-template.xlsx`, sheet "1 Mapping". The import in Phase 1 reads exactly these columns. |
+| 3 | Operator list | **Template written**, data comes later | Same file, sheet "2 Operators" (see 3.5 for what this means). |
+| 4 | WhatsApp sending code | **Reuse from the TELECRM CRM** | Copy the needed parts from `crm_server`; list in Phase 8. |
+| 5 | Google Drive | **Questioned, now optional** | Phase 9 is only built if the client confirms he still wants it (see 3.6). |
+| 6 | In-transit reminder wording | **Simple template written** | `docs/templates/whatsapp-reminder-template.md`. |
+| 7 | Hostel and godown in-charge numbers | **Later** | Sheet "3 Contacts". We also read what the portal already gives (hostel mobile, godown contact). |
+
+### 3.5 What "operator list" means
+These are the **staff who will log in to our dashboard**: the telecallers and district people. In the meeting the client said "Vikas has four districts, I will create Vikas, give phone number, give email, select his districts, hit add, and it only shows him those." To create those logins we need, for each person: **name, phone, email, which districts they look after, and whether they are an admin, an operator or view-only.** It has nothing to do with the portal's own users.
+
+### 3.6 Why Google Drive appeared, and what would be uploaded
+Nothing in the anomaly checks or order tracking needs Drive. It came only from the client's "document vault" idea in the meeting: he runs another system where **tender documents and firm/party documents** are uploaded and stored in his 2 TB Google Drive instead of his small server, and he asked whether this could work the same way. So what would be uploaded: **only files that his own staff choose to upload** (tender papers, party documents), plus, if we choose, a **monthly backup of our order data** so he keeps a copy. We would not upload anything by ourselves, and **never student data.**
+- This is a separate feature from the anomaly work, and the client did not list it as a must.
+- **Decision: Phase 9 is optional and moves to the end.** We confirm with the client whether he still wants it before spending any time on it.
 
 Assumption we will build unless told otherwise: if the same item comes in different pack sizes (200 g vs 250 g), we compare like with like (same item and pack size).
 
@@ -158,6 +170,7 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 
 ### Phase 0 — Kick-off, decisions, and long-lead items (start immediately)
 **Goal:** unblock everything that waits on other people.
+- **Requirements sign-off first (owner's instruction):** send the client the requirement list (R1 to R41) and the data templates, and record his confirmation or corrections here before building anything beyond Release 0.
 - Collect the items in section 3.4 from the client and record them in this file.
 - Start the **WhatsApp** application now (R32): fresh number, business details, Meta verification. Approval runs while we build.
 - Ask for **server access** and **Drive access** (R37, R36).
@@ -287,12 +300,27 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 - **Rules:** send when an order has been In-Transit for N days (setting) and is not acknowledged; repeat as reminder 2, 3, 4 at set gaps; **stop as soon as the order is acknowledged**.
 - **History on the order (R31):** sent, delivered, read ticks, reminder number, replies. Replies need the inbound webhook.
 - **Safety:** one message per hostel per day cap; dry-run mode that shows who would be messaged without sending; opt-out respected; every send is in the audit log.
+- **Reuse from the TELECRM CRM (owner's instruction: copy it, do not rebuild).** Source: `Vivtej APPS/TELECRM/crm_server`. That server is a large multi-company chat product (about 5,000 lines for WhatsApp alone, with flows, campaigns, groups, commerce and live chat). We need only a **small slice**, adapted to this repo's style (TypeScript, MongoDB driver, one company):
+
+  | Take from the CRM | Source file | What it does for us | Adaptation |
+  |---|---|---|---|
+  | Send a template message | `services/whatsappService.js` (`sendMessage`, template path, `POST graph.facebook.com/v24.0/{phoneNumberId}/messages`, 30 s timeout) | Sends the reminder | One account from settings instead of the CRM's per-company lookup (`getCredentials`). Access token stored sealed, like our portal passwords. |
+  | Create / submit a template to Meta | `createTemplate`, `sanitizeComponentsForMeta` | Submit `order_not_acknowledged` for approval | Keep as is, minus media upload. |
+  | Template approval status | `syncTemplates` | Show Approved / Rejected on a settings page | Simplify. |
+  | Webhook: verify and receive | `routes/whatsappRoutes.js` + `controllers/webhookController.js` (GET `hub.verify_token` / `hub.challenge`; POST checks the `x-hub-signature-256` header against the raw body) | Receives delivery ticks and replies | Copy the signature check exactly. |
+  | Delivery status updates | `services/whatsappMessageStore.js` `updateMessageStatus` (sent / delivered / read / failed; ignores repeats Meta redelivers) | The ticks shown on the order | Keep the repeat guard. Drop live-chat sockets and campaign stats. |
+  | Plain-English error explanations | `utils/metaErrorCopy.js` (141 lines, self-contained) | Explains failures to non-technical staff (e.g. 131026 "could not deliver to this number") | **Copy the file as is.** |
+  | Message record shape | `models/WhatsAppMessage.js` | What we store per message (id, direction, status, error) | Reduce to our `whatsappMessages` collection. |
+
+  **Not copied:** flows, campaigns, groups, commerce, automations, analytics, templates library, live chat and socket events, Google-storage media, multi-company logic.
+  **Never copied:** the CRM's `.env`, `key.json`, `deploy_key.json`, `sheets_key.json` or any stored tokens. Our WhatsApp keys come from the client's own Meta app and live only in this project's settings.
+  **Open point:** which Meta account sends the messages. Options: (a) the client's own business account and a fresh number (the transcript's plan); (b) a new number added to an account the CRM already uses. Decide when the client sends his Meta details.
 - **Optional:** WhatsApp OTP login (R8/R33) as a second utility template, after the client confirms.
 - **Possible reuse:** the team already has a WhatsApp CRM project, so check whether its sending layer can be reused rather than rebuilt.
 - **Done when:** in a test with a team phone, an in-transit order triggers the message, the ticks show on the order, the reminder fires on schedule, and it stops after acknowledgement.
 - **Effort:** 4–5 days of work, plus 2–3 days of approval waiting that overlaps other phases.
 
-### Phase 9 — Document vault (Google Drive) → R36
+### Phase 9 — Document vault (Google Drive) → R36 **(OPTIONAL: build only if the client confirms; see 3.6)**
 **Goal:** uploads go to Drive, not the server; users never leave the portal.
 - **Auth:** a Google service account with access to the shared drive (no personal login).
 - **Upload** from the dashboard with metadata: party/firm, date, category, tender, tags.
@@ -304,7 +332,7 @@ Order is chosen so the client sees value early, shared groundwork is done once, 
 - **Done when:** a PDF uploaded in the dashboard appears in the shared drive, is found by typing the firm name, and opens and downloads from our UI.
 - **Effort:** 3–4 days.
 
-### Phase 10 — Hosting, reliability and hand-over → R37, R26, R4
+### Phase 10 — Hosting, reliability and hand-over → R37, R26, R4 **(PARKED: starts when the client sends the hosting details)**
 **Goal:** run on the client's GoDaddy server and hand it over cleanly.
 - **Move** the web app, the hourly worker and the database to the client's server (hosting details come from the client, D2); the hourly job becomes a managed background service, not this PC's cron.
 - **Packaging:** containers or a process manager with auto-restart; reverse proxy with HTTPS; secrets in the server's environment, not in files.
