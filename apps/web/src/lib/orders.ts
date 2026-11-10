@@ -78,13 +78,13 @@ export const sourceNote = (source: 'portal' | 'observed') =>
 
 /** The columns on the Orders screen, in the order the stages happen. "All" is a filter, not a stage. */
 export const STAGE_COLUMNS = [
-  { key: 'pending', label: 'Pending' },
-  { key: 'dc', label: 'DC generated' },
-  { key: 'transit', label: 'In transit' },
-  { key: 'received', label: 'Acknowledged' },
-  { key: 'variation', label: 'Variation' },
-  { key: 'rejected', label: 'Rejected' },
-  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'pending', label: STAGE_LABEL.pending },
+  { key: 'dc', label: STAGE_LABEL.dc },
+  { key: 'transit', label: STAGE_LABEL.transit },
+  { key: 'received', label: STAGE_LABEL.received },
+  { key: 'variation', label: STAGE_LABEL.variation },
+  { key: 'rejected', label: STAGE_LABEL.rejected },
+  { key: 'cancelled', label: STAGE_LABEL.cancelled },
 ] as const;
 
 export interface StageCell { since: Date; days: number; current: boolean; source: 'portal' | 'observed' }

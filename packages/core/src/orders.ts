@@ -9,12 +9,13 @@ import { fetchGodownOrders, PortalAuthError } from './portalClient.js';
 export const STAGES = ['pending', 'dc', 'transit', 'received', 'variation', 'rejected', 'cancelled', 'other'] as const;
 export type Stage = (typeof STAGES)[number];
 
+/** The stage names exactly as the portal shows them. */
 export const STAGE_LABEL: Record<Stage, string> = {
-  pending: 'Waiting for dispatch',
-  dc: 'Delivery note made',
-  transit: 'On the way',
-  received: 'Received by hostel',
-  variation: 'Quantity differs',
+  pending: 'Pending',
+  dc: 'DC Generated',
+  transit: 'In-Transit',
+  received: 'Acknowledge',
+  variation: 'Variation',
   rejected: 'Rejected',
   cancelled: 'Cancelled',
   other: 'Other',
