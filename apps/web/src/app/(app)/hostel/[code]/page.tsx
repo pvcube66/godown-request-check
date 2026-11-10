@@ -1,5 +1,8 @@
 import Link from 'next/link';
-import { canEdit, istDay, resolveHostelMapping, scoped } from '@anomaly/core';
+import { canEdit, daysInStage, istDay, OPEN_STAGES, resolveHostelMapping, scoped, STAGE_LABEL } from '@anomaly/core';
+import { loadIndent } from '@/lib/indent';
+import { monthComparison, monthRange, sameItem, sizeWords } from '@/lib/hostel';
+import { daysSincePlaced, fmtDay, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
 import { getDb } from '@/lib/db';
 import { getViewer, scopeFor, visibleDistricts } from '@/lib/viewer';
 import { hostelLabel, itemLabel, monthLabel, num } from '@/lib/format';
@@ -7,7 +10,7 @@ import { groupFlags } from '@/lib/group';
 import { hostelKey, loadHistory, loadOrderItems, loadRequestsById, monthsWithRequests } from '@/lib/history';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
-import { STATE_TEXT } from '@anomaly/core';
+import { ACTIVE_STATES as ACTIVE, STATE_TEXT } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +22,9 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   return { title: r ? hostelLabel(r.hostelName) : 'Hostel' };
 }
 
-export default async function Hostel({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ g?: string }> }) {
+export default async function Hostel({ params, searchParams }: { params: Promise<{ code: string }>; searchParams: Promise<{ g?: string; m?: string }> }) {
   const { code } = await params;
-  const { g } = await searchParams;
+  const { g, m } = await searchParams;
   const c = await getDb();
   const { viewer, names } = await scopeFor(c);
   const filter = { hostelCode: code, ...(g ? { godownId: Number(g) } : {}) };
@@ -37,6 +40,21 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const { history, months: allMonths } = await loadHistory(c, [{ godownId, hostelCode: code }]);
   const h = history[hostelKey(godownId, code)] ?? {};
   const months = [...monthsWithRequests(h)].sort();
+  // ---- month picker, indent history, stuck orders, remarks (all limited to this person's districts) ----
+  const requestMonths = [...new Set(reqs.map((r) => r.month))].sort();
+  const monthList = monthRange(requestMonths);
+  const selected = m && monthList.includes(m) ? m : requestMonths[requestMonths.length - 1]!;
+  const monthReqs = reqs.filter((r) => r.month === selected).sort((a, b) => a.requestDate.localeCompare(b.requestDate));
+  const now = new Date();
+  const [monthOrders, hostelOrders, indents] = await Promise.all([
+    monthReqs.length ? c.orders.find(scoped({ requestId: { $in: monthReqs.map((r) => r.requestId) } }, names)).toArray() : [],
+    c.orders.find(scoped({ hostelCode: code, stage: { $in: OPEN_STAGES } }, names)).toArray(),
+    Promise.all(monthReqs.filter((r) => !/^reject/i.test(r.status)).map(async (r) => ({ id: r.requestId, rows: await loadIndent(c, r.requestId) }))),
+  ]);
+  const orderById = new Map(monthOrders.map((o) => [o.requestId, o]));
+  const stuckOrders = hostelOrders.filter((o) => urgency(o, now) !== 'ok').sort((a, b) => daysInStage(b, now) - daysInStage(a, now));
+  const unitOf = new Map(indents.flatMap((i) => i.rows).map((r) => [r.name, r]));
+  const comparison = monthComparison(h, months, selected);
   const { orders, duplicates, typing, spikes: spikesAll } = groupFlags(flagged);
   const spikes = spikesAll.filter((a) => !a.partOfOrder);
   const orderItems = await loadOrderItems(c, orders);
@@ -44,6 +62,8 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer) };
   const hostelIssues = await c.issues.find(scoped({ godownId, hostelCode: code }, names)).sort({ raisedAt: -1 }).limit(20).toArray();
   const remarkCounts = hostelIssues.length ? new Map((await c.remarks.aggregate<{ _id: string; n: number }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $group: { _id: '$targetId', n: { $sum: 1 } } }]).toArray()).map((r) => [r._id, r.n])) : new Map<string, number>();
+  const latestRows = hostelIssues.length ? await c.remarks.aggregate<{ _id: string; text: string }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $sort: { at: 1 } }, { $group: { _id: '$targetId', text: { $last: '$text' } } }]).toArray() : [];
+  const latestRemark = new Map(latestRows.map((r) => [r._id, r.text.length > 80 ? `${r.text.slice(0, 80)}…` : r.text]));
 
   const flaggedSet = new Map<string, number>();                       // item|month -> flagged requested
   for (const a of flagged) flaggedSet.set(`${a.item}|${a.month}`, a.requested);
@@ -83,12 +103,23 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         {!assignment.mapping && <p className="mut small">An administrator can import district assignments under Master data. Portal history is not reassigned or rewritten.</p>}
       </section>
 
-      {hostelIssues.length > 0 && (
-        <section className="summary" aria-labelledby="hostel-issues">
-          <h2 id="hostel-issues">Issues for this hostel</h2>
-          <ul>{hostelIssues.map((i) => <li key={i.issueId}><Link href={`/issues/${i.issueId}`}>{monthLabel(i.month)}</Link>: {STATE_TEXT[i.state]} · {remarkCounts.get(i.issueId) ?? 0} remark{(remarkCounts.get(i.issueId) ?? 0) === 1 ? '' : 's'}</li>)}</ul>
-        </section>
-      )}
+      <section className="summary" aria-labelledby="needs-attention">
+        <h2 id="needs-attention">Needs attention now</h2>
+        {hostelIssues.filter((i) => ACTIVE.includes(i.state)).length + stuckOrders.length + nCards === 0 && <p className="mut">Nothing is pending for this hostel.</p>}
+        {hostelIssues.length > 0 && (
+          <>
+            <h3 className="sub-h">Issues</h3>
+            <ul>{hostelIssues.map((i) => <li key={i.issueId}><Link href={`/issues/${i.issueId}`}>{monthLabel(i.month)}</Link>: {STATE_TEXT[i.state]} · {remarkCounts.get(i.issueId) ?? 0} remark{(remarkCounts.get(i.issueId) ?? 0) === 1 ? '' : 's'}{latestRemark.get(i.issueId) && <span className="mut small"> · last: “{latestRemark.get(i.issueId)}”</span>}</li>)}</ul>
+          </>
+        )}
+        {stuckOrders.length > 0 && (
+          <>
+            <h3 className="sub-h">Orders waiting a long time</h3>
+            <ul>{stuckOrders.map((o) => <li key={o.requestId}><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link>: {STAGE_LABEL[o.stage]} for <b className={urgency(o, now) === 'late' ? 'bad-text' : ''}>{daysInStage(o, now)} days</b></li>)}</ul>
+          </>
+        )}
+        {nCards > 0 && <p><a href="#looks-wrong">{nCards} unusual request{nCards === 1 ? '' : 's'} to look at ↓</a></p>}
+      </section>
 
       {nCards > 0 && (
         <section aria-labelledby="looks-wrong">
@@ -101,6 +132,47 @@ export default async function Hostel({ params, searchParams }: { params: Promise
           </div>
         </section>
       )}
+
+      <section aria-labelledby="month-history">
+        <h2 className="sub" id="month-history">Indent history by month</h2>
+        <form method="get" className="filters" action={`/hostel/${encodeURIComponent(code)}`}>
+          {g && <input type="hidden" name="g" value={g} />}
+          <label className="select"><span>Month</span>
+            <select name="m" defaultValue={selected}>{[...monthList].reverse().map((x) => <option key={x} value={x}>{monthLabel(x)}{requestMonths.includes(x) ? '' : ' (no indent)'}</option>)}</select>
+          </label>
+          <button className="btn primary-ish" type="submit">Show</button>
+        </form>
+        {monthReqs.length === 0 ? (
+          <p className="empty-note"><b>No indent came for {monthLabel(selected)}.</b> {monthList.indexOf(selected) < monthList.length - 1 ? 'The hostel skipped this month.' : 'It has not arrived yet.'}</p>
+        ) : (
+          <>
+            <ul className="reqlist">
+              {monthReqs.map((r) => {
+                const o = orderById.get(r.requestId);
+                const cells = o ? stageCells(o, now) : null;
+                return (
+                  <li key={r.requestId} className="req-detail">
+                    <div><b>{o ? <Link href={`/orders/${encodeURIComponent(r.requestId)}`}>{r.requestId}</Link> : r.requestId}</b> · placed {r.requestDate.split('-').reverse().join('-')} · <span className={`state ${/^reject/i.test(r.status) ? 'bad' : 'ok'}`}>{r.status.replace(/_/g, ' ')}</span>
+                      {o && <> · {OPEN_STAGES.includes(o.stage) ? `${STAGE_LABEL[o.stage]} for ${daysInStage(o, now)} days` : o.stage === 'received' ? <span className="ack-date">Acknowledged {fmtDay(o.stageSince)}</span> : STAGE_LABEL[o.stage]}</>}
+                      {o && daysSincePlaced(o, now) !== null && <span className="mut small"> · {daysSincePlaced(o, now)} days since placed</span>}</div>
+                    {cells && <ol className="timeline compact">{STAGE_COLUMNS.flatMap((col) => { const x = cells[col.key]; return x ? [<li key={col.key} className={x.current ? 'now' : ''}><b>{col.label}</b> {fmtDay(x.since)}{x.kind === 'counted' ? ` · ${x.days ?? 0} ${x.days === 1 ? 'day' : 'days'}` : x.kind === 'final' ? ' · final' : ''}</li>] : []; })}</ol>}
+                  </li>
+                );
+              })}
+            </ul>
+            {!monthReqs.every((r) => /^reject/i.test(r.status)) && <p className="lede small">This month against the hostel’s own earlier months{months.filter((x) => x < selected).length ? ` (${months.filter((x) => x < selected).length} earlier month${months.filter((x) => x < selected).length === 1 ? '' : 's'})` : ''}. Quantities are as requested; units come from the item list.</p>}
+            {monthReqs.every((r) => /^reject/i.test(r.status)) ? <p className="mut">Every indent for this month was rejected, so its quantities are not counted or compared.</p> : comparison.length === 0 ? <p className="mut">No quantities on record for this month.</p> : (
+              <div className="table-wrap"><table className="order-table">
+                <thead><tr><th>Item</th><th>Unit</th><th>Pack size</th><th className="num">This month</th><th className="num">Earlier months’ average</th><th>Compared with usual</th></tr></thead>
+                <tbody>{comparison.map((r) => {
+                  const row = [...unitOf.values()].find((x) => sameItem(x.name, r.item));
+                  return <tr key={r.item}><td>{itemLabel(row?.name ?? r.item.split(' [unit:')[0]!)}</td><td>{row?.unit ?? '—'}</td><td>{row?.packSize ?? '—'}</td><td className="num">{num(r.thisMonth)}</td><td className="num">{r.earlierMonths ? num(r.earlierAverage) : '—'}</td><td className={r.ratio !== null && r.ratio >= 2 ? 'late' : ''}>{sizeWords(r.ratio)}</td></tr>;
+                })}</tbody>
+              </table></div>
+            )}
+          </>
+        )}
+      </section>
 
       <h2 className="sub">Everything this hostel asked for</h2>
       <p className="lede small">Month by month. Numbers highlighted in black looked much bigger than usual. Rejected requests are not counted.</p>

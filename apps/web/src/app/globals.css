@@ -447,3 +447,11 @@ body[data-loading] main{opacity:.55;pointer-events:none}.btn .spin,.primary .spi
 td.stage-col.ack b{color:var(--ok)}
 td.stage-col.final b{font-weight:600}
 .ack-date{color:var(--ok);font-weight:600}
+
+/* Hostel drill-down (Phase 6) */
+.sub-h{font-size:13px;font-weight:600;margin:10px 0 4px}
+.empty-note{border:1px dashed var(--line-strong);padding:10px 12px;border-radius:var(--r1);margin:8px 0}
+.req-detail{display:block}
+.timeline.compact{display:flex;flex-wrap:wrap;gap:4px 16px;list-style:none;padding:0;margin:4px 0 0;font-size:12.5px}
+.timeline.compact li{border:0;padding:0}
+.timeline.compact li.now{font-weight:600}

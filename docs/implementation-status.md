@@ -160,3 +160,21 @@ Later phases remain unimplemented. Phase 9 stays removed; Phase 10 stays parked 
 
 - "Hostels" counts hostels with at least one order in the row, not the hostel master list (which needs the client's mapping data).
 - Totals on every view come from the same stored orders as the Order tracking tabs, so they agree by construction. A comparison with the portal's own page totals needs a live read and was not done here.
+
+
+## Phase 6 — Hostel drill-down
+
+**Status:** implemented locally; unit tests, a production build and a local server render check (seeded test data) passed. Browser check pending.
+
+### Delivered (all on the existing hostel page, reached from search in two clicks)
+
+- Header facts: hostel name, code, district, student count, assigned godown and supplier (dated mapping from Phase 1), godown in-charge and hostel in-charge numbers as tap-to-call links.
+- **Needs attention now:** the hostel's issues (state, number of remarks, the latest remark), orders that have waited 7+ days at an open stage (amber/red wording), and a jump link to the unusual-request cards.
+- **Indent history by month:** a month picker that includes months with no indent ("No indent came for November 2026. The hostel skipped this month."). For a month with an indent: each request with its status, placed date, current stage and days (Phase 5 counting rules), a compact stage timeline, and a table of each item with unit and pack size, this month's quantity, the average of the hostel's own earlier months, and plain words for how it compares ("10.0 times the usual", "about the usual"). Months whose indents were all rejected say so instead of comparing.
+- Links to each order. **WhatsApp history** links arrive with Phase 8.
+- District limits apply to everything on the page (a hostel outside the person's districts shows "not found").
+
+### Notes
+
+- "Earlier months" are only months in which the hostel placed a request; rejected indents are not counted, as elsewhere.
+- Units show "Unknown" until the item master has them for that item (never guessed).
