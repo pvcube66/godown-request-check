@@ -73,8 +73,8 @@ export default async function IssuePage({ params }: { params: Promise<{ issueId:
           <h2 id={`indent-${ind.id}`} className="sub">{ind.isNew ? 'New indent' : 'Indent'} {ind.id} <Link className="link-arrow small" href={`/orders/${encodeURIComponent(ind.id)}`}>open order</Link></h2>
           {ind.rows.length === 0 ? <p className="mut">The item list is not available yet.</p> : (
             <div className="table-wrap"><table className="order-table">
-              <thead><tr><th>Item</th><th>Quantity</th><th>Unit</th><th>Pack size</th></tr></thead>
-              <tbody>{ind.rows.map((r) => <tr key={r.name} className={!ind.isNew && isFlaggedRow(r, flagged) ? 'flagged-row' : ''}><td>{itemLabel(r.name)}{!ind.isNew && isFlaggedRow(r, flagged) && <b className="tag-flag"> ◀ flagged</b>}</td><td>{num(r.quantity)}</td><td>{r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
+              <thead><tr><th>Item</th><th>Quantity</th><th>Pack size</th></tr></thead>
+              <tbody>{ind.rows.map((r) => <tr key={r.name} className={!ind.isNew && isFlaggedRow(r, flagged) ? 'flagged-row' : ''}><td>{itemLabel(r.name)}{!ind.isNew && isFlaggedRow(r, flagged) && <b className="tag-flag"> ◀ flagged</b>}</td><td>{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
             </table></div>
           )}
         </section>

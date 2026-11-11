@@ -104,8 +104,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
         ) : (
           <div className="table-wrap">
             <table className="order-table">
-              <thead><tr><th>Item</th><th>Quantity requested</th><th>Unit</th><th>Pack size</th></tr></thead>
-              <tbody>{rows.map((r) => <tr key={r.name}><td>{itemLabel(r.name)}</td><td>{num(r.quantity)}</td><td>{r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
+              <thead><tr><th>Item</th><th>Quantity requested</th><th>Pack size</th></tr></thead>
+              <tbody>{rows.map((r) => <tr key={r.name}><td>{itemLabel(r.name)}</td><td>{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
             </table>
           </div>
         )}
