@@ -26,3 +26,4 @@ export * from './whatsappConnect.js';
 export * from './whatsappTemplates.js';
 export * from './whatsappContacts.js';
 export * from './reminders.js';
+export * from './whatsappSend.js';

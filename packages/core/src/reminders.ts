@@ -77,7 +77,7 @@ export async function planReminders(c: WhatsAppCollections, settings: WhatsAppSe
 }
 
 /** Problems that affect every message, so the run stops instead of failing once per hostel. */
-const ACCOUNT_LEVEL = new Set(['190', '132001', '131042', '133010', '131031', '80007', '131048', '131056', '131020', '131041', '131059', '100']);
+export const ACCOUNT_LEVEL = new Set(['190', '132001', '131042', '133010', '131031', '80007', '131048', '131056', '131020', '131041', '131059', '100']);
 
 let running = false;
 export interface ReminderRun { mode: WhatsAppSettings['mode']; planned: number; sent: number; refused: number; skipped: number; stopped: string | null }

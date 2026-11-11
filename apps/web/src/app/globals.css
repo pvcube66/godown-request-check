@@ -943,3 +943,12 @@ details.tpl>summary{cursor:pointer;list-style:none}details.tpl[open]>summary{mar
 .import-sum{padding:10px 12px;border:1px solid var(--line);border-radius:var(--r2);background:var(--surface);font-size:13.5px}.import-sum ul{margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2)}
 .member-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}.member-list li{display:flex;gap:10px;align-items:center;justify-content:space-between}
 .plain-input{border:1px solid var(--input-line);border-radius:var(--r1);padding:6px 10px;min-height:36px;background:#fff}
+
+/* ---- Send message ---- */
+.send-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:18px;align-items:start}
+@media(max-width:900px){.send-grid{grid-template-columns:1fr}}
+.send-col{display:grid;gap:12px;min-width:0}
+.send-people{border:1px solid var(--line);border-radius:var(--r2);padding:10px 12px;display:grid;gap:8px;margin:0;background:var(--paper)}
+.send-people legend{font-weight:600;padding:0 6px}
+.pick-list{list-style:none;margin:0;padding:0;display:grid;gap:2px}.pick-list li label{display:flex;gap:8px;align-items:center;padding:5px 4px;border-radius:var(--r1);cursor:pointer}.pick-list li label:hover{background:var(--brand-tint)}
+.send-actions{display:flex;gap:8px;flex-wrap:wrap}

@@ -70,7 +70,7 @@ for (const k of ['orders', 'flags', 'issues', 'remarks']) {
 check('full copy: unknown kind is not found', (await get('admin', '/exports/users')).status === 404);
 
 // ---- admin-only screens, buttons, navigation
-for (const p of ['/users', '/master', '/accounts', '/whatsapp', '/whatsapp/connect', '/whatsapp/templates', '/whatsapp/people', '/exports', '/runs', '/accuracy']) {
+for (const p of ['/users', '/master', '/accounts', '/whatsapp', '/whatsapp/connect', '/whatsapp/templates', '/whatsapp/people', '/whatsapp/send', '/exports', '/runs', '/accuracy']) {
   const a = await get('admin', p), o = await get('operator', p), v = await get('viewer', p);
   check(`${p}: admin can use it`, a.status === 200 && !adminOnly.test(a.text), `${a.status}`);
   check(`${p}: operator and viewer are told it is for administrators`, adminOnly.test(o.text) && adminOnly.test(v.text));

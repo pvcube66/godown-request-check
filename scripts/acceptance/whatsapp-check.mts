@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { addHostelContacts, addToGroup, closeDb, createGroup, deleteContacts, deleteGroup, editContact, importContacts, messageable, removeFromGroup, saveContact, setOptOut, tagCounts } from '../../packages/core/src/index.ts';
+import { sealSecret, sendMessages } from '../../packages/core/src/index.ts';
 import { connectLocal } from './local.mts';
 
 /** Real-MongoDB checks of the WhatsApp CRM core (People so far; later phases add to this file). Local test database only (it_wa_crm). */
@@ -67,6 +68,24 @@ await assert.rejects(deleteContacts(c, [], 'u1'), /between 1 and 1000/); ok('del
 await deleteGroup(c, 'Nalgonda wardens', 'u1');
 await assert.rejects(deleteGroup(c, 'Nalgonda wardens', 'u1'), /no longer exists/); ok('deleting a group');
 assert.ok(await c.auditLog.countDocuments({ action: /^contact\.|^group\./ }) > 10); ok('everything is in the audit log');
+
+// ---- Send Message (fake Meta, real database)
+for (const x of [c.waContacts, c.waGroups, c.whatsappMessages, c.waTemplates]) await x.deleteMany({});
+await saveContact(c, { phone: '9876543210', name: 'Ravi Kumar' }, 'u1'); await saveContact(c, { phone: '9876543211', name: 'Sita' }, 'u1'); await saveContact(c, { phone: '9876543212', name: 'Out' }, 'u1');
+await setOptOut(c, '919876543212', true, 'u1');
+await c.waTemplates.insertOne({ name: 'hello', language: 'en', category: 'UTILITY', status: 'APPROVED', form: null, components: [], bodyText: 'Hi {{1}}, order {{2}} is ready.', variables: 2, metaId: 'm', reason: null, createdAt: now, updatedAt: now, syncedAt: now });
+await c.settings.updateOne({ _id: 'whatsapp' }, { $set: { value: { mode: 'live', phoneNumberId: '123456', wabaId: '654321', accessTokenEnc: sealSecret('t'), appSecretEnc: sealSecret('s'), templateStatus: 'APPROVED' } } }, { upsert: true });
+const sent: { to: string }[] = [];
+const meta = (async (_u: string, init: { body: string }) => { const b = JSON.parse(init.body); sent.push(b); return { ok: true, status: 200, json: async () => ({ messages: [{ id: `wamid.real${sent.length}` }] }) }; }) as unknown as typeof fetch;
+const req = { kind: 'template' as const, template: { name: 'hello', language: 'en' }, body: ['{name}', 'A1'], phones: ['919876543210', '919876543212'], batchId: 'batch-1' };
+const pv = await sendMessages(c, req, { preview: true, actor: 'u1' }, meta);
+assert.equal(sent.length, 0); assert.equal(await c.whatsappMessages.countDocuments(), 0); assert.equal(pv.results.find((r) => r.phone === '919876543212')!.outcome, 'opted_out'); ok('preview sends and stores nothing; the opted-out person is skipped');
+const go = await sendMessages(c, req, { preview: false, actor: 'u1' }, meta);
+assert.equal(go.sent, 1); assert.equal(sent.length, 1); assert.equal(sent[0]!.to, '919876543210');
+assert.equal((await c.whatsappMessages.findOne({ phone: '919876543210' }))!.status, 'sent'); ok('live send reaches only the allowed person and is recorded');
+await sendMessages(c, req, { preview: false, actor: 'u1' }, meta);
+assert.equal(sent.length, 1); assert.equal(await c.whatsappMessages.countDocuments({ phone: '919876543210' }), 1); ok('sending the same batch twice (double click) still sends once');
+assert.ok((await c.waContacts.findOne({ phone: '919876543210' }))!.lastMessagedAt); ok('the contact remembers when it was last messaged');
 
 console.log(`\n${passed} checks passed`);
 await closeDb(); process.exit(0);

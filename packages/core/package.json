@@ -6,7 +6,8 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./template-rules": "./src/whatsappTemplateRules.ts"
+    "./template-rules": "./src/whatsappTemplateRules.ts",
+    "./send-rules": "./src/whatsappSendRules.ts"
   },
   "dependencies": {
     "mongodb": "^6.10.0"

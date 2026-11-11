@@ -136,7 +136,10 @@ export interface WhatsAppMessageDoc {
   messageId: string | null;
   direction: 'out' | 'in';
   requestId: string | null; hostelCode: string; hostelName: string; districtName: string;
-  phoneLast4: string;                      // the full number is not copied into the history
+  phoneLast4: string;                      // reminders keep only the last four digits
+  phone?: string;                          // full number: kept for messages sent from the CRM so a chat can show them
+  kind?: 'reminder' | 'single' | 'campaign' | 'reply';
+  campaignId?: string; sentBy?: string;
   template?: string; reminderNo?: number;
   text: string;                            // what was sent, or the reply
   status: MessageStatus;
