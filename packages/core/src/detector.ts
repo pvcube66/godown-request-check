@@ -28,12 +28,17 @@ export interface DetectorConfig {
   dupMinItems: number;     // ... and must each ask for at least this many different items
   orderMinItems: number;   // whole-order check: needs at least this many items compared per student ...
   orderRatio: number;      // ... and the typical item at least this many times what similar-sized hostels ask
+  ownConsistency: number;  // never flag a quantity within this many times of the largest amount the hostel asked in any OTHER month
+  minExcessUnits: Record<string, number>; // smallest extra quantity worth a flag, by unit (kg, litre ...)
+  minExcessOther: number;  // ... for any other unit
+  minStudents: number;     // student counts below this are not trusted (a partial attendance day); the size is then estimated instead
+  dropMinor: boolean;      // do not store flags that would only be rated Minor
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: false, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: false, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -67,6 +72,9 @@ function severity(ratio: number, method: 'own-history' | 'peers' | 'blend', z: n
 /** `sizes` maps "godownId|hostelCode" to the number of students (when known). With it, requests are compared per student
  *  against hostels of a similar size; without it the size is estimated from the order itself. */
 export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: DetectorConfig = DEFAULT_CONFIG, sizes: Map<string, number> = new Map()): Candidate[] {
+  // A student count that is far too small (the portal's attendance report for a day with only some classes marked) would make every
+  // per-student comparison look huge, so it is not trusted: those hostels are compared by the size of their own order instead.
+  sizes = new Map([...sizes].filter(([, n]) => n >= cfg.minStudents));
   const baseNames = new Map<string, string>();
   for (const r of reqs) for (const s of r.itemSnapshots ?? []) {
     if (s.unit?.trim() || s.packSize?.trim()) baseNames.set(itemVariantKey(s), normalizedItemName(s.name));
@@ -160,7 +168,9 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
   }
   const itemTypical = new Map([...posByItem].map(([it, v]) => [it, median(v)]));
   const hostelRate = new Map([...monthRates].map(([it, m]) => [it, [...m].map(([hk, x]) => ({ hostel: hk.split('|')[1]!, godown: Number(hk.split('|')[0]), students: x.students, rate: median(x.rates) }))]));
-  const floorOf = (item: string) => cfg.itemMinExcess[item] ?? Math.max(cfg.minExcess, cfg.floorFrac * (itemTypical.get(item) ?? 0));
+  const unitOf = (item: string) => { const m = /\[unit:([^;\]]*)/.exec(item); const u = m ? decodeURIComponent(m[1]!).toLowerCase().trim() : ''; return u === 'unknown' ? '' : u; };
+  const unitFloor = (item: string) => cfg.minExcessUnits[unitOf(item)] ?? cfg.minExcessOther;
+  const floorOf = (item: string) => cfg.itemMinExcess[item] ?? Math.max(cfg.minExcess, unitFloor(item), cfg.floorFrac * (itemTypical.get(item) ?? 0));
   /** robust centre and spread of ln(values) */
   const logStats = (vals: number[]) => {
     const l = vals.filter((v) => v > 0).map(Math.log), m = median(l);
@@ -308,6 +318,12 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             }
           }
           if (!flagged) continue;
+          // A hostel asking for about what it asked in ANY other month (earlier or later) is behaving normally, whatever similar hostels do.
+          {
+            let othersMax = 0;
+            for (const [k, o] of agg) { const parts = k.split('|'); if (parts[0] === String(gid) && parts[1] === hostel && parts[2] !== month) othersMax = Math.max(othersMax, o.items[item] ?? 0); }
+            if (othersMax > 0 && qty <= cfg.ownConsistency * othersMax) continue;
+          }
           // Rate it against the hostel's own level too: the leftover spread is tighter, so a real jump scores higher than the raw comparison says.
           if (cfg.hostelEffectRating && method !== 'own-history' && pInfo && pInfo.basis === 'students' && pInfo.expected > 0) {
             const lvl = levelWithout(item);
@@ -318,11 +334,13 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             : `Asked ${qty}; hostels like it ask ~${round(expected)}` + (past.length ? ` (this hostel's only earlier request: ${past[0]})` : ' (no earlier history for this hostel)');
           if (method === 'own-history' && pInfo) reason += `; other hostels like it ask ~${round(pInfo.expected)}`;
           const ratio = qty / expected;
+          const rated = severity(ratio, method, zUsed, !!pInfo && qty <= pInfo.high);
+          if (cfg.dropMinor && rated === 'low' && method !== 'own-history') continue;     // a jump over the hostel's own history is solid evidence; a weak peer-only note is not
           found.set(item, {
             key: `${gid}|${hostel}|${month}|${item}`, godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
-            severity: severity(ratio, method, zUsed, !!pInfo && qty <= pInfo.high), method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
+            severity: rated, method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
           });
           const c = found.get(item)!;
           for (const div of [10, 100, 1000]) {
@@ -425,6 +443,10 @@ export async function runDetection(c: Collections, evalMonths = defaultEvalMonth
   const cfg = { ...DEFAULT_CONFIG, ...((saved?.value as Partial<DetectorConfig>) ?? {}) };
   const reqs = await c.requests.find({}, { projection: { items: 1, itemSnapshots: 1, godownId: 1, hostelCode: 1, hostelName: 1, districtName: 1, month: 1, status: 1, societyId: 1, requestId: 1, requestDate: 1 } }).toArray();
   const sizes = new Map((await c.hostels.find({ students: { $gt: 0 } }).toArray()).map((h) => [`${h.godownId}|${h.hostelCode}`, h.students!] as const));
+  // Flags from older months stay open until someone decides, so they must be re-checked too: if the request was rejected or changed
+  // since, the flag goes away instead of showing old numbers forever.
+  const openMonths = (await c.anomalies.distinct('month', { status: 'open' })) as string[];
+  evalMonths = [...new Set([...evalMonths, ...openMonths])];
   const found = detectAnomalies(reqs, evalMonths, cfg, sizes);
   const now = new Date();
   let created = 0;

@@ -97,18 +97,32 @@ export async function fetchGodownOrders(token: string, username: string, monthNa
   throw new Error('GetIndentHostelToVendorRequests: unexpected response');
 }
 
-/** Number of students in a hostel: the sum of every class in the portal's attendance report.
- *  (Only the totals are read. Student names and other personal details are never requested or stored.) */
-export async function fetchHostelStudents(token: string, hostelCode: string): Promise<number | null> {
-  const today = new Date().toISOString().slice(0, 10);
-  const q = new URLSearchParams({ hostelId: hostelCode, date: today });
+/** One day of the portal's attendance report for a hostel: a row per class with its totals (nothing personal is requested or kept). */
+export async function fetchAttendanceRows(token: string, hostelCode: string, date: string): Promise<{ total_students?: number; class_name?: string }[] | null> {
+  const q = new URLSearchParams({ hostelId: hostelCode, date });
   const r = await fetch(`${base()}report/api/reports/GetRptAttendanceByHostel?${q}`, { headers: authHeaders(token), signal: AbortSignal.timeout(30_000) });
   if (r.status === 401) throw new PortalAuthError('Token rejected (401)');
   if (!r.ok) throw new Error(`GetRptAttendanceByHostel HTTP ${r.status}`);
-  const j = (await r.json()) as { success?: boolean; data?: { total_students?: number }[] };
-  if (!Array.isArray(j.data)) return null;
-  const total = j.data.reduce((s, row) => s + (Number(row.total_students) || 0), 0);
-  return total > 0 ? total : null;
+  const j = (await r.json()) as { success?: boolean; data?: { total_students?: number; class_name?: string }[] };
+  return Array.isArray(j.data) ? j.data : null;
+}
+
+const dayBefore = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+/** Fewer than this many students looks like a day with only some classes marked, so earlier days are looked at too. */
+export const ENOUGH_STUDENTS = 100;
+
+/** Number of students in a hostel: the sum of every class in the portal's attendance report.
+ *  A day with only some classes marked would give a far too small number, so when today looks too small the previous six days are
+ *  looked at too and the largest total is kept. (Only the totals are read. Names and other personal details are never requested or stored.) */
+export async function fetchHostelStudents(token: string, hostelCode: string): Promise<number | null> {
+  let best = 0;
+  for (let back = 0; back < 7; back++) {
+    const rows = await fetchAttendanceRows(token, hostelCode, dayBefore(back));
+    const total = (rows ?? []).reduce((sum, row) => sum + (Number(row.total_students) || 0), 0);
+    best = Math.max(best, total);
+    if (best >= ENOUGH_STUDENTS) break;
+  }
+  return best > 0 ? best : null;
 }
 
 export interface PortalRequestItem extends Omit<RequestItemSnapshot, 'sourceKey'> {
