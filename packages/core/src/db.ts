@@ -8,6 +8,7 @@ import type { IssueDoc, RemarkDoc } from './issues.js';
 import type { WhatsAppMessageDoc } from './whatsapp.js';
 import type { WaTemplateDoc } from './whatsappTemplates.js';
 import type { ContactDoc, GroupDoc } from './whatsappContacts.js';
+import type { CampaignDoc, RecipientDoc } from './whatsappCampaigns.js';
 import type { ConversationDoc } from './whatsappConversations.js';
 
 export interface AccountDoc {
@@ -83,6 +84,8 @@ export interface Collections extends MasterDataCollections {
   waContacts: Collection<ContactDoc>;
   waGroups: Collection<GroupDoc>;
   waConversations: Collection<ConversationDoc>;
+  waCampaigns: Collection<CampaignDoc>;
+  waCampaignRecipients: Collection<RecipientDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -129,6 +132,8 @@ export const collections = (d: Db): Collections => ({
   waContacts: d.collection('waContacts'),
   waGroups: d.collection('waGroups'),
   waConversations: d.collection('waConversations'),
+  waCampaigns: d.collection('waCampaigns'),
+  waCampaignRecipients: d.collection('waCampaignRecipients'),
   auditLog: d.collection('auditLog'),
   async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
     const session = d.client.startSession();
@@ -178,6 +183,11 @@ export async function ensureIndexes(c: Collections) {
   await c.waGroups.createIndex({ name: 1 }, { unique: true });
   await c.waConversations.createIndex({ phone: 1 }, { unique: true });
   await c.waConversations.createIndex({ lastAt: -1 });
+  await c.waCampaigns.createIndex({ campaignId: 1 }, { unique: true });
+  await c.waCampaigns.createIndex({ status: 1, createdAt: -1 });
+  await c.waCampaignRecipients.createIndex({ campaignId: 1, phone: 1 }, { unique: true });
+  await c.waCampaignRecipients.createIndex({ campaignId: 1, status: 1 });
+  await c.whatsappMessages.createIndex({ campaignId: 1, status: 1 }, { sparse: true });
   await c.whatsappMessages.createIndex({ phone: 1, createdAt: 1 });
 }
 

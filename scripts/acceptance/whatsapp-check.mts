@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { addHostelContacts, addToGroup, closeDb, createGroup, deleteContacts, deleteGroup, editContact, importContacts, messageable, removeFromGroup, saveContact, setOptOut, tagCounts } from '../../packages/core/src/index.ts';
-import { conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
+import { campaignStats, changeCampaign, createCampaign, reviewCampaign, retryFailed, runCampaignBatch, runCampaigns, conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
 import { connectLocal } from './local.mts';
 
 /** Real-MongoDB checks of the WhatsApp CRM core (People so far; later phases add to this file). Local test database only (it_wa_crm). */
@@ -117,6 +117,52 @@ assert.equal((await c.waContacts.findOne({ phone: '919000011111' }))!.optedOut, 
 const afterStop = await sendMessages(c, { kind: 'template', template: { name: 'hello', language: 'en' }, body: ['x', 'y'], phones: ['919000011111'] }, { preview: false, actor: 'u1' }, meta2);
 assert.equal(afterStop.results[0]!.outcome, 'opted_out'); ok('and they are never messaged again');
 assert.equal(await c.waConversations.countDocuments(conversationFilter({ filter: 'unread' })), 1); assert.equal(await c.waConversations.countDocuments(conversationFilter({ q: '.*' })), 0); ok('chat list filters work and search is literal');
+
+// ---- Campaigns
+for (const x of [c.waCampaigns, c.waCampaignRecipients]) await x.deleteMany({});
+await c.waContacts.deleteMany({}); await c.whatsappMessages.deleteMany({}); await c.waGroups.deleteMany({});
+for (let i = 0; i < 45; i++) await saveContact(c, { phone: `9900000${String(i).padStart(3, '0')}`, name: `Person ${i}`, tags: i % 2 ? 'odd,all' : 'even,all' }, 'u1');
+await setOptOut(c, '919900000003', true, 'u1'); await setOptOut(c, '919900000004', true, 'u1');
+const input = { name: 'Diwali note', template: { name: 'hello', language: 'en' }, body: ['{name}', 'B7'], header: [] as string[], audience: { tags: ['all'] } };
+const rv = await reviewCampaign(c, input);
+assert.deepEqual([rv.people, rv.optedOut, rv.will], [45, 2, 43]); assert.match(rv.sample, /Hi Person, order B7/); ok('review counts people and opted-out, and shows a sample');
+assert.equal(await c.waCampaigns.countDocuments(), 0); ok('a review saves nothing');
+await assert.rejects(createCampaign(c, { ...input, audience: {} }, 'u1'), /Choose who/); await assert.rejects(createCampaign(c, { ...input, body: ['x'] }, 'u1'), /Fill in all 2/); ok('bad campaigns are refused');
+const camp = await createCampaign(c, input, 'u1');
+assert.equal(camp.total, 43); assert.equal(camp.skippedOptOut, 2); assert.equal(await c.waCampaignRecipients.countDocuments({ campaignId: camp.campaignId }), 43); ok('creating a campaign queues only people who can be messaged');
+const sentC: string[] = [];
+const metaC = (async (_u: string, init: { body: string }) => { const b = JSON.parse(init.body); sentC.push(b.to); return b.to === '919900000010' ? { ok: false, status: 400, json: async () => ({ error: { code: 131026, message: 'Message undeliverable' } }) } : { ok: true, status: 200, json: async () => ({ messages: [{ id: `wamid.c${sentC.length}` }] }) }; }) as unknown as typeof fetch;
+assert.equal((await runCampaignBatch(c, camp.campaignId, metaC)).state, 'idle'); assert.equal(sentC.length, 0); ok('a campaign that was not started sends nothing');
+await changeCampaign(c, camp.campaignId, 'start', 'u1');
+const b1 = await runCampaignBatch(c, camp.campaignId, metaC);
+assert.equal(b1.processed, 20); assert.equal(sentC.length, 20); ok('the first batch sends 20');
+await changeCampaign(c, camp.campaignId, 'pause', 'u1');
+assert.equal((await runCampaignBatch(c, camp.campaignId, metaC)).state, 'paused'); assert.equal(sentC.length, 20); ok('pausing stops sending');
+await setOptOut(c, '919900000030', true, 'u1');
+await changeCampaign(c, camp.campaignId, 'resume', 'u1');
+await Promise.all([runCampaignBatch(c, camp.campaignId, metaC), runCampaignBatch(c, camp.campaignId, metaC)]);
+assert.equal(new Set(sentC).size, sentC.length); ok('two workers at once never send to the same person twice');
+await runCampaigns(c, metaC);
+assert.ok(!sentC.includes('919900000030')); ok('someone who opts out mid-campaign is not messaged');
+const fin = await c.waCampaigns.findOne({ campaignId: camp.campaignId });
+assert.equal(fin!.status, 'done'); ok('the campaign finishes by itself');
+const cs = await campaignStats(c, camp.campaignId);
+assert.equal(cs.queued, 0); assert.equal(cs.sent + cs.failed, fin!.total); assert.equal(cs.cancelled, 1); ok('totals add up');
+assert.equal(cs.failed, 1); assert.equal(await retryFailed(c, camp.campaignId, 'u1'), 1);
+assert.equal((await c.waCampaigns.findOne({ campaignId: camp.campaignId }))!.status, 'running'); ok('failed people can be retried');
+await c.whatsappMessages.updateOne({ phone: '919900000000', campaignId: camp.campaignId }, { $set: { status: 'read' } });
+assert.equal((await campaignStats(c, camp.campaignId)).read, 1); ok('read ticks show up in the campaign stats');
+const c2 = await createCampaign(c, { ...input, name: 'Second' }, 'u1');
+await c.settings.updateOne({ _id: 'whatsapp' }, { $set: { 'value.mode': 'dry_run' } });
+const before = sentC.length;
+await changeCampaign(c, c2.campaignId, 'start', 'u1'); await runCampaigns(c, metaC);
+const pr = await c.waCampaigns.findOne({ campaignId: c2.campaignId });
+assert.equal(sentC.length, before); assert.equal(pr!.dryRun, true); assert.ok((await campaignStats(c, c2.campaignId)).previewed > 0); ok('in preview mode the whole flow runs and nothing is sent');
+assert.equal(pr!.status, 'done'); await assert.rejects(changeCampaign(c, c2.campaignId, 'cancel', 'u1'), /cannot be cancelled/);
+const c3 = await createCampaign(c, { ...input, name: 'Third' }, 'u1');
+await changeCampaign(c, c3.campaignId, 'start', 'u1'); await changeCampaign(c, c3.campaignId, 'cancel', 'u1');
+assert.equal(await c.waCampaignRecipients.countDocuments({ campaignId: c3.campaignId, status: 'queued' }), 0); ok('cancelling stops everyone still waiting');
+await c.settings.updateOne({ _id: 'whatsapp' }, { $set: { 'value.mode': 'live' } });
 
 console.log(`\n${passed} checks passed`);
 await closeDb(); process.exit(0);

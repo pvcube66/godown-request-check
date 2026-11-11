@@ -972,3 +972,8 @@ details.tpl>summary{cursor:pointer;list-style:none}details.tpl[open]>summary{mar
 .seg button{white-space:nowrap;padding:4px 12px;min-height:var(--control-height);border:0;border-radius:8px;background:transparent;color:var(--ink-2);font:inherit;font-weight:550;cursor:pointer}
 .seg button:hover{background:var(--surface);color:var(--ink)}.seg button.on{background:var(--ink);color:#fff}
 .send-grid .seg{width:max-content}
+
+/* ---- Campaigns ---- */
+.tile-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
+.stat-tile{background:var(--paper);border:1px solid var(--line);border-radius:var(--r2);padding:10px 14px;display:grid;gap:2px}.stat-tile b{font-size:22px;color:var(--ink)}.stat-tile span{color:var(--ink-2);font-size:13px}.stat-tile.bad b{color:var(--bad,#b42318)}
+.bar{height:8px;border-radius:999px;background:var(--surface);overflow:hidden;min-width:110px;margin-bottom:3px;border:1px solid var(--line)}.bar span{display:block;height:100%;background:var(--brand)}

@@ -4,6 +4,7 @@ import { runDetection } from './detector.js';
 import { syncAll } from './sync.js';
 import { syncIssues } from './issues.js';
 import { runReminders } from './reminders.js';
+import { runCampaigns } from './whatsappCampaigns.js';
 
 let running = false;
 
@@ -27,6 +28,9 @@ export async function runCycle(c: Collections, trigger: string, mode: 'recent' |
     }
     try { await runReminders(c); } catch (e) {          // WhatsApp reminders (preview or live, as set by an administrator)
       run.accounts.push({ username: '(whatsapp)', ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+    try { await runCampaigns(c); } catch (e) {          // keeps running campaigns moving
+      run.accounts.push({ username: '(campaigns)', ok: false, error: e instanceof Error ? e.message : String(e) });
     }
     run.finishedAt = new Date();
     await c.runs.insertOne({ ...run });
