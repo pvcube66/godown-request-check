@@ -7,6 +7,7 @@ import { hostelLabel, itemLabel, monthLabel, num } from '@/lib/format';
 import { loadIndent } from '@/lib/indent';
 import { loadHostelPhones } from '@/lib/history';
 import { loadItemNames } from '@/lib/item-names';
+import { openFlagFilter } from '@/lib/orders';
 import { orderMonth } from '@/lib/orders';
 import { Icon } from '@/components/Icons';
 
@@ -24,7 +25,7 @@ export default async function IndentView({ params }: { params: Promise<{ request
   const [rows, itemNames, flags, phones] = await Promise.all([
     loadIndent(c, id),
     loadItemNames(c),
-    c.anomalies.find(scoped({ hostelCode: order.hostelCode, month, status: 'open', partOfOrder: { $ne: true } }, names), { projection: { item: 1, kind: 1, severity: 1, requested: 1, expected: 1 } }).toArray(),
+    c.anomalies.find(scoped(openFlagFilter(order.hostelCode, month), names), { projection: { item: 1, kind: 1, severity: 1, requested: 1, expected: 1 } }).toArray(),
     loadHostelPhones(c, request ? [{ godownId: request.godownId, hostelCode: order.hostelCode }] : []),
   ]);
   const supplied = new Map((request?.itemSnapshots ?? []).map((s) => [s.sourceKey, s.suppliedQuantity]));

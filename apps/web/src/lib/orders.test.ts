@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { orderFilter, orderMonth, parseIds } from './orders';
+import { openFlagFilter, orderFilter, orderMonth, parseIds } from './orders';
 import { searchFilter } from './search';
 
 describe('order search compatibility', () => {
@@ -107,5 +107,11 @@ describe('orders opened from a supplier card', () => {
   it('names the month of an order the way the flags do', () => {
     expect(orderMonth(new Date('2026-09-30T20:00:00Z'))).toBe('2026-10');      // 1 Oct in India
     expect(orderMonth(null)).toBe('');
+  });
+});
+
+describe('one definition of an open flag', () => {
+  it('counts only high and medium open flags, outside whole-order groups, for that hostel and month', () => {
+    expect(openFlagFilter('36280601213', '2026-11')).toEqual({ hostelCode: '36280601213', month: '2026-11', status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } });
   });
 });
