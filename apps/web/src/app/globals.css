@@ -307,7 +307,7 @@ main:has(.orders-page){max-width:none}.orders-page{width:100%}
 
 /* Login: white form card on a black page. */
 .login{display:grid;grid-template-columns:1.1fr 1fr;min-height:100vh;background:var(--ink)}
-.login-side{background:var(--ink);color:var(--paper);padding:40px;display:flex;flex-direction:column;justify-content:center;gap:24px}
+.login-side{background:var(--ink);color:var(--paper);padding:56px 64px;display:flex;flex-direction:column;justify-content:center;gap:28px;min-height:100vh}
 .login-side .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
 .login-side h1{font-size:20px;font-weight:600;max-width:28ch}
 .demo{background:var(--paper);color:var(--ink);border-radius:var(--r3);padding:16px;max-width:450px}
@@ -315,7 +315,7 @@ main:has(.orders-page){max-width:none}.orders-page{width:100%}
 .bars{display:grid;gap:7px}.bar-row{display:grid;grid-template-columns:72px 1fr 44px;align-items:center;gap:8px;font-size:13.5px}.bar-row span{color:var(--muted)}.bar-row b{text-align:right;font-size:13.5px}
 .track{height:12px;background:var(--surface);overflow:hidden}.track i{display:block;height:100%;min-width:4px}
 .b-usual{background:var(--normal)}.b-high{background:var(--ink)}.demo-note{margin-top:10px;color:var(--ink);font-weight:600}
-.login-main{display:flex;align-items:center;justify-content:center;padding:30px}
+.login-main{display:flex;align-items:center;justify-content:center;padding:48px 32px;background:var(--paper);min-height:100vh}
 .login-card{width:100%;max-width:410px;background:var(--paper);color:var(--ink);padding:24px;border-radius:var(--r3)}
 .login-card h2{font-size:20px;font-weight:600}.lead{color:var(--muted);margin:6px 0 18px;font-size:13.5px}
 .login-form label{display:block;font-weight:500;margin-bottom:5px}.pw{position:relative;margin-bottom:12px}
@@ -465,3 +465,6 @@ td.stage-col.final b{font-weight:600}
 .row-inline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .wa-history{list-style:none;padding:0;margin:0;display:grid;gap:6px}
 .wa-history li{border-left:3px solid var(--line-strong);padding:2px 0 2px 10px}
+
+/* Sign-in: browsers paint saved logins yellow; keep the field white and black */
+.login-form input:-webkit-autofill,.login-form input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px var(--paper) inset;-webkit-text-fill-color:var(--ink);caret-color:var(--ink)}
