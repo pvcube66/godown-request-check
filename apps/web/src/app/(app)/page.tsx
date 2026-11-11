@@ -232,24 +232,23 @@ async function HomeContent({ sp }: { sp: SP }) {
         return (
           <details className={`hostel hostel-tile tile sev-${top1.severity}`} key={`${top1.godownId}|${top1.hostelCode}`}>
             <summary className="hostel-head tile-face">
-              <span className="tf-top">
+              <span className="tf-r1">
+                <span className="tf-name"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><span className="tf-nm">{hostelLabel(top1.hostelName)}</span></span>
                 <span className={`pill ${top1.severity}`}>{SEVERITY[top1.severity].label}</span>
-                <span className="count-chip">{cards.length} {cards.length === 1 ? 'issue' : 'issues'}</span>
-                <Icon name="chevron" size={16} />
+                <Icon name="chevron" size={15} />
               </span>
-              <span className="tf-name"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span>{hostelLabel(top1.hostelName)}</span>
-              <span className="tf-where">{top1.districtName}<span className="hid">Hostel ID {top1.hostelCode}</span></span>
-              <span className="tf-figure" title={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toLocaleString('en-IN', { maximumFractionDigits: 1 })} times the usual`}>
+              <span className="tf-r2">{top1.districtName}<span className="hid">ID {top1.hostelCode}</span><span className="count-chip">{cards.length} {cards.length === 1 ? 'issue' : 'issues'}</span></span>
+              <span className="tf-r3" title={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toLocaleString('en-IN', { maximumFractionDigits: 1 })} times the usual`}>
                 {top1.kind === 'duplicate'
-                  ? <><b>2×</b><span>the same request twice</span></>
-                  : <><b>{top1.ratio >= 1000 ? '999+' : top1.ratio >= 10 ? Math.round(top1.ratio).toLocaleString('en-IN') : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b><span>{top1.kind === 'order' ? 'bigger than a similar hostel’s order' : 'more than usual'}</span></>}
+                  ? <><b>2×</b><span className="tf-note">same request twice</span></>
+                  : <><b>{top1.ratio >= 1000 ? '999+' : top1.ratio >= 10 ? Math.round(top1.ratio).toLocaleString('en-IN') : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b>
+                    {top1.kind === 'order' || top1.expected <= 0
+                      ? <span className="tf-note">{top1.kind === 'order' ? 'bigger than similar hostels' : 'more than usual'}</span>
+                      : <span className="tf-bar2" aria-label={`usually ${num(top1.expected)}, this time ${num(top1.requested)}`}>
+                          <span className="tf-track"><i style={{ width: `${Math.max(2, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /></span>
+                          <span className="tf-nums"><em>{top1.expected < 0.1 ? '<0.1' : num(top1.expected)}</em> → <b>{num(top1.requested)}</b></span>
+                        </span>}</>}
               </span>
-              {top1.kind !== 'duplicate' && top1.kind !== 'order' && top1.expected > 0 && (
-                <span className="tf-bar" aria-hidden="true">
-                  <span className="tb-row"><em>Usually</em><i style={{ width: `${Math.max(3, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /><b>{top1.expected < 0.1 ? '<0.1' : num(top1.expected)}</b></span>
-                  <span className="tb-row"><em>This time</em><i className="hot" style={{ width: '100%' }} /><b>{num(top1.requested)}</b></span>
-                </span>
-              )}
               <span className="tf-chips">
                 {duplicates.length > 0 && <i className="kchip k-duplicate">Possible duplicate</i>}
                 {orders.length > 0 && <i className="kchip k-order">Whole order too big</i>}
