@@ -44,13 +44,13 @@ export default async function IndentView({ params }: { params: Promise<{ request
       {flags.length > 0 && <p className="alert-bar" role="status">{flags.length} unusual request{flags.length === 1 ? '' : 's'} for this hostel in {monthLabel(month)}. The items are highlighted below.</p>}
       {rows.length === 0 ? <div className="empty">The item list for this indent is not stored yet. It appears after the next full check.</div> : (
         <div className="table-wrap"><table className="order-table">
-          <thead><tr><th>Item</th><th>Unit</th><th>Pack size</th><th className="num">Asked for</th>{hasSupplied && <th className="num">Supplied</th>}<th /></tr></thead>
+          <thead><tr><th>Item</th><th className="num">Asked for</th><th>Pack size</th>{hasSupplied && <th className="num">Supplied</th>}<th /></tr></thead>
           <tbody>{rows.map((r) => {
             const hot = flaggedItems.has(normalizedItemName(r.name)), s = supplied.get(r.name);
             return (
               <tr key={r.name} className={hot ? 'flagged-row' : ''}>
-                <td><b>{itemLabel(r.name, itemNames)}</b></td><td>{r.unit}</td><td>{r.packSize}</td>
-                <td className="num">{num(r.quantity)}</td>
+                <td><b>{itemLabel(r.name, itemNames)}</b></td>
+                <td className="num">{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td>
                 {hasSupplied && <td className="num">{s === undefined ? '—' : num(s)}</td>}
                 <td>{hot && <span className="tag-flag">Unusual</span>}</td>
               </tr>

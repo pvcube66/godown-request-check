@@ -63,20 +63,31 @@ export function requestItemSnapshots(
   items: Record<string, number>, rows: readonly Omit<RequestItemSnapshot, 'sourceKey'>[],
 ): RequestItemSnapshot[] {
   const reportCounts = new Map<string, number>();
-  const byName = new Map<string, Omit<RequestItemSnapshot, 'sourceKey'>[]>();
   for (const key of Object.keys(items)) {
     const name = normalizedItemName(key);
     reportCounts.set(name, (reportCounts.get(name) ?? 0) + 1);
   }
+  const byName = new Map<string, Omit<RequestItemSnapshot, 'sourceKey'>[]>();
   for (const row of rows) {
     const name = normalizedItemName(row.name);
     byName.set(name, [...(byName.get(name) ?? []), row]);
   }
-  return Object.entries(items).map(([sourceKey, quantity]) => {
+  // Pass 1: the same name, when it is unique on both sides.
+  const matched = new Map<string, Omit<RequestItemSnapshot, 'sourceKey'>>();
+  const used = new Set<Omit<RequestItemSnapshot, 'sourceKey'>>();
+  for (const [sourceKey] of Object.entries(items)) {
     const name = normalizedItemName(sourceKey), matches = byName.get(name);
-    const match = name && reportCounts.get(name) === 1 && matches?.length === 1 ? matches[0] : undefined;
+    if (name && reportCounts.get(name) === 1 && matches?.length === 1) { matched.set(sourceKey, matches[0]!); used.add(matches[0]!); }
+  }
+  return Object.entries(items).map(([sourceKey, quantity]) => {
+    const match = matched.get(sourceKey);
     return match ? { ...match, sourceKey } : { sourceKey, name: sourceKey, requestedQuantity: quantity };
   });
+}
+
+/** True when some item of the request still has no unit or pack size on record. Such requests are read again later, not left blank. */
+export function snapshotsComplete(snapshots: readonly RequestItemSnapshot[]): boolean {
+  return snapshots.every((s) => (s.unit ?? '').trim() !== '' || (s.packSize ?? '').trim() !== '');
 }
 
 /** Legacy/unknown items keep their raw key; known variants cannot borrow legacy history.

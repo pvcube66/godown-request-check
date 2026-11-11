@@ -7,6 +7,7 @@ import { hostelLabel, itemLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
 import { loadIndent } from '@/lib/indent';
+import { phonesByHostelCode } from '@/lib/history';
 import RemarksThread from '@/components/RemarksThread';
 import WhatsAppHistory from '@/components/WhatsAppHistory';
 import FlagOrderForm from '../../issues/FlagOrderForm';
@@ -23,6 +24,7 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
   const rows = await loadIndent(c, o.requestId);
+  const hostelPhone = (await phonesByHostelCode(c, [o.hostelCode])).get(o.hostelCode);
   const [remarks, issues, whatsapp] = await Promise.all([
     c.remarks.find({ targetType: 'order', targetId: o.requestId }).sort({ at: 1 }).toArray(),
     c.issues.find(scoped({ $or: [{ targetRequestIds: o.requestId }, { requestIds: o.requestId }, { newRequestId: o.requestId }] }, names)).sort({ raisedAt: -1 }).limit(10).toArray(),
@@ -46,7 +48,7 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
           {u === 'late' && <> · <span className="bad-text">waiting over two weeks</span></>}
           {u === 'watch' && <> · waiting over a week</>}
         </p>
-        <p className="status">Hostel ID {o.hostelCode} · {o.districtName} · {o.monthName} {o.academicYear}{placed !== null && <> · placed {fmtDay(o.placedOn)} ({num(placed)} {placed === 1 ? 'day' : 'days'} ago)</>}</p>
+        <p className="status">Hostel ID {o.hostelCode}{hostelPhone && <> · Hostel phone <a href={`tel:${hostelPhone.replace(/[^+0-9]/g, '')}`}>{hostelPhone}</a></>} · {o.districtName} · {o.monthName} {o.academicYear}{placed !== null && <> · placed {fmtDay(o.placedOn)} ({num(placed)} {placed === 1 ? 'day' : 'days'} ago)</>}</p>
       </section>
 
       <section className="summary" aria-labelledby="timeline">
@@ -81,7 +83,7 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
           {o.fulfilment.short.length > 0 && (
             <div className="table-wrap"><table className="order-table">
               <thead><tr><th>Item supplied short</th><th>Unit</th><th className="num">Asked for</th><th className="num">Supplied</th></tr></thead>
-              <tbody>{o.fulfilment.short.map((s) => <tr key={s.name}><td>{itemLabel(s.name)}</td><td>{s.unit ?? 'Not read yet'}</td><td className="num">{num(s.requested)}</td><td className="num">{num(s.supplied)}</td></tr>)}</tbody>
+              <tbody>{o.fulfilment.short.map((s) => <tr key={s.name}><td>{itemLabel(s.name)}</td><td>{s.unit ?? '—'}</td><td className="num">{num(s.requested)}</td><td className="num">{num(s.supplied)}</td></tr>)}</tbody>
             </table></div>
           )}
           <p className="mut small">Read from the portal’s item list at the {STAGE_LABEL[o.fulfilment.stage]} stage. Items are compared one by one; different units are never added together.</p>
@@ -104,8 +106,8 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
         ) : (
           <div className="table-wrap">
             <table className="order-table">
-              <thead><tr><th>Item</th><th>Quantity requested</th><th>Unit</th><th>Pack size</th></tr></thead>
-              <tbody>{rows.map((r) => <tr key={r.name}><td>{itemLabel(r.name)}</td><td>{num(r.quantity)}</td><td>{r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
+              <thead><tr><th>Item</th><th>Quantity requested</th><th>Pack size</th></tr></thead>
+              <tbody>{rows.map((r) => <tr key={r.name}><td>{itemLabel(r.name)}</td><td>{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
             </table>
           </div>
         )}
