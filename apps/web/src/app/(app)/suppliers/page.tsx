@@ -39,7 +39,7 @@ function Table({ rows, overall, by, month, linkRow }: { rows: PerfRow[]; overall
             <td className="num">{num(r.backlog)}</td><td className={`num ${r.backlog7 ? 'watch' : ''}`}>{r.backlog7 ? num(r.backlog7) : '—'}</td><td className={`num ${r.backlog15 ? 'late' : ''}`}>{r.backlog15 ? num(r.backlog15) : '—'}</td>
             <td className="num">{pct(r.rejectedShare)}</td><td className="num">{pct(r.variationShare)}</td>
             <td className="num">{r.vsAverage === null ? '—' : `${r.vsAverage >= 0 ? '+' : '−'}${Math.abs(r.vsAverage).toFixed(0)} pts`}</td>
-            <td className={verdictClass(r.verdict)}><b>{VERDICT_TEXT[r.verdict]}</b></td>
+            <td><span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span></td>
           </tr>
         );
       })}</tbody>
@@ -106,7 +106,7 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
           <p className="lede small">Each cell is the supplied share and the verdict for orders placed that month.</p>
           <div className="table-wrap"><table className="order-table dash-table">
             <thead><tr><th>Supplier</th>{v.checkpoint.months.map((m) => <th key={m} className="num">{monthText(m)}</th>)}</tr></thead>
-            <tbody>{v.checkpoint.rows.map((r) => <tr key={r.key}><td><b>{r.label}</b></td>{v.checkpoint!.months.map((m) => { const x = r.months[m]; return <td key={m} className={`num ${x ? verdictClass(x.verdict) : ''}`}>{x ? <><b>{VERDICT_TEXT[x.verdict]}</b><div className="small">{pct(x.fill)} supplied · {x.orders} orders{x.backlog15 ? ` · ${x.backlog15} open 15+ days` : ''}</div></> : '—'}</td>; })}</tr>)}</tbody>
+            <tbody>{v.checkpoint.rows.map((r) => <tr key={r.key}><td><b>{r.label}</b></td>{v.checkpoint!.months.map((m) => { const x = r.months[m]; return <td key={m} className="num">{x ? <><span className={`verdict-chip ${x.verdict}`}>{VERDICT_TEXT[x.verdict]}</span><div className="small">{pct(x.fill)} supplied · {x.orders} orders{x.backlog15 ? ` · ${x.backlog15} open 15+ days` : ''}</div></> : '—'}</td>; })}</tr>)}</tbody>
           </table></div>
         </section>
       )}

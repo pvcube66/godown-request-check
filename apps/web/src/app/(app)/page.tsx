@@ -55,16 +55,18 @@ async function HomeContent({ sp }: { sp: SP }) {
   const base0: Record<string, unknown> = { partOfOrder: { $ne: true } };
   if (sp.month) base0.month = sp.month;
   if (sp.district) base0.districtName = sp.district;
-  const kind = KIND_TABS.find((k) => k.key && k.key === sp.kind)?.key ?? '';
-  if (kind) base0.kind = kind;
   const q = (sp.q ?? '').trim().slice(0, 60);
   if (q) base0.hostelName = { $regex: escapeRe(q), $options: 'i' };
+  const kind = KIND_TABS.find((k) => k.key && k.key === sp.kind)?.key ?? '';
+  const scopeAnyKind = scoped(base0, names);                 // every type: used for the numbers on the type chips
+  if (kind) base0.kind = kind;
   const scope = scoped(base0, names);
   const statusFilter = view === 'fine' ? { $in: ['ignored', 'expected'] } : view;
   const attention = { ...scope, status: 'open', severity: { $in: ['high', 'medium'] } };
   const showSummary = view === 'open';
 
-  const [rows, counts, months, districts, topRows, byDistrict, byItem, lastRun, requestMonths] = await Promise.all([
+  const [kindCounts, rows, counts, months, districts, topRows, byDistrict, byItem, lastRun, requestMonths] = await Promise.all([
+    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: '$kind', n: { $sum: 1 } } }]).toArray(),
     c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: '$severity', n: { $sum: 1 } } }]).toArray(),
     c.anomalies.distinct('month', scoped({}, names)),
@@ -184,13 +186,23 @@ async function HomeContent({ sp }: { sp: SP }) {
         <SearchBox base={Object.fromEntries(Object.entries(base).filter(([k]) => k !== 'q' && k !== 'all'))} q={q} />
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
-        <FilterSelect label="Type of unusual request" name="kind" value={kind} base={base} options={KIND_TABS.map((k) => ({ value: k.key, label: k.label }))} />
         <div className="seg" role="group" aria-label="Which requests to show">
           {[['open', 'To check'], ['confirmed', 'Issues raised'], ['fine', 'Marked fine']].map(([v, l]) => (
             <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, p: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>
           ))}
         </div>
       </div>
+
+      <nav className="type-chips" aria-label="Type of unusual request">
+        {KIND_TABS.map((k) => {
+          const n = k.key ? (kindCounts.find((x) => x._id === k.key)?.n ?? 0) : kindCounts.reduce((t, x) => t + x.n, 0);
+          return (
+            <Link key={k.key || 'all'} href={qs(sp, { kind: k.key, p: '' })} className={`type-chip ${kind === k.key ? 'on' : ''} ${k.key ? `k-${k.key}` : ''}`} aria-current={kind === k.key ? 'page' : undefined}>
+              <i className="dot" aria-hidden="true" />{k.label}<span className="type-n">{n}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
       <p className="report-links">
         <Link href={`/report${reportQuery ? `?${reportQuery}` : ''}`} className="link-arrow"><Icon name="print" size={17} />Print or save as PDF</Link>
@@ -205,6 +217,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         </div>
       )}
 
+      <div className="tile-grid">
       {shown.map((g, hi) => {
         const top1 = g[0]!;
         const sn = offset + hi + 1;
@@ -217,15 +230,34 @@ async function HomeContent({ sp }: { sp: SP }) {
         ];
         const numbered = cards.map((x, ci) => ({ ...x, node: cloneElement(x.node, { no: `${sn}.${ci + 1}` }) }));
         return (
-          <details className="hostel hostel-tile" key={`${top1.godownId}|${top1.hostelCode}`}>
-            <summary className="hostel-head">
-              <span className="hostel-title"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><span><span className="hostel-name">{hostelLabel(top1.hostelName)}</span><span className="where">{top1.districtName} district<span className="hid">Hostel ID {top1.hostelCode}</span></span></span></span>
-              <span className="hostel-meta">
-                <span className="issue-types">{[duplicates.length ? 'Duplicate request' : '', orders.length ? 'Whole-order anomaly' : '', typing.length ? 'Typing mistake' : '', spikes.length ? 'Unusual quantity' : ''].filter(Boolean).join(' / ')}</span>
-                <span className={`pill ${sev}`}>{SEVERITY[sev].label}</span>
+          <details className={`hostel hostel-tile tile sev-${top1.severity}`} key={`${top1.godownId}|${top1.hostelCode}`}>
+            <summary className="hostel-head tile-face">
+              <span className="tile-mult" aria-label={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toFixed(1)} times the usual`}>
+                {top1.kind === 'duplicate'
+                  ? <><b>2×</b><small>same request</small></>
+                  : <><b>{top1.ratio >= 100 ? Math.round(top1.ratio) : top1.ratio >= 10 ? Math.round(top1.ratio) : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b><small>the usual</small></>}
+              </span>
+              <span className="tile-main">
+                <span className="hostel-name tile-name"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span>{hostelLabel(top1.hostelName)}</span>
+                <span className="where tile-where">{top1.districtName}<span className="hid">Hostel ID {top1.hostelCode}</span></span>
+                <span className="tile-chips">
+                  {duplicates.length > 0 && <i className="kchip k-duplicate">Possible duplicate</i>}
+                  {orders.length > 0 && <i className="kchip k-order">Whole order too big</i>}
+                  {typing.length > 0 && <i className="kchip k-typing">Same number typed</i>}
+                  {spikes.length > 0 && <i className="kchip k-spike">Unusual quantity</i>}
+                </span>
+              </span>
+              <span className="tile-side">
+                <span className={`pill ${top1.severity}`}>{SEVERITY[top1.severity].label}</span>
                 <span className="count-chip">{cards.length} {cards.length === 1 ? 'issue' : 'issues'}</span>
                 <Icon name="chevron" size={16} />
               </span>
+              {top1.kind !== 'duplicate' && top1.kind !== 'order' && top1.expected > 0 && (
+                <span className="tile-bar" aria-hidden="true">
+                  <span className="tb-row"><em>Usually</em><i style={{ width: `${Math.max(3, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /><b>{num(top1.expected)}</b></span>
+                  <span className="tb-row"><em>This time</em><i className="hot" style={{ width: '100%' }} /><b>{num(top1.requested)}</b></span>
+                </span>
+              )}
             </summary>
             <p className="tile-profile"><Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link></p>
             {numbered.slice(0, CARDS_SHOWN).map((x) => x.node)}
@@ -238,6 +270,7 @@ async function HomeContent({ sp }: { sp: SP }) {
           </details>
         );
       })}
+      </div>
       {pages > 1 && (
         <nav className="pager" aria-label="More hostels">
           {pageNo > 1 ? <Link className="btn" href={qs(sp, { p: pageNo === 2 ? '' : String(pageNo - 1) })}>Previous</Link> : <span />}

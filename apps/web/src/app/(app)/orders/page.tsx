@@ -112,7 +112,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>
                       <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">Hostel ID {o.hostelCode} · {o.districtName}</div></td>
                       <td>{fmtDay(o.placedOn)}</td>
-                      <td><b>{STAGE_LABEL[o.stage]}</b>{OPEN_STAGES.includes(o.stage)
+                      <td><span className={`stage-chip st-${o.stage}`}>{STAGE_LABEL[o.stage]}</span>{OPEN_STAGES.includes(o.stage)
                         ? <div className="mut small">for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div>
                         : o.stage === 'received' ? <div className="small ack-date">on {fmtDay(o.stageSince)}</div>
                         : <div className="mut small">final action</div>}</td>

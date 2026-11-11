@@ -61,7 +61,7 @@ export default async function Dashboards({ searchParams }: { searchParams: Promi
           <tbody>
             {stages.rows.map((r, i) => (
               <tr key={r.stage}>
-                <td>{i + 1}</td><td><b>{r.label}</b></td>
+                <td>{i + 1}</td><td><span className={`stage-chip st-${r.stage}`}>{r.label}</span></td>
                 <td className="num">{r.orders ? <Link href={orders({ stage: r.stage, month })}>{num(r.orders)}</Link> : '0'}</td>
                 <td className="num">{num(r.hostels)}</td>
                 <td className={`num ${r.stuck7 ? 'watch' : ''}`}>{r.stuck7 ? <Link href={orders({ stage: r.stage, month, stuck: String(STUCK_DAYS[0]) })}>{num(r.stuck7)}</Link> : '—'}</td>
