@@ -10,7 +10,7 @@ export interface MappingUpload { name: string; size: number; arrayBuffer(): Prom
 
 /** ExcelJS loads ZIP contents in memory. Verify every entry with bounded inflation
  * first; trusting only ZIP-declared sizes or counting rows after load is not safe. */
-function checkXlsxArchive(bytes: Buffer): void {
+export function checkXlsxArchive(bytes: Buffer): void {
   const fail = (message = 'Invalid or unsupported XLSX archive'): never => { throw new Error(message); };
   let end = -1;
   for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
@@ -71,7 +71,7 @@ function checkXlsxArchive(bytes: Buffer): void {
   if (cursor !== end || !names.has('xl/workbook.xml')) fail();
 }
 
-function cellText(value: unknown, address: string): string {
+export function cellText(value: unknown, address: string): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
