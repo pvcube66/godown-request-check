@@ -678,3 +678,19 @@ td.watch{color:var(--alert-mid)}td.late,.dash-table td.late{color:var(--alert-hi
 .master-message{border-radius:var(--r1)}
 .master-record{border:1px solid var(--line);border-radius:var(--r2);margin-top:8px;background:var(--paper)}
 .wa-sample{border-left-color:var(--brand);background:var(--brand-tint);border-radius:0 var(--r1) var(--r1) 0}
+
+/* Tile layout v2: a vertical card that survives long names and big numbers */
+.tile-grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr));align-items:stretch}
+.tile{display:flex;flex-direction:column}
+.tile-face{flex:1;grid-template-columns:auto minmax(0,1fr)!important;grid-template-areas:"side side" "mult main" "bar bar";gap:12px 14px!important;align-content:start;padding:14px 18px 16px 24px!important}
+.tile-side{grid-area:side;flex-direction:row!important;align-items:center!important;justify-content:space-between;align-self:auto!important}
+.tile-side .pill{margin-right:auto}
+.tile-mult{grid-area:mult;width:auto;min-width:88px;padding:8px 12px;align-self:start}
+.tile-mult b{font-size:30px;white-space:nowrap}
+.tile-main{grid-area:main;align-self:center}
+.tile-name{align-items:flex-start!important;overflow-wrap:anywhere}
+.tile-bar{grid-area:bar;align-self:end;margin-top:2px}
+.tb-row{grid-template-columns:68px 1fr 44px}
+.tb-row b{white-space:nowrap}
+.tile[open]>.tile-face{flex:none}
+@media (max-width:640px){.tile-face{grid-template-columns:auto minmax(0,1fr)!important}.tile-side{grid-column:auto}}

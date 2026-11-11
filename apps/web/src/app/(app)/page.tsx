@@ -232,10 +232,12 @@ async function HomeContent({ sp }: { sp: SP }) {
         return (
           <details className={`hostel hostel-tile tile sev-${top1.severity}`} key={`${top1.godownId}|${top1.hostelCode}`}>
             <summary className="hostel-head tile-face">
-              <span className="tile-mult" aria-label={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toFixed(1)} times the usual`}>
+              <span className="tile-mult" title={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toLocaleString('en-IN', { maximumFractionDigits: 1 })} times the usual`}>
                 {top1.kind === 'duplicate'
                   ? <><b>2×</b><small>same request</small></>
-                  : <><b>{top1.ratio >= 100 ? Math.round(top1.ratio) : top1.ratio >= 10 ? Math.round(top1.ratio) : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b><small>the usual</small></>}
+                  : top1.ratio >= 1000
+                  ? <><b>999×</b><small>or more</small></>
+                  : <><b>{top1.ratio >= 10 ? Math.round(top1.ratio).toLocaleString('en-IN') : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b><small>the usual</small></>}
               </span>
               <span className="tile-main">
                 <span className="hostel-name tile-name"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span>{hostelLabel(top1.hostelName)}</span>
@@ -254,7 +256,7 @@ async function HomeContent({ sp }: { sp: SP }) {
               </span>
               {top1.kind !== 'duplicate' && top1.kind !== 'order' && top1.expected > 0 && (
                 <span className="tile-bar" aria-hidden="true">
-                  <span className="tb-row"><em>Usually</em><i style={{ width: `${Math.max(3, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /><b>{num(top1.expected)}</b></span>
+                  <span className="tb-row"><em>Usually</em><i style={{ width: `${Math.max(3, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /><b>{top1.expected < 0.1 ? '<0.1' : num(top1.expected)}</b></span>
                   <span className="tb-row"><em>This time</em><i className="hot" style={{ width: '100%' }} /><b>{num(top1.requested)}</b></span>
                 </span>
               )}
