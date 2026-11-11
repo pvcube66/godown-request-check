@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { canEdit, daysInStage, istDay, OPEN_STAGES, resolveHostelMapping, scoped, STAGE_LABEL } from '@anomaly/core';
 import { loadIndent } from '@/lib/indent';
 import { loadUnits } from '@/lib/units';
+import { loadItemNames } from '@/lib/item-names';
 import { monthComparison, monthRange, sameItem, sizeWords } from '@/lib/hostel';
 import { daysSincePlaced, fmtDay, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
 import { getDb } from '@/lib/db';
@@ -62,7 +63,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const spikes = spikesAll.filter((a) => !a.partOfOrder);
   const orderItems = await loadOrderItems(c, orders);
   const dupReqs = await loadRequestsById(c, duplicates.flatMap((a) => a.dup!.requestIds));
-  const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer), units: await loadUnits(c) };
+  const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer), units: await loadUnits(c), names: await loadItemNames(c) };
   const whatsapp = await c.whatsappMessages.find(scoped({ hostelCode: code }, names)).sort({ createdAt: -1 }).limit(20).toArray();
   const hostelIssues = await c.issues.find(scoped({ godownId, hostelCode: code }, names)).sort({ raisedAt: -1 }).limit(20).toArray();
   const remarkCounts = hostelIssues.length ? new Map((await c.remarks.aggregate<{ _id: string; n: number }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $group: { _id: '$targetId', n: { $sum: 1 } } }]).toArray()).map((r) => [r._id, r.n])) : new Map<string, number>();

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ACTIVE_STATES, canEdit, getWaitDays, isOverdue, scoped, STATE_TEXT, waitingDays } from '@anomaly/core';
 import { getDb } from '@/lib/db';
+import { loadItemNames } from '@/lib/item-names';
 import { hostelLabel, itemLabel, monthLabel, num, when } from '@/lib/format';
 import { flaggedItemName, isFlaggedRow, loadIndent } from '@/lib/indent';
 import { fmtDay } from '@/lib/orders';
@@ -16,6 +17,7 @@ export const dynamic = 'force-dynamic';
 export default async function IssuePage({ params }: { params: Promise<{ issueId: string }> }) {
   const { issueId } = await params;
   const c = await getDb();
+  const itemNames = await loadItemNames(c);
   const { viewer, names } = await scopeFor(c);
   const issue = await c.issues.findOne(scoped({ issueId }, names));
   if (!issue) notFound();
@@ -62,7 +64,7 @@ export default async function IssuePage({ params }: { params: Promise<{ issueId:
       {flags.length > 0 && (
         <section className="summary" aria-labelledby="flags">
           <h2 id="flags">What the system noticed</h2>
-          <ul>{flags.map((a) => <li key={a.key}>{a.kind === 'order' ? 'Whole order too big' : a.kind === 'duplicate' ? 'Possible duplicate request' : a.kind === 'typing' ? 'Same number typed for many items' : `${itemLabel(a.item)}: asked for ${num(a.requested)}, usually about ${num(a.expected)}`}</li>)}</ul>
+          <ul>{flags.map((a) => <li key={a.key}>{a.kind === 'order' ? 'Whole order too big' : a.kind === 'duplicate' ? 'Possible duplicate request' : a.kind === 'typing' ? 'Same number typed for many items' : `${itemLabel(a.item, itemNames)}: asked for ${num(a.requested)}, usually about ${num(a.expected)}`}</li>)}</ul>
         </section>
       )}
 

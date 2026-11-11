@@ -1188,3 +1188,7 @@ input[type="checkbox"],input[type="radio"],.master-field input[type="checkbox"],
 .check-row .btn{display:inline-flex}
 .order-table td.stage-col.none{color:#b8b8b8}
 .modal-back{background:rgba(0,0,0,.4)}
+
+/* ---- card extras: request IDs and the hostel phone ---- */
+details.hc>.tile-profile{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.tile-phone{color:var(--ink-2)}.tile-phone a{color:var(--ink);font-weight:600}
