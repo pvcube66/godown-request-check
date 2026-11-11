@@ -1,6 +1,7 @@
 import { BANNER, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import type { History } from '@/lib/history';
 import { hostelKey, monthsWithRequests } from '@/lib/history';
+import { seriesFor } from '@/lib/hostel';
 import type { TypingGroup } from '@/lib/group';
 import type { AnomalyDoc } from '@anomaly/core';
 import FlagActions from './FlagActions';
@@ -14,12 +15,14 @@ function chartFor(a: AnomalyDoc, ctx: Ctx) {
   const h = ctx.history[hostelKey(a.godownId, a.hostelCode)];
   const shown = windowMonths(ctx.months, a.month);
   const have = monthsWithRequests(h);
+  const series = seriesFor(h, a.item);
+  if (!(series[a.month]! > 0) && a.requested > 0) series[a.month] = a.requested;   // the flag itself says what was asked; the chart must agree with the card
   const earlierMonths = [...have].filter((m) => m < a.month).sort();
   const earlier = earlierMonths.length;
   return {
     shown,
-    earlierList: earlierMonths.map((m) => ({ m, q: h?.[a.item]?.[m] ?? 0 })),
-    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={h?.[a.item] ?? {}} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} suffix={unitFor(a.item, ctx.units ?? {}) ? ` ${unitFor(a.item, ctx.units ?? {})}` : ''} />,
+    earlierList: earlierMonths.map((m) => ({ m, q: series[m] ?? 0 })),
+    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={series} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} suffix={unitFor(a.item, ctx.units ?? {}) ? ` ${unitFor(a.item, ctx.units ?? {})}` : ''} />,
     note: earlier >= 3 ? null : earlier === 0
       ? 'This hostel has no earlier months on record yet, so we compared it with similar hostels.'
       : `Only ${earlier} earlier month${earlier > 1 ? 's are' : ' is'} on record for this hostel so far.`,
