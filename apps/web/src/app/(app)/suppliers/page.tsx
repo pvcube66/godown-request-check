@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { num } from '@/lib/format';
-import { MEETING, BYS, VERDICT_TEXT, type PerfRow } from '@/lib/performance';
+import { MEETING, BYS, VERDICT_TEXT, type By, type PerfRow } from '@/lib/performance';
 import { loadPerformanceView } from '@/lib/performance-view';
 import { orderMonths } from '@/lib/orders';
 import { scopeFor } from '@/lib/viewer';
@@ -15,35 +15,79 @@ const monthText = (ym: string) => new Date(`${ym}-01T12:00:00+05:30`).toLocaleDa
 const pct = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)}%`);
 const dayAvg = (x: number | null) => (x === null ? '—' : x.toFixed(1));
 const qs = (o: Record<string, string | undefined>) => new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString();
-const verdictClass = (v: PerfRow['verdict']) => (v === 'not_meeting' ? 'late' : v === 'watch' ? 'watch' : '');
 
-function Table({ rows, overall, by, month, linkRow }: { rows: PerfRow[]; overall?: PerfRow; by: string; month?: string; linkRow?: (r: PerfRow) => string | null }) {
+const WHO: Record<By, { title: string; one: string }> = {
+  supplier: { title: 'How well is each supplier delivering?', one: 'supplier' },
+  godown: { title: 'How well is each godown delivering?', one: 'godown' },
+  district: { title: 'How well is each district being served?', one: 'district' },
+  hostel: { title: 'How well is each hostel being served?', one: 'hostel' },
+};
+const TAB_LABEL: Record<By, string> = { supplier: 'By supplier', godown: 'By godown', district: 'By district', hostel: 'By hostel' };
+
+/** One card per supplier / godown / district: the first number is how much of what hostels asked for was actually sent. */
+function GroupCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: string; focusHref: string | null }) {
+  const ordersHref = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
+  const fill = r.fill === null ? null : Math.round(r.fill * 100);
+  return (
+    <article className={`perf-card v-${r.verdict}`}>
+      <header>
+        <h3>{focusHref ? <Link href={focusHref}>{r.label}</Link> : r.label}</h3>
+        <span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span>
+      </header>
+      {fill === null ? (
+        <p className="perf-none">We don’t know yet how much was sent. Quantities are read from the portal a few orders every hour.</p>
+      ) : (
+        <div className="perf-main">
+          <div className="perf-big"><b>{fill}%</b><span>of what hostels asked for was sent</span></div>
+          <div className="perf-meter" role="img" aria-label={`${fill}% sent`}><i style={{ width: `${fill}%` }} /></div>
+          {r.vsAverage !== null && <p className="perf-vs">{Math.abs(Math.round(r.vsAverage)) < 1 ? 'Same as the average of everyone shown.' : `${Math.abs(Math.round(r.vsAverage))} points ${r.vsAverage > 0 ? 'better' : 'worse'} than the average of everyone shown.`}</p>}
+        </div>
+      )}
+      <dl className="perf-facts">
+        <div><dt>Orders</dt><dd>{ordersHref ? <Link href={ordersHref}>{num(r.orders)}</Link> : num(r.orders)}<small>quantities known for {num(r.read)}</small></dd></div>
+        <div><dt>Waiting over a week</dt><dd className={r.backlog7 ? 'watch' : ''}>{num(r.backlog7)}<small>of {num(r.backlog)} not yet acknowledged</small></dd></div>
+        <div><dt>Waiting over two weeks</dt><dd className={r.backlog15 ? 'late' : ''}>{num(r.backlog15)}</dd></div>
+        <div><dt>Rejected or cancelled</dt><dd>{pct(r.rejectedShare)}</dd></div>
+        <div><dt>Reached the hostel</dt><dd>{pct(r.receivedFill)}<small>of what was sent</small></dd></div>
+        <div><dt>Days to get a delivery note</dt><dd>{dayAvg(r.daysToDc)}</dd></div>
+        <div><dt>Days from dispatch to acknowledged</dt><dd>{dayAvg(r.daysToAcknowledge)}</dd></div>
+        <div><dt>Orders with a quantity difference</dt><dd>{pct(r.variationShare)}</dd></div>
+      </dl>
+      <footer>
+        {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">See districts and hostels<Icon name="arrow" size={15} /></Link>}
+        {ordersHref && <Link href={ordersHref} className="link-arrow">See the orders<Icon name="arrow" size={15} /></Link>}
+      </footer>
+    </article>
+  );
+}
+
+/** A compact list for the many rows (hostels, or the districts inside one supplier). */
+function Rows({ rows, by, month }: { rows: PerfRow[]; by: By; month?: string }) {
   return (
     <div className="table-wrap"><table className="order-table dash-table perf-table">
       <thead><tr>
-        <th>S.No</th><th>{by === 'supplier' ? 'Supplier' : by === 'godown' ? 'Godown' : by === 'district' ? 'District' : 'Hostel'}</th>
-        <th className="num">Orders</th><th className="num">Supplied (of what was asked)</th><th className="num">Received (of what was supplied)</th>
-        <th className="num">Days to DC</th><th className="num">Days DC to dispatch</th><th className="num">Days dispatch to acknowledge</th>
-        <th className="num">Open orders</th><th className="num">Open 7+ days</th><th className="num">Open 15+ days</th>
-        <th className="num">Rejected</th><th className="num">With variation</th><th className="num">Against average</th><th>Meeting demand?</th>
+        <th>{by === 'district' ? 'District' : 'Hostel'}</th>
+        <th className="num" title="How many orders; in brackets, the orders whose quantities are known">Orders</th>
+        <th className="num" title="Of everything the hostels asked for, how much was sent">Sent</th>
+        <th className="num" title="Of what was sent, how much reached the hostel">Reached</th>
+        <th className="num" title="Not yet acknowledged and the same stage for 7 days or more">Waiting 7+ days</th>
+        <th className="num" title="Not yet acknowledged and the same stage for 15 days or more">Waiting 15+ days</th>
+        <th className="num">Rejected</th>
+        <th>Verdict</th>
       </tr></thead>
-      <tbody>{rows.map((r, i) => {
-        const href = linkRow?.(r);
-        const ordersHref = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
+      <tbody>{rows.map((r) => {
+        const href = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
         return (
           <tr key={r.key}>
-            <td>{i + 1}</td><td><b>{href ? <Link href={href}>{r.label}</Link> : r.label}</b></td>
-            <td className="num">{ordersHref ? <Link href={ordersHref}>{num(r.orders)}</Link> : num(r.orders)}<div className="mut small">{r.read} read</div></td>
-            <td className="num">{pct(r.fill)}</td><td className="num">{pct(r.receivedFill)}</td>
-            <td className="num">{dayAvg(r.daysToDc)}</td><td className="num">{dayAvg(r.daysDcToDispatch)}</td><td className="num">{dayAvg(r.daysToAcknowledge)}</td>
-            <td className="num">{num(r.backlog)}</td><td className={`num ${r.backlog7 ? 'watch' : ''}`}>{r.backlog7 ? num(r.backlog7) : '—'}</td><td className={`num ${r.backlog15 ? 'late' : ''}`}>{r.backlog15 ? num(r.backlog15) : '—'}</td>
-            <td className="num">{pct(r.rejectedShare)}</td><td className="num">{pct(r.variationShare)}</td>
-            <td className="num">{r.vsAverage === null ? '—' : `${r.vsAverage >= 0 ? '+' : '−'}${Math.abs(r.vsAverage).toFixed(0)} pts`}</td>
+            <td><b>{href ? <Link href={href}>{r.label}</Link> : r.label}</b></td>
+            <td className="num">{num(r.orders)} <span className="mut small">({num(r.read)})</span></td>
+            <td className="num"><b>{pct(r.fill)}</b></td><td className="num">{pct(r.receivedFill)}</td>
+            <td className={`num ${r.backlog7 ? 'watch' : ''}`}>{r.backlog7 ? num(r.backlog7) : '—'}</td><td className={`num ${r.backlog15 ? 'late' : ''}`}>{r.backlog15 ? num(r.backlog15) : '—'}</td>
+            <td className="num">{pct(r.rejectedShare)}</td>
             <td><span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span></td>
           </tr>
         );
       })}</tbody>
-      {overall && <tfoot><tr><td /><td><b>All in view</b></td><td className="num">{num(overall.orders)}</td><td className="num">{pct(overall.fill)}</td><td className="num">{pct(overall.receivedFill)}</td><td className="num">{dayAvg(overall.daysToDc)}</td><td className="num">{dayAvg(overall.daysDcToDispatch)}</td><td className="num">{dayAvg(overall.daysToAcknowledge)}</td><td className="num">{num(overall.backlog)}</td><td className="num">{num(overall.backlog7)}</td><td className="num">{num(overall.backlog15)}</td><td className="num">{pct(overall.rejectedShare)}</td><td className="num">{pct(overall.variationShare)}</td><td /><td /></tr></tfoot>}
     </table></div>
   );
 }
@@ -55,71 +99,83 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
   const [v, months] = await Promise.all([loadPerformanceView(c, names, sp), orderMonths(c, names)]);
   const here = (o: Record<string, string | undefined>) => `/suppliers?${qs({ by: v.by, month: v.month, ...o })}`;
   const focusLabel = v.focus ? v.main.rows[0]?.label ?? v.focus : null;
-  const rowLink = (r: PerfRow) => (v.by === 'hostel' ? null : here({ focus: r.key }));
+  const cards = v.by !== 'hostel' && !v.focus;
+  const o = v.main.overall;
 
   return (
     <>
       <section className="hero">
         <p className="greet">Supplier performance</p>
-        <h1>{v.focus ? focusLabel : v.by === 'hostel' ? 'How each hostel is being served' : 'Are suppliers meeting demand?'}</h1>
+        <h1>{v.focus ? focusLabel : WHO[v.by].title}</h1>
         <p className="lede">
           {v.focus
-            ? <>The {num(v.total)} orders behind this row. <Link href={here({ focus: undefined })} className="link-arrow">Back to all</Link></>
-            : 'Each supplier’s share of what hostels asked for that was actually supplied, how quickly, and how many orders are still waiting. The weakest are at the top.'}
+            ? <>The {num(v.total)} orders behind this {WHO[v.by].one}. <Link href={here({ focus: undefined })} className="link-arrow">Back to all</Link></>
+            : 'For every order, the portal records what the hostel asked for and what the godown actually sent. We compare the two, item by item. The ones falling furthest behind come first.'}
         </p>
-        {v.by === 'supplier' && v.main.rows.some((r) => r.key === '(unmapped)') && <p className="status bad" role="status">Some orders have no supplier yet: the portal names the supplier once a delivery note exists, and orders that are still Pending have none. {v.mapped ? '' : 'You can also import the district-to-supplier mapping under Master data. '}</p>}
-        <p className="mut small">Quantities have been read for {num(v.coverage.read)} of {num(v.coverage.withDc)} orders that have a delivery note. The rest are read a few every hour, so the figures sharpen over the first day.</p>
+        {v.by === 'supplier' && v.main.rows.some((r) => r.key === '(unmapped)') && <p className="status bad" role="status">Some orders have no supplier yet. The portal names the supplier only once a delivery note exists, so orders still Pending are listed under “No supplier mapped yet”.</p>}
       </section>
 
+      <div className="perf-kpis">
+        <div><b>{num(o.orders)}</b><span>orders in view</span></div>
+        <div><b>{pct(o.fill)}</b><span>of what was asked was sent</span></div>
+        <div><b className={o.backlog15 ? 'late' : ''}>{num(o.backlog15)}</b><span>waiting over two weeks</span></div>
+        <div><b>{num(v.coverage.read)}<small> / {num(v.coverage.withDc)}</small></b><span>orders with known quantities</span></div>
+      </div>
+
       <div className="order-seg-wrap">
-        <nav className="seg order-seg" aria-label="Views">
-          {BYS.map((b) => <Link key={b.key} href={`/suppliers?${qs({ by: b.key, month: v.month })}`} className={b.key === v.by ? 'on' : ''} aria-current={b.key === v.by ? 'page' : undefined}>{b.label}</Link>)}
+        <nav className="seg order-seg" aria-label="Group by">
+          {BYS.map((b) => <Link key={b.key} href={`/suppliers?${qs({ by: b.key, month: v.month })}`} className={b.key === v.by ? 'on' : ''} aria-current={b.key === v.by ? 'page' : undefined}>{TAB_LABEL[b.key]}</Link>)}
         </nav>
       </div>
       <form className="filters" method="get" action="/suppliers">
         <input type="hidden" name="by" value={v.by} />{v.focus && <input type="hidden" name="focus" value={v.focus} />}
-        <label className="select"><span>Placed in</span>
+        <label className="select"><span>Orders placed in</span>
           <select name="month" defaultValue={v.month ?? ''}><option value="">Any month</option>{months.map((m) => <option key={m} value={m}>{monthText(m)}</option>)}</select>
         </label>
         <button className="btn primary-ish" type="submit">Show</button>
         <a className="btn" href={`/suppliers/csv?${qs({ by: v.by, month: v.month, focus: v.focus })}`}><Icon name="download" size={16} /> Download Excel</a>
       </form>
 
-      {v.main.rows.length === 0 ? <div className="empty">No orders match these choices.</div> : (
-        <Table rows={v.main.rows} overall={v.main.overall} by={v.by} month={v.month} linkRow={v.focus ? () => null : rowLink} />
+      {v.main.rows.length === 0 ? <div className="empty">No orders match these choices.</div> : cards ? (
+        <div className="perf-cards">{v.main.rows.map((r) => <GroupCard key={r.key} r={r} by={v.by} month={v.month} focusHref={here({ focus: r.key })} />)}</div>
+      ) : v.focus ? (
+        <GroupCard r={v.main.rows[0]!} by={v.by} month={v.month} focusHref={null} />
+      ) : (
+        <Rows rows={v.main.rows} by={v.by} month={v.month} />
       )}
 
       {v.sub && (
         <>
-          <h2 className="sub">Hostels given to this {v.by === 'supplier' ? 'supplier' : v.by}</h2>
-          <p className="lede small">Out of {num(v.sub.service.served + v.sub.service.short + v.sub.service.waiting)} hostels with orders: <b>{num(v.sub.service.served)}</b> were served in full (90%+ of what they asked for), <b>{num(v.sub.service.short)}</b> were short, and <b>{num(v.sub.service.waiting)}</b> are still waiting for supplies to be recorded.</p>
+          <h2 className="sub">Hostels under this {WHO[v.by].one}</h2>
+          <p className="lede small">Out of {num(v.sub.service.served + v.sub.service.short + v.sub.service.waiting)} hostels with orders: <b>{num(v.sub.service.served)}</b> were fully served (90% or more of what they asked for was sent), <b>{num(v.sub.service.short)}</b> were short, and <b>{num(v.sub.service.waiting)}</b> have no delivery quantities recorded yet.</p>
           <h3 className="sub-h">Districts, weakest first</h3>
-          <Table rows={v.sub.districts} by="district" month={v.month} />
-          <h3 className="sub-h">Weakest hostels (15 shown)</h3>
-          <Table rows={v.sub.weakestHostels} by="hostel" month={v.month} />
+          <Rows rows={v.sub.districts} by="district" month={v.month} />
+          <h3 className="sub-h">The 15 hostels furthest behind</h3>
+          <Rows rows={v.sub.weakestHostels} by="hostel" month={v.month} />
         </>
       )}
 
       {v.checkpoint && v.checkpoint.rows.length > 0 && (
         <section aria-labelledby="checkpoint">
-          <h2 className="sub" id="checkpoint">Meeting demand, month by month</h2>
-          <p className="lede small">Each cell is the supplied share and the verdict for orders placed that month.</p>
+          <h2 className="sub" id="checkpoint">Month by month</h2>
+          <p className="lede small">For orders placed in each month: how much was sent, and how that supplier is doing.</p>
           <div className="table-wrap"><table className="order-table dash-table">
             <thead><tr><th>Supplier</th>{v.checkpoint.months.map((m) => <th key={m} className="num">{monthText(m)}</th>)}</tr></thead>
-            <tbody>{v.checkpoint.rows.map((r) => <tr key={r.key}><td><b>{r.label}</b></td>{v.checkpoint!.months.map((m) => { const x = r.months[m]; return <td key={m} className="num">{x ? <><span className={`verdict-chip ${x.verdict}`}>{VERDICT_TEXT[x.verdict]}</span><div className="small">{pct(x.fill)} supplied · {x.orders} orders{x.backlog15 ? ` · ${x.backlog15} open 15+ days` : ''}</div></> : '—'}</td>; })}</tr>)}</tbody>
+            <tbody>{v.checkpoint.rows.map((r) => <tr key={r.key}><td><b>{r.label}</b></td>{v.checkpoint!.months.map((m) => { const x = r.months[m]; return <td key={m} className="num">{x ? <><span className={`verdict-chip ${x.verdict}`}>{VERDICT_TEXT[x.verdict]}</span><div className="small">{pct(x.fill)} sent · {x.orders} orders{x.backlog15 ? ` · ${x.backlog15} waiting 15+ days` : ''}</div></> : '—'}</td>; })}</tr>)}</tbody>
           </table></div>
         </section>
       )}
 
-      <section className="summary" aria-labelledby="how">
-        <h2 id="how">How to read this</h2>
-        <ul>
-          <li><b>Supplied</b> compares each item with itself (what the godown supplied against what the hostel asked for) and averages the items. Different units are never added together.</li>
-          <li><b>Meeting demand</b>: at least {MEETING.fill * 100}% supplied and no more than {MEETING.lateShare * 100}% of open orders waiting 15+ days. <b>Not meeting demand</b>: under {MEETING.notFill * 100}% supplied, or more than {MEETING.notLateShare * 100}% of open orders waiting 15+ days. Anything between is <b>Watch</b>.</li>
-          <li><b>Against average</b> is the difference in supplied share from all orders in view, in percentage points.</li>
-          <li>Days use the portal’s own dates (whole days). Orders still Pending have not been supplied yet, so they are not counted as short.</li>
-        </ul>
-      </section>
+      <details className="summary how">
+        <summary><h2>How are these numbers worked out?</h2></summary>
+        <ol>
+          <li>For each item in an order, the portal gives the amount the hostel <b>asked for</b> and the amount the godown <b>sent</b>. We divide sent by asked (never more than 100%).</li>
+          <li>The items of one order are averaged to give that order a score. The orders are then averaged to give the supplier, godown, district or hostel its score. Different units (kg, packets) are never added together.</li>
+          <li>Only orders that already have a delivery note and known quantities count. Orders still Pending have not been sent yet, so they are never counted as short. Rejected and cancelled orders are left out of the score.</li>
+          <li><b>Waiting</b> means the order has not been acknowledged and has stayed at the same stage for that many days.</li>
+          <li><b>On track</b>: at least {MEETING.fill * 100}% sent and no more than {MEETING.lateShare * 100}% of waiting orders over two weeks. <b>Falling short</b>: under {MEETING.notFill * 100}% sent, or more than {MEETING.notLateShare * 100}% of waiting orders over two weeks. Anything in between: <b>Needs attention</b>.</li>
+        </ol>
+      </details>
     </>
   );
 }

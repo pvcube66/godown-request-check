@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import Spinner from './Spinner';
+import Loader from './Loader';
 
 /** Shows a progress bar and a "Loading…" message whenever you click a link, use the search box or change a filter,
  *  until the next screen has arrived. Also dims the page so it is obvious something is happening. */
@@ -27,7 +27,7 @@ export default function TopLoader() {
     document.body.dataset.loading = '1';
     setRunning(true); setWidth(10);
     tick.current = setInterval(() => setWidth((w) => (w < 88 ? w + (90 - w) * 0.12 : w)), 180);
-    pillTimer.current = setTimeout(() => setPill(true), 350);        // only show the message if it takes a moment
+    pillTimer.current = setTimeout(() => setPill(true), 200);        // only show the message if it takes a moment
     safety.current = setTimeout(finish, 20_000);                     // never get stuck
   };
 
@@ -56,7 +56,7 @@ export default function TopLoader() {
   return (
     <>
       <div className={`toploader ${running ? 'on' : ''}`} aria-hidden="true"><i style={{ width: `${width}%` }} /></div>
-      {pill && <div className="busy" role="status" aria-live="polite"><Spinner size={18} />Loading…</div>}
+      {pill && <div className="busy" aria-hidden="false"><Loader size="lg" label="Loading…" /></div>}
     </>
   );
 }

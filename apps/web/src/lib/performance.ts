@@ -17,7 +17,7 @@ export type PerfOrder = Pick<OrderDoc, 'supplier' | 'account' | 'districtName' |
 };
 
 export type Verdict = 'meeting' | 'watch' | 'not_meeting' | 'no_data';
-export const VERDICT_TEXT: Record<Verdict, string> = { meeting: 'Meeting demand', watch: 'Watch', not_meeting: 'Not meeting demand', no_data: 'Not enough data yet' };
+export const VERDICT_TEXT: Record<Verdict, string> = { meeting: 'On track', watch: 'Needs attention', not_meeting: 'Falling short', no_data: 'Not enough data yet' };
 
 export interface PerfRow {
   key: string; label: string; filter: { district?: string; account?: string; hostel?: string };
