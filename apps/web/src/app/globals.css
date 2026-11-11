@@ -982,3 +982,4 @@ details.tpl>summary{cursor:pointer;list-style:none}details.tpl[open]>summary{mar
 .wa-tabs{margin:6px 0 14px;flex-wrap:wrap;width:max-content;max-width:100%}
 .profile-form{display:grid;gap:12px;max-width:620px;margin-bottom:16px}.profile-form textarea,.profile-form select,.qr-wrap textarea{border:1px solid var(--input-line);border-radius:var(--r1);padding:8px 10px;background:#fff;font:inherit}
 .profile-pic{border-radius:50%;object-fit:cover;border:1px solid var(--line)}
+.sec-title{font-size:16px;margin:18px 0 8px;color:var(--ink)}

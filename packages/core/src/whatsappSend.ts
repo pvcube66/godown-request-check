@@ -15,7 +15,8 @@ export * from './whatsappSendRules.js';
 
 export interface SendCollections extends WhatsAppCollections { waContacts: Collection<ContactDoc>; waGroups: Collection<GroupDoc>; waTemplates: Collection<WaTemplateDoc>; waConversations?: Collection<ConversationDoc> }
 
-export const MAX_DIRECT = 50;                 // more than this belongs in a campaign
+export const MAX_DIRECT = 50;
+export const MAX_PER_HOUR = 300;              // messages from Send Message and Chats per hour, so a slip cannot message the whole list                 // more than this belongs in a campaign
 export const WINDOW_MS = 24 * 3600_000;
 const clean = (v: string) => v.replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, 1000);
 
@@ -71,6 +72,10 @@ export async function sendMessages(c: SendCollections, req: SendRequest, opts: {
   if (!opts.preview && s.mode === 'off') throw new WhatsAppInputError('WhatsApp sending is turned off. Turn it on in Settings.');
   if (!opts.preview && s.mode === 'dry_run') throw new WhatsAppInputError('WhatsApp is in preview mode, so nothing is sent. Switch to live in Settings when you are ready.');
   const cred = credentialsOf(s);
+  if (live) {
+    const recent = await c.whatsappMessages.countDocuments({ direction: 'out', kind: 'single', createdAt: { $gte: new Date(now.getTime() - 3600_000) } });
+    if (recent + contacts.length + unknown.length > MAX_PER_HOUR) throw new WhatsAppInputError(`To protect your number, Send Message is limited to ${MAX_PER_HOUR} messages an hour. Wait a while, or use a campaign.`);
+  }
   if (live && !cred) throw new WhatsAppInputError('Connect WhatsApp first.');
 
   const batch = req.batchId || randomUUID();

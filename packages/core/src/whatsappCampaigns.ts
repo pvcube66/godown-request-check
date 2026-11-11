@@ -7,6 +7,7 @@ import { sendTemplateMessage, WhatsAppApiError, type Fetcher } from './whatsappA
 import type { ContactDoc, GroupDoc } from './whatsappContacts.js';
 import type { ConversationDoc } from './whatsappConversations.js';
 import { touchConversation } from './whatsappConversations.js';
+import { tidyMessages } from './whatsappStats.js';
 import { fillValue, templateSlots } from './whatsappSend.js';
 import type { WaTemplateDoc } from './whatsappTemplates.js';
 import { previewText } from './whatsappTemplateRules.js';
@@ -194,6 +195,7 @@ export async function runCampaignBatch(c: CampaignCollections, id: string, fetch
 
 /** The hourly job's share: keeps every running campaign moving, a few batches each. */
 export async function runCampaigns(c: CampaignCollections, fetcher?: Fetcher, now = new Date()): Promise<{ campaigns: number; processed: number }> {
+  await tidyMessages(c, now);
   const running = await c.waCampaigns.find({ status: 'running' }, { projection: { campaignId: 1 } }).toArray();
   let processed = 0;
   for (const k of running) for (let i = 0; i < 5; i++) { const r = await runCampaignBatch(c, k.campaignId, fetcher, now); processed += r.processed; if (r.state !== 'running') break; }

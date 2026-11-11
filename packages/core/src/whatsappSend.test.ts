@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sealSecret } from './secretBox.js';
 import { DEFAULT_SETTINGS } from './whatsapp.js';
-import { fillValue, MAX_DIRECT, resolveRecipients, sendMessages, templateSlots, windowOpen, type SendCollections } from './whatsappSend.js';
+import { fillValue, MAX_DIRECT, MAX_PER_HOUR, resolveRecipients, sendMessages, templateSlots, windowOpen, type SendCollections } from './whatsappSend.js';
 
 process.env.CREDENTIAL_ENC_KEY ||= 'a'.repeat(64);
 
@@ -10,6 +10,7 @@ function coll(docs: Doc[] = [], unique: string[] = []) {
   const m = (d: Doc, f: Doc): boolean => Object.entries(f).every(([k, v]) => v && typeof v === 'object' && !(v instanceof Date) && '$in' in v ? v.$in.includes(d[k]) : d[k] === v);
   return {
     docs,
+    countDocuments: async () => docs.length,
     find: (f: Doc = {}) => ({ toArray: async () => docs.filter((d) => m(d, f)) }),
     findOne: async (f: Doc, o?: { sort?: Doc }) => { const r = docs.filter((d) => m(d, f)); if (o?.sort) r.sort((a, b) => b.createdAt - a.createdAt); return r[0] ?? null; },
     insertOne: async (d: Doc) => { for (const u of unique) if (d[u] !== undefined && docs.some((x) => x[u] === d[u])) throw Object.assign(new Error('dup'), { code: 11000 }); docs.push({ ...d }); },
@@ -113,6 +114,16 @@ describe('sending a template', () => {
     const { c } = setup(); const log: any[] = [];
     const r = await sendMessages(c, { ...tpl, phones: ['919000000000'] }, { preview: false, actor: 'u' }, fakeFetch(log), NOW);
     expect(log).toHaveLength(0); expect(r.results[0]!.outcome).toBe('not_saved');
+  });
+});
+
+describe('hourly limit', () => {
+  it('refuses a send that would pass the limit, before any network call', async () => {
+    const { c, raw } = setup(); const log: any[] = [];
+    for (let i = 0; i < MAX_PER_HOUR; i++) raw.whatsappMessages.docs.push({ direction: 'out', kind: 'single', createdAt: NOW });
+    await expect(sendMessages(c, tpl, { preview: false, actor: 'u' }, fakeFetch(log), NOW)).rejects.toThrow(/an hour/);
+    expect(log).toHaveLength(0);
+    expect((await sendMessages(c, tpl, { preview: true, actor: 'u' }, fakeFetch(log), NOW)).preview).toBe(true);   // previewing is always allowed
   });
 });
 

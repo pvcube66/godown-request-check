@@ -45,3 +45,18 @@
 **Phase 6: Stats and hardening.** Delivery/read rates by day and by template, failures grouped with their plain-English reason; rate limiting; stale "sending" cleanup; retention of chat history; full test pass; acceptance script and docs. *Done when:* the acceptance script covers every new page and role, and a fake-Meta end-to-end run passes.
 
 **What cannot be proven here:** anything that needs the real Meta service (live sends, templates approval, one-click signup, webhooks from Meta). Every such path is built against Meta's documented API, tested with a fake Meta, and listed in the status document as "not tested live".
+
+## Status (all six phases built on branch `whatsapp-suite`)
+| Phase | Page(s) | State |
+|---|---|---|
+| 1 People | `/whatsapp/people` | Built. Contacts, tags, groups, CSV/XLSX import with preview, export, opt-out, "Add hostels". |
+| 2 Send Message | `/whatsapp/send` | Built. Preview first; live only when WhatsApp is set to live; opted-out people never messaged; double-click safe; 50 people per send, 300 per hour. |
+| 3 Chats | `/whatsapp/chats` | Built. Replies from anyone create a person and a chat; 24-hour reply rule; unread; close/reopen; refreshes every 8 seconds; quick replies. |
+| 4 Campaigns | `/whatsapp/campaigns` | Built. Batches of 20, daily cap 1000, pause/resume/cancel, retry failed, preview runs send nothing, the hourly job continues running campaigns. |
+| 5 Settings | `/whatsapp/settings` (tabs: Templates, Business profile, Quick replies, Reminders, Connection) | Built. |
+| 6 Stats and hardening | `/whatsapp/stats` | Built. Delivery and read rates by day and template, failure reasons in plain words, stuck "sending" messages closed after 30 minutes, chat history older than a year removed (reminder records kept). |
+
+**Tested:** 530 unit tests; 56 real-MongoDB checks with a stand-in for WhatsApp (`scripts/acceptance/whatsapp-check.mts`); role and access checks for every new page (`scripts/acceptance/check-access.mts`); production build.
+**Not tested against the real WhatsApp service** (needs the client's Meta account): live sends, template approval, the Facebook sign-in popup, webhooks from Meta, the business profile read and save. Built from Meta's documented API.
+**Not deployed.** Nothing here has been put on the live site.
+**Deliberately not copied from TELECRM:** flows, automations, auto-reply, AI bot, catalogue.

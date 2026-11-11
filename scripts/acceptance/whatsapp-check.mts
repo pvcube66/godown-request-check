@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { addHostelContacts, addToGroup, closeDb, createGroup, deleteContacts, deleteGroup, editContact, importContacts, messageable, removeFromGroup, saveContact, setOptOut, tagCounts } from '../../packages/core/src/index.ts';
-import { addQuickReply, deleteQuickReply, campaignStats, changeCampaign, createCampaign, reviewCampaign, retryFailed, runCampaignBatch, runCampaigns, conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
+import { MAX_PER_HOUR, tidyMessages, waStats, addQuickReply, deleteQuickReply, campaignStats, changeCampaign, createCampaign, reviewCampaign, retryFailed, runCampaignBatch, runCampaigns, conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
 import { connectLocal } from './local.mts';
 
 /** Real-MongoDB checks of the WhatsApp CRM core (People so far; later phases add to this file). Local test database only (it_wa_crm). */
@@ -169,6 +169,21 @@ await c.waQuickReplies.deleteMany({});
 await addQuickReply(c, 'Thanks', 'Thank you, noted.', 'u1');
 await assert.rejects(addQuickReply(c, 'Thanks', 'again', 'u1'), /already exists/); ok('quick replies: a title can only exist once (enforced by the database)');
 await deleteQuickReply(c, 'Thanks', 'u1'); assert.equal(await c.waQuickReplies.countDocuments(), 0); ok('quick replies can be deleted');
+
+// ---- Stats, housekeeping, hourly limit
+await c.whatsappMessages.deleteMany({});
+const nowS = new Date(); const old = (d: number) => new Date(nowS.getTime() - d * 86400_000);
+const mk = (over: object) => ({ messageId: null, direction: 'out', requestId: null, hostelCode: '', hostelName: '', districtName: '', phoneLast4: '1111', phone: '919000099999', kind: 'single', text: 'x', counted: false, createdAt: nowS, statusAt: nowS, ...over });
+await c.whatsappMessages.insertMany([mk({ status: 'read', template: 'hello', messageId: 'a1' }), mk({ status: 'delivered', template: 'hello', messageId: 'a2' }), mk({ status: 'sent', template: 'other', messageId: 'a3' }), mk({ status: 'failed', template: 'hello', errorText: '131026: Message undeliverable', messageId: 'a4' }), mk({ status: 'failed', template: 'hello', errorText: '190: token', messageId: 'a5' }), mk({ direction: 'in', status: 'received', messageId: 'a6' })] as never);
+const sx = await waStats(c, 14);
+assert.deepEqual([sx.sent, sx.delivered, sx.read, sx.failed, sx.replies], [5, 2, 1, 2, 1]); assert.equal(sx.byTemplate.find((t) => t.template === 'hello')!.sent, 4); assert.equal(sx.failures.length, 2); assert.ok(sx.failures.every((f) => f.title && f.action)); assert.equal(sx.byDay.length, 1); ok('stats count sent, delivered, read, failed and replies, by day and template, with plain-English failure reasons');
+await c.whatsappMessages.insertMany([mk({ status: 'queued', createdAt: new Date(nowS.getTime() - 40 * 60_000), sendKey: 'stale|1' }), mk({ status: 'sent', createdAt: old(400), messageId: 'old1' }), mk({ status: 'sent', createdAt: old(400), kind: 'reminder', messageId: 'old2' })] as never);
+const tid = await tidyMessages(c, nowS);
+assert.equal(tid.closed, 1); assert.equal(tid.removed, 1); assert.ok(await c.whatsappMessages.findOne({ messageId: 'old2' })); assert.equal(await c.whatsappMessages.countDocuments({ messageId: 'old1' }), 0); ok('stuck "sending" messages are closed, year-old chats removed, reminder records kept');
+await c.whatsappMessages.deleteMany({});
+await c.whatsappMessages.insertMany(Array.from({ length: MAX_PER_HOUR }, (_, i) => mk({ status: 'sent', messageId: `h${i}` })) as never);
+await assert.rejects(sendMessages(c, { kind: 'text', text: 'x', phones: ['919000011111'] }, { preview: false, actor: 'u1' }, meta2), /an hour/); ok('Send Message refuses to go past the hourly limit');
+await c.whatsappMessages.deleteMany({});
 
 console.log(`\n${passed} checks passed`);
 await closeDb(); process.exit(0);

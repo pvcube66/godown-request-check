@@ -123,7 +123,7 @@ export default function Sidebar({
           {user.role === 'admin' && (
             <>
               <span className="sidebar-group">WhatsApp Cloud API</span>
-              {(waConnected ? [{ href: '/whatsapp/people', label: 'People', icon: 'user', exact: false }, { href: '/whatsapp/chats', label: 'Chats', icon: 'chat', exact: false }, { href: '/whatsapp/send', label: 'Send message', icon: 'chat', exact: false }, { href: '/whatsapp/campaigns', label: 'Campaigns', icon: 'chat', exact: false }, { href: '/whatsapp/settings', label: 'Settings', icon: 'shield', exact: false }] : [{ href: '/whatsapp/connect', label: 'Connect WhatsApp', icon: 'plug', exact: false }]).map(({ href, label, icon, exact }) => {
+              {(waConnected ? [{ href: '/whatsapp/people', label: 'People', icon: 'user', exact: false }, { href: '/whatsapp/chats', label: 'Chats', icon: 'chat', exact: false }, { href: '/whatsapp/send', label: 'Send message', icon: 'chat', exact: false }, { href: '/whatsapp/campaigns', label: 'Campaigns', icon: 'chat', exact: false }, { href: '/whatsapp/stats', label: 'Stats', icon: 'chart', exact: false }, { href: '/whatsapp/settings', label: 'Settings', icon: 'shield', exact: false }] : [{ href: '/whatsapp/connect', label: 'Connect WhatsApp', icon: 'plug', exact: false }]).map(({ href, label, icon, exact }) => {
                 const on = href === '/whatsapp/settings' ? (path === '/whatsapp' || SETTINGS_PATHS.some((x) => path === x || path.startsWith(`${x}/`))) : exact ? path === href : path.startsWith(href);
                 return (
                   <Link key={href} href={href} onClick={handleLinkClick} className={`sidebar-link ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined} title={label}>
