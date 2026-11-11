@@ -26,7 +26,7 @@ const TAB_LABEL: Record<By, string> = { supplier: 'By supplier', godown: 'By god
 
 /** One card per supplier / godown / district / hostel. Every card has the same size; the figure is how much of what was asked was sent. */
 function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: string; focusHref: string | null }) {
-  const ordersHref = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
+  const ordersHref = r.filter.hostel ? `/orders?${qs({ q: r.filter.hostel, month })}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
   const fill = r.fill === null ? null : Math.round(r.fill * 100);
   return (
     <article className={`pcard v-${r.verdict}`}>
@@ -48,7 +48,7 @@ function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: str
         <span><b className={r.backlog15 ? 'late' : ''}>{num(r.backlog15)}</b> waiting over 2 weeks</span>
         <span><b>{num(r.orders)}</b> orders</span>
         <span className="pc-links">
-          {ordersHref && <Link href={ordersHref} className="link-arrow">{r.filter.hostel ? 'Hostel page' : 'Orders'}<Icon name="arrow" size={14} /></Link>}
+          {ordersHref && <Link href={ordersHref} className="link-arrow">Orders<Icon name="arrow" size={14} /></Link>}
           {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">Details<Icon name="arrow" size={14} /></Link>}
         </span>
       </div>
