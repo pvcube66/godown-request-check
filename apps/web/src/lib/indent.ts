@@ -33,12 +33,35 @@ export async function loadIndent(c: Collections, requestId: string): Promise<Ind
   if (missing && (request.itemReadAttempts ?? 0) < ITEM_READ_ATTEMPTS && await readUnitsFromPortal(c, requestId)) request = (await c.requests.findOne({ requestId })) ?? request;
   const snapshots: RequestItemSnapshot[] = request.itemSnapshots ?? [];
   const masters = snapshots.length ? await c.itemsMaster.find({ key: { $in: snapshots.map(itemVariantKey) } }).toArray() : [];
-  return Object.entries(request.items ?? {}).filter(([, q]) => q > 0).map(([name, quantity]) => {
+  const entries = Object.entries(request.items ?? {}).filter(([, q]) => q > 0);
+  // Items the portal's own item list does not contain have no unit on this request. The same item's unit on other requests is used
+  // only when every unit seen for it agrees (so nothing is guessed when the catalogue disagrees).
+  const missingNames = entries.filter(([name]) => {
+    const snapshot = snapshots.find((s) => s.sourceKey === name);
+    const m = snapshot ? masters.find((x) => x.key === itemVariantKey(snapshot)) : undefined;
+    const meta = m ? effectiveItemMetadata(m) : snapshot;
+    return !(meta?.unit ?? '').trim();
+  }).map(([name]) => normalizedItemName(name));
+  const catalogueUnit = await unitsByName(c, [...new Set(missingNames)]);
+  return entries.map(([name, quantity]) => {
     const snapshot = snapshots.find((s) => s.sourceKey === name);
     const master = snapshot ? masters.find((m) => m.key === itemVariantKey(snapshot)) : undefined;
     const meta = master ? effectiveItemMetadata(master) : snapshot;
-    return { name, quantity, unit: meta?.unit?.trim() || MISSING, packSize: meta?.packSize?.trim() || MISSING };
+    const unit = meta?.unit?.trim() || catalogueUnit.get(normalizedItemName(name)) || MISSING;
+    return { name, quantity, unit, packSize: meta?.packSize?.trim() || MISSING };
   });
+}
+
+/** For each item name: the one unit seen for it across the catalogue, when all observed variants agree. */
+export async function unitsByName(c: Collections, names: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const n of names) {
+    if (!n) continue;
+    const found = await c.itemsMaster.find({ key: { $regex: `^${n}( \\[unit:)` } }, { projection: { unit: 1, override: 1 } }).limit(50).toArray();
+    const units = new Set(found.map((f) => (f.override?.unit ?? f.unit ?? '').trim()).filter(Boolean));
+    if (units.size === 1) out.set(n, [...units][0]!);
+  }
+  return out;
 }
 
 /** Which item a flag is about, in the same form as an indent row's normalized name. */
