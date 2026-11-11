@@ -77,8 +77,8 @@ for (const p of ['/users', '/master', '/accounts', '/whatsapp', '/whatsapp/conne
 }
 const nav = (r: { body: string }, href: string) => r.body.includes(`href="${href}"`);
 const an = await get('admin', '/'), on = await get('operator', '/');
-check('menu: admin sees Users, Connect WhatsApp, Full copy', ['/users', '/whatsapp/connect', '/exports'].every((h) => nav(an, h)));
-check('menu: operator does not', ['/users', '/whatsapp', '/whatsapp/connect', '/whatsapp/templates', '/whatsapp/people', '/exports', '/master'].every((h) => !nav(on, h)));
+check('menu: admin sees Users, Connect WhatsApp, Full copy', ['/users', '/exports'].every((h) => nav(an, h)) && (nav(an, '/whatsapp/connect') || nav(an, '/whatsapp/settings')));
+check('menu: operator does not', ['/users', '/whatsapp', '/whatsapp/connect', '/whatsapp/templates', '/whatsapp/people', '/whatsapp/settings', '/exports', '/master'].every((h) => !nav(on, h)));
 check('menu: everyone sees Dashboards, Supplier performance, Issues', ['/dashboards', '/suppliers', '/issues'].every((h) => nav(on, h)));
 check('viewer has no "Issue" button, operator has', !(await get('viewer', '/')).text.includes('Issue (reject') && on.text.includes('Issue (reject'));
 const vi = await get('viewer', `/issues/${issues.A1}`), oi = await get('operator', `/issues/${issues.A1}`);
