@@ -136,7 +136,7 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
         <ol>
           <li>For each item in an order, the portal gives the amount the hostel <b>asked for</b> and the amount the godown <b>sent</b>. We divide sent by asked (never more than 100%).</li>
           <li>The items of one order are averaged to give that order a score. The orders are then averaged to give the supplier, godown, district or hostel its score. Different units (kg, packets) are never added together.</li>
-          <li>Only orders that already have a delivery note and known quantities count. Orders still Pending have not been sent yet, so they are never counted as short. Rejected and cancelled orders are left out of the score.</li>
+          <li>Only orders that have been dispatched (in transit or later) and have known quantities count. Orders still Pending have not been sent yet, so they are never counted as short. Rejected and cancelled orders are left out of the score.</li>
           <li><b>Waiting</b> means the order has not been acknowledged and has stayed at the same stage for that many days.</li>
           <li><b>On track</b>: at least {MEETING.fill * 100}% sent and no more than {MEETING.lateShare * 100}% of waiting orders over two weeks. <b>Falling short</b>: under {MEETING.notFill * 100}% sent, or more than {MEETING.notLateShare * 100}% of waiting orders over two weeks. Anything in between: <b>Needs attention</b>.</li>
         </ol>

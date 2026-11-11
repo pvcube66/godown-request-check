@@ -22,6 +22,9 @@ export interface Fulfilment {
 
 /** Stages where a supplied quantity means something (a delivery note exists). Pending orders have not been supplied yet, so they are not "short". */
 export const SUPPLIED_STAGES: Stage[] = ['dc', 'transit', 'received', 'variation'];
+/** Stages from the day the goods leave the godown. Only from here is a supplied quantity compared with the request: at the Delivery-note stage the
+ *  portal's supplied quantities may still be being filled in, so a low number there is not a shortfall yet. */
+export const DISPATCHED_STAGES: Stage[] = ['transit', 'received', 'variation'];
 const RECEIVED_STAGES: Stage[] = ['received', 'variation'];
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);

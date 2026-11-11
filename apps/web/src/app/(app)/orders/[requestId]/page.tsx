@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
+import { DISPATCHED_STAGES } from '@anomaly/core';
 import { hostelLabel, itemLabel, num } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
@@ -67,7 +68,13 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
         <p className="mut small">Days are whole calendar days in India time. Dates marked “from the portal” come from the portal's own records.</p>
       </section>
 
-      {o.fulfilment && o.fulfilment.linesWithSupply > 0 && (
+      {o.stage === 'dc' && (
+        <section className="summary" aria-labelledby="supply">
+          <h2 id="supply">Supplied against requested</h2>
+          <p className="mut">The delivery note is made, but the godown has not dispatched the goods yet. The supplied quantities are compared with the request once the order is in transit.</p>
+        </section>
+      )}
+      {DISPATCHED_STAGES.includes(o.stage) && o.fulfilment && o.fulfilment.linesWithSupply > 0 && (
         <section className="summary" aria-labelledby="supply">
           <h2 id="supply">Supplied against requested</h2>
           <p>{o.fulfilment.lineFill !== null && <><b>{Math.round(o.fulfilment.lineFill * 100)}%</b> of what was asked for was supplied ({o.fulfilment.fullLines} of {o.fulfilment.linesWithSupply} items in full).</>}{o.fulfilment.receivedFill !== null && <> The hostel received <b>{Math.round(o.fulfilment.receivedFill * 100)}%</b> of what was supplied.</>}{o.fulfilment.variationLines > 0 && <> {o.fulfilment.variationLines} item{o.fulfilment.variationLines === 1 ? '' : 's'} had a variation.</>}</p>

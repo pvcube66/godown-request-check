@@ -5,6 +5,7 @@ import { syncAll } from './sync.js';
 import { syncIssues } from './issues.js';
 import { runReminders } from './reminders.js';
 import { runCampaigns } from './whatsappCampaigns.js';
+import { ensureDistricts } from './seedMasterData.js';
 
 let running = false;
 
@@ -15,6 +16,7 @@ export async function runCycle(c: Collections, trigger: string, mode: 'recent' |
   running = true;
   try {
     const run = await syncAll(c, mode, trigger);
+    await ensureDistricts(c).catch(() => undefined);      // new districts appear on the Users page by themselves
     try {
       run.newAnomalies = (await runDetection(c)).created;
       await refreshCancellationCheck(c).catch(() => undefined);      // keep the Accuracy page's real-cancellation check fresh

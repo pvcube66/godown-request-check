@@ -1,4 +1,4 @@
-import { daysBetween, istDay, normalizedDistrictCode, scoped, type Collections, type MappingDoc, type OrderDoc, type Stage } from '@anomaly/core';
+import { DISPATCHED_STAGES, daysBetween, istDay, normalizedDistrictCode, scoped, type Collections, type MappingDoc, type OrderDoc, type Stage } from '@anomaly/core';
 import { orderFilter } from './orders';
 
 export type By = 'supplier' | 'godown' | 'district' | 'hostel';
@@ -60,7 +60,7 @@ export function verdictFor(fill: number | null, lateShare: number, read: number)
 
 function rowOf(key: string, label: string, filter: PerfRow['filter'], orders: readonly PerfOrder[], now: Date): Omit<PerfRow, 'vsAverage'> {
   const active = orders.filter((o) => o.stage !== 'rejected' && o.stage !== 'cancelled');
-  const read = active.filter((o) => o.fulfilment?.lineFill != null);
+  const read = active.filter((o) => DISPATCHED_STAGES.includes(o.stage) && o.fulfilment?.lineFill != null);     // before dispatch, supplied quantities are not final
   const moving = active.filter((o) => MOVING.includes(o.stage));
   const age = (o: PerfOrder) => daysBetween(o.stageSince, now);
   const diff = (a: Date | null | undefined, b: Date | null | undefined) => (a && b ? daysBetween(a, b) : null);

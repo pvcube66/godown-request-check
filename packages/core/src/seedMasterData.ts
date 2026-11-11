@@ -35,3 +35,19 @@ export async function seedMasterData(c: Collections, actor: string): Promise<{ g
     return result;
   });
 }
+
+/** Every district the portal has shown us, saved as soon as it appears (no manual "bootstrap"). New districts are added; existing ones are left alone.
+ *  Read from the requests and orders already stored, which come from the godown logins. */
+export async function ensureDistricts(c: Pick<Collections, 'requests' | 'orders' | 'districts'>): Promise<number> {
+  const names = new Set<string>();
+  for (const list of await Promise.all([c.requests.distinct('districtName'), c.orders.distinct('districtName')])) for (const n of list as string[]) if (typeof n === 'string' && n.trim()) names.add(n.trim());
+  const now = new Date();
+  let added = 0;
+  for (const name of names) {
+    const code = normalizedDistrictCode(name);
+    if (!code) continue;
+    const r = await c.districts.updateOne({ code }, { $setOnInsert: { code, name, createdAt: now, updatedAt: now } }, { upsert: true });
+    if (r.upsertedCount) added++;
+  }
+  return added;
+}
