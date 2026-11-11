@@ -56,6 +56,9 @@ const quantile = (a: number[], q: number) => {
   const pos = (s.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
   return s[lo]! + (s[hi]! - s[lo]!) * (pos - lo);
 };
+/** The part of an item that does NOT change when its unit or pack size is read later: its normalized name.
+ *  Flags are identified by this, so filling in a unit does not make the same flag look new (and lose its review). */
+export const stableItemName = (item: string): string => normalizedItemName(item.includes(' [unit:') ? item.split(' [unit:')[0]! : item);
 const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
 
 /** How serious a flag is. Combines the size of the jump with how far outside the natural spread it falls,
@@ -337,7 +340,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           const rated = severity(ratio, method, zUsed, !!pInfo && qty <= pInfo.high);
           if (cfg.dropMinor && rated === 'low' && method !== 'own-history') continue;     // a jump over the hostel's own history is solid evidence; a weak peer-only note is not
           found.set(item, {
-            key: `${gid}|${hostel}|${month}|${item}`, godownId: gid, hostelCode: hostel,
+            key: `${gid}|${hostel}|${month}|${stableItemName(item)}`, godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
             severity: rated, method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
@@ -371,7 +374,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
               const base = found.get(it);
               found.set(it, {
                 ...(base ?? {
-                  key: `${gid}|${hostel}|${month}|${it}`, godownId: gid, hostelCode: hostel,
+                  key: `${gid}|${hostel}|${month}|${stableItemName(it)}`, godownId: gid, hostelCode: hostel,
                   hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: it,
                   requested: round(qty), expected: round(x.expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
                   method: x.method, peer: peerStat(it), ...(students ? { students } : {}), reason: '',
@@ -425,6 +428,10 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
     }
   }
   out.push(...dupFlags);
+  // Two different variants of one item in the same month (e.g. the same name in kg and in packets) must not share a flag.
+  const seen = new Map<string, number>();
+  for (const f of out) seen.set(f.key, (seen.get(f.key) ?? 0) + 1);
+  for (const f of out) if (seen.get(f.key)! > 1 && f.kind !== 'duplicate' && f.kind !== 'order') f.key = `${f.godownId}|${f.hostelCode}|${f.month}|${f.item}`;
   return out.sort((a, b) => b.ratio - a.ratio);
 }
 
@@ -449,13 +456,26 @@ export async function runDetection(c: Collections, evalMonths = defaultEvalMonth
   evalMonths = [...new Set([...evalMonths, ...openMonths])];
   const found = detectAnomalies(reqs, evalMonths, cfg, sizes);
   const now = new Date();
+
+  // Flags saved under an older key (before flags were identified by their plain item name) are carried over: the same flag keeps
+  // its review decision and is listed under its new key in any issue that referenced the old one.
+  const identity = (x: { godownId: number; hostelCode: string; month: string; item: string; kind: string }) => `${x.godownId}|${x.hostelCode}|${x.month}|${x.kind}|${stableItemName(x.item)}`;
+  const existing = await c.anomalies.find({ status: { $ne: 'resolved' }, month: { $in: evalMonths } }, { projection: { key: 1, godownId: 1, hostelCode: 1, month: 1, item: 1, kind: 1, status: 1 } }).toArray();
+  const byIdentity = new Map(existing.filter((e) => e.kind !== 'duplicate').map((e) => [identity(e), e] as const));
   let created = 0;
   for (const a of found) {
+    const old = a.kind === 'duplicate' ? undefined : byIdentity.get(identity(a));
+    const carry = old && old.key !== a.key ? old : undefined;
     const r = await c.anomalies.updateOne({ key: a.key }, {
       $set: { ...a, lastSeenAt: now, updatedAt: now },
-      $setOnInsert: { status: 'open', detectedAt: now },
+      $setOnInsert: { status: carry && carry.status !== 'open' ? carry.status : 'open', detectedAt: now },
     }, { upsert: true });
     if (r.upsertedCount) created++;
+    if (carry) {
+      await c.anomalies.updateOne({ key: carry.key }, { $set: { status: 'resolved', supersededBy: a.key, updatedAt: now } });
+      await c.issues.updateMany({ anomalyKeys: carry.key }, { $addToSet: { anomalyKeys: a.key } });
+      await c.issues.updateMany({ anomalyKeys: carry.key }, { $pull: { anomalyKeys: carry.key } });
+    }
   }
   // A flag that disappeared was marked "resolved". If it is found again it must come back to the list; otherwise it stays
   // hidden for good. (Anything a person decided - wrong, fine, normal - is left exactly as they set it.)
