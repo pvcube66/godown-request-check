@@ -26,7 +26,7 @@ const TAB_LABEL: Record<By, string> = { supplier: 'By supplier', godown: 'By god
 
 /** One card per supplier / godown / district / hostel. Every card has the same size; the figure is how much of what was asked was sent. */
 function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: string; focusHref: string | null }) {
-  const ordersHref = r.filter.hostel ? `/orders?${qs({ q: r.filter.hostel, month })}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
+  const ordersHref = r.orderIds.length > 0 && r.orders <= r.orderIds.length ? `/orders?${qs({ ids: r.orderIds.join(','), month })}` : r.filter.hostel ? `/orders?${qs({ hostel: r.filter.hostel, month })}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
   const fill = r.fill === null ? null : Math.round(r.fill * 100);
   return (
     <article className={`pcard v-${r.verdict}`}>
@@ -98,6 +98,20 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
         <a className="btn" href={`/suppliers/csv?${qs({ by: v.by, month: v.month, focus: v.focus })}`}><Icon name="download" size={16} /> Download Excel</a>
       </form>
 
+
+      {(() => {
+        const sv = v.service, total = sv.served + sv.short + sv.waiting, pc = (n: number) => (total ? `${Math.round((n / total) * 100)}%` : '0%');
+        return total > 0 && (
+          <section className="tile-row" aria-label="How well hostels were served">
+            <div className="stat-tile"><b>{num(total)}</b><span>Hostels with orders</span></div>
+            <div className="stat-tile ok"><b>{num(sv.served)} <small>{pc(sv.served)}</small></b><span>Fully served (90% or more of what they asked for was sent)</span></div>
+            <div className={`stat-tile ${sv.short ? 'bad' : ''}`}><b>{num(sv.short)} <small>{pc(sv.short)}</small></b><span>Short (less than 90% sent)</span></div>
+            <div className="stat-tile"><b>{num(sv.waiting)} <small>{pc(sv.waiting)}</small></b><span>No delivery quantities recorded yet</span></div>
+            <div className={`stat-tile ${o.backlog7 ? 'warn' : ''}`}><b>{num(o.backlog7)}</b><span>Orders waiting 7+ days</span></div>
+            <div className={`stat-tile ${o.backlog15 ? 'bad' : ''}`}><b>{num(o.backlog15)}</b><span>Orders waiting 15+ days</span></div>
+          </section>
+        );
+      })()}
       {v.main.rows.length === 0 ? <div className="empty">No orders match these choices.</div> : cards ? (
         <div className="perf-cards pc-grid">{v.main.rows.map((r) => <PerfCard key={r.key} r={r} by={v.by} month={v.month} focusHref={here({ focus: r.key })} />)}</div>
       ) : v.focus ? (
@@ -109,7 +123,7 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
       {v.sub && (
         <>
           <h2 className="sub">Hostels under this {WHO[v.by].one}</h2>
-          <p className="lede small">Out of {num(v.sub.service.served + v.sub.service.short + v.sub.service.waiting)} hostels with orders: <b>{num(v.sub.service.served)}</b> were fully served (90% or more of what they asked for was sent), <b>{num(v.sub.service.short)}</b> were short, and <b>{num(v.sub.service.waiting)}</b> have no delivery quantities recorded yet.</p>
+
           <h3 className="sub-h">Districts, weakest first</h3>
           <PerfCards rows={v.sub.districts} month={v.month} />
           <h3 className="sub-h">The 15 hostels furthest behind</h3>

@@ -15,7 +15,7 @@ function fakeDb(hostelRows: unknown[] = [], orderRows: unknown[] = []) {
 describe('dashboard search', () => {
   it('trims and bounds queries consistently', () => {
     expect(searchQuery('  KGBV Maldakal  ')).toBe('KGBV Maldakal');
-    expect(searchQuery('x'.repeat(100))).toHaveLength(60);
+    expect(searchQuery('x'.repeat(200))).toHaveLength(100);
     expect(searchQuery()).toBe('');
   });
 
@@ -27,22 +27,34 @@ describe('dashboard search', () => {
     expect(db.aggregate).not.toHaveBeenCalled();
   });
 
-  it('supports literal case-insensitive substrings for names, codes, and request IDs', () => {
-    const filter = searchFilter('  kGbV  ')!;
-    expect(filter.$or.map((f) => Object.keys(f)[0])).toEqual(['hostelName', 'hostelCode', 'requestId']);
-    for (const clause of filter.$or) {
-      const { $regex, $options } = Object.values(clause)[0]!;
-      expect(new RegExp($regex, $options).test('2611010007-KGBV Maldakal')).toBe(true);
-    }
-    expect(searchFilter('261101')!.$or[1]).toEqual({ hostelCode: { $regex: '261101', $options: 'i' } });
-    expect(searchFilter('REQ-42')!.$or[2]).toEqual({ requestId: { $regex: 'REQ-42', $options: 'i' } });
-  });
+  type Clause = Record<string, { $regex: string; $options: string }>;
+  const matches = (filter: NonNullable<ReturnType<typeof searchFilter>>, doc: Record<string, string>) =>
+    filter.$and.every((group) => (group.$or as Clause[]).some((cl) => { const [field, rx] = Object.entries(cl)[0]!; return new RegExp(rx.$regex, rx.$options).test(doc[field] ?? ''); }));
+  const hostel = { hostelName: '36280901931-TGSWREIS (BOYS) KALWAKURTHY', hostelCode: '36280901931', requestId: 'IR202600007279', districtName: 'Nagarkurnool' };
+  const girls = { hostelName: 'KALWAKURTHY(GIRLS)_JC', hostelCode: '96280901930', requestId: 'IR202600002012', districtName: 'Nagarkurnool' };
 
-  it('escapes every regex metacharacter instead of executing user patterns', () => {
-    const input = 'A.*+?^${}()|[]\\';
-    const regex = searchFilter(input)!.$or[0]!.hostelName!;
-    expect(new RegExp(regex.$regex, regex.$options).test(`before ${input} after`)).toBe(true);
-    expect(new RegExp(regex.$regex, regex.$options).test('Anything')).toBe(false);
+  it('finds a hostel in any format: name, code, both, any order, with punctuation, ID words or a request number', () => {
+    for (const q of ['kalwakurthy', 'TGSWREIS (Boys) Kalwakurthy (36280901931)', '36280901931 kalwakurthy', 'kalwakurthy 3628', 'boys tgswreis', 'Hostel ID 36280901931', 'ir2026 7279', 'nagarkurnool boys', 'KALWAKURTHY   BOYS']) {
+      expect(matches(searchFilter(q)!, hostel), q).toBe(true);
+    }
+    expect(matches(searchFilter('JC Kalwakurthy')!, girls)).toBe(true);
+    expect(matches(searchFilter('kalwakurthygirls')!, girls)).toBe(true);      // letters run together, the name has punctuation between
+    expect(matches(searchFilter('kalwakurthy 96280901930')!, girls)).toBe(true);
+  });
+  it('does not match other hostels, and a request ID alone points at its own order', () => {
+    expect(matches(searchFilter('kalwakurthy girls')!, hostel)).toBe(false);
+    expect(matches(searchFilter('IR202600007279')!, girls)).toBe(false);
+    expect(matches(searchFilter('IR202600007279')!, hostel)).toBe(true);
+  });
+  it('only ever sends letters and digits to the database (no user-written patterns)', () => {
+    const filter = searchFilter('A.*+?^${}()|[]\\ girls')!;
+    const all = JSON.stringify(filter);
+    expect(all).not.toMatch(/\.\*\+|\$\{|\(\)\|/);
+    for (const group of filter.$and) for (const cl of group.$or as Clause[]) expect(Object.values(cl)[0]!.$regex.split('[^A-Za-z0-9]*').join('')).toMatch(/^[A-Za-z0-9]+$/);
+  });
+  it('ignores words that carry no meaning on their own', () => {
+    expect(searchFilter('hostel id')).toBeNull();
+    expect(searchFilter('ID 36280901931')!.$and).toHaveLength(1);
   });
 
   it('uses the same query for hostels and orders and groups by godown as well as code', async () => {
@@ -58,7 +70,7 @@ describe('dashboard search', () => {
 
   it('caps each section and reports that more matches exist', async () => {
     const db = fakeDb(Array.from({ length: 21 }, (_, id) => ({ hostelCode: String(id) })), Array.from({ length: 21 }, (_, id) => ({ requestId: String(id) })));
-    const result = await searchDashboard(db.c, 'hostel', null);
+    const result = await searchDashboard(db.c, 'kgbv', null);
     expect(result.hostels).toHaveLength(20);
     expect(result.orders).toHaveLength(20);
     expect(result.moreHostels).toBe(true);

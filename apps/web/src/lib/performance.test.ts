@@ -8,7 +8,7 @@ type Over = Partial<PerfOrder> & { fill?: number | null; full?: [number, number]
 function order(district: string, hostel: string, stage: PerfOrder['stage'], o: Over = {}): PerfOrder {
   const { fill, full, ...rest } = o;
   return {
-    account: 'GDN-A', districtName: district, hostelCode: hostel, hostelName: `Hostel ${hostel}`, stage, stageSince: d('2026-11-15'), placedOn: d('2026-11-01'),
+    requestId: `R-${hostel}-${stage}`, account: 'GDN-A', districtName: district, hostelCode: hostel, hostelName: `Hostel ${hostel}`, stage, stageSince: d('2026-11-15'), placedOn: d('2026-11-01'),
     reached: { pending: d('2026-11-01'), dc: null, transit: null, received: null },
     ...(fill !== undefined ? { fulfilment: { lineFill: fill, receivedFill: null, lines: 4, linesWithSupply: 4, fullLines: full ? full[0] : fill === 1 ? 4 : 2, variationLines: 0 } } : {}),
     ...rest,

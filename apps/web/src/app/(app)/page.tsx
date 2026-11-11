@@ -10,6 +10,7 @@ import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } fro
 import { groupFlags } from '@/lib/group';
 import { loadFlagRequestIds, loadHistory, loadHostelPhones, loadOrderItems, loadRequestsById } from '@/lib/history';
 import { loadItemNames } from '@/lib/item-names';
+import { searchFilter, searchQuery } from '@/lib/search';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 import FilterSelect from './FilterSelect';
@@ -26,7 +27,6 @@ const KIND_TABS = [
   { key: 'duplicate', label: 'Possible duplicate' },
 ] as const;
 const PAGE_SIZE = 12, CARDS_SHOWN = 3;
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const qs = (cur: SP, patch: Partial<SP>) => {
   const p = new URLSearchParams(Object.entries({ ...cur, ...patch }).filter(([, v]) => v) as [string, string][]);
   return `/?${p}`;
@@ -55,8 +55,9 @@ async function HomeContent({ sp }: { sp: SP }) {
   const base0: Record<string, unknown> = { partOfOrder: { $ne: true } };
   if (sp.month) base0.month = sp.month;
   if (sp.district) base0.districtName = sp.district;
-  const q = (sp.q ?? '').trim().slice(0, 60);
-  if (q) base0.hostelName = { $regex: escapeRe(q), $options: 'i' };
+  const q = searchQuery(sp.q);
+  const sf = searchFilter(q, ['hostelName', 'hostelCode', 'districtName']);
+  if (sf) base0.$and = sf.$and;
   const kind = KIND_TABS.find((k) => k.key && k.key === sp.kind)?.key ?? '';
   const scopeAnyKind = scoped({ ...base0 }, names);                 // every type: used for the numbers on the type chips
   if (kind) base0.kind = kind;

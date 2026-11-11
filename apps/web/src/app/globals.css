@@ -1270,3 +1270,6 @@ html[data-theme="dark"] .wa-bubble,html[data-theme="dark"] .wa-body,html[data-th
 html[data-theme="dark"] .bad-text{color:var(--alert-high)}
 html[data-theme="dark"] .wiz-steps li.now span{background:#ededed;color:#0a0a0a;border-color:#ededed}
 html[data-theme="dark"] .wa-bubble .mut,html[data-theme="dark"] .wa-bubble .wa-body span{color:#666}
+.stat-tile b small{font-size:13px;font-weight:550;color:var(--muted);margin-left:4px}
+.stat-tile.ok b{color:var(--ok)}.stat-tile.warn b{color:var(--alert-mid)}
+.tile-row{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
