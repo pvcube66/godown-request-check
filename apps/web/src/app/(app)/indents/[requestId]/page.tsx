@@ -28,8 +28,12 @@ export default async function IndentView({ params }: { params: Promise<{ request
     c.anomalies.find(scoped(openFlagFilter(order.hostelCode, month), names), { projection: { item: 1, kind: 1, severity: 1, requested: 1, expected: 1 } }).toArray(),
     loadHostelPhones(c, request ? [{ godownId: request.godownId, hostelCode: order.hostelCode }] : []),
   ]);
+  const dead = order.stage === 'rejected' || order.stage === 'cancelled';
+  // A rejected or cancelled indent is not checked: the unusual requests of that hostel and month belong to its live indent.
+  const live = dead ? await c.requests.findOne({ hostelCode: order.hostelCode, month, status: { $not: /^(reject|cancel)/i }, requestId: { $ne: id } }, { projection: { requestId: 1 } }) : null;
   const supplied = new Map((request?.itemSnapshots ?? []).map((s) => [s.sourceKey, s.suppliedQuantity]));
-  const flaggedItems = new Set(flags.filter((f) => f.kind === 'spike' || f.kind === 'typing').map((f) => normalizedItemName(f.item.split(' [unit:')[0]!)));
+  const shownFlags = dead ? [] : flags;
+  const flaggedItems = new Set(shownFlags.filter((f) => f.kind === 'spike' || f.kind === 'typing').map((f) => normalizedItemName(f.item.split(' [unit:')[0]!)));
   const phone = request ? phones.get(`${request.godownId}|${order.hostelCode}`) : undefined;
   const hasSupplied = rows.some((r) => supplied.get(r.name) !== undefined);
 
@@ -42,7 +46,8 @@ export default async function IndentView({ params }: { params: Promise<{ request
         <p className="lede">{order.districtName} · Hostel ID {order.hostelCode} · {month ? monthLabel(month) : ''} · {STAGE_LABEL[order.stage]}{phone && <> · Hostel phone <a href={`tel:${phone.replace(/[^+0-9]/g, '')}`}>{phone}</a></>}</p>
         <p className="lede small"><Link href={`/orders/${encodeURIComponent(order.requestId)}`} className="link-arrow">Order tracking<Icon name="arrow" size={14} /></Link> <Link href={`/hostel/${encodeURIComponent(order.hostelCode)}`} className="link-arrow">Hostel page<Icon name="arrow" size={14} /></Link></p>
       </section>
-      {flags.length > 0 && <p className="alert-bar" role="status">{flags.length} unusual request{flags.length === 1 ? '' : 's'} for this hostel in {monthLabel(month)}. The items are highlighted below.</p>}
+      {dead && <p className="alert-bar" role="status">This indent was {order.stage}, so it is not checked for unusual requests.{live && <> The hostel's current indent for {monthLabel(month)} is <Link href={`/indents/${encodeURIComponent(live.requestId)}`}>{live.requestId}</Link>.</>}</p>}
+      {shownFlags.length > 0 && <p className="alert-bar" role="status">{shownFlags.length} unusual request{shownFlags.length === 1 ? '' : 's'} for this hostel in {monthLabel(month)}. The items are highlighted below.</p>}
       {rows.length === 0 ? <div className="empty">The portal returned no items for this indent.</div> : (
         <div className="table-wrap"><table className="order-table">
           <thead><tr><th>Item</th><th className="num">Asked for</th><th>Pack size</th>{hasSupplied && <th className="num">Supplied</th>}<th /></tr></thead>

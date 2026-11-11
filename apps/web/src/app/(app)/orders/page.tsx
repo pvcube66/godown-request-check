@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, num } from '@/lib/format';
 import { phonesByHostelCode } from '@/lib/history';
-import { daysSincePlaced, fmtDay, hostelIssueTypes, loadOrders, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
+import { daysSincePlaced, fmtDay, FLAG_TEXT, hostelIssueTypes, loadOrders, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
 import { godownLabels } from '@/lib/dashboard';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
@@ -101,7 +101,8 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                   const u = urgency(o, now);
                   const placed = daysSincePlaced(o, now);
                   const cells = stageCells(o, now);
-                  const issue = issueTypes.get(`${o.hostelCode}|${orderMonth(o.placedOn)}`)?.[0];
+                  const flagTexts = Object.values(FLAG_TEXT);
+                  const issue = issueTypes.get(`${o.hostelCode}|${orderMonth(o.placedOn)}`)?.find((t) => !(o.stage === 'rejected' || o.stage === 'cancelled') || !flagTexts.includes(t));     // a rejected order is not checked for unusual quantities
                   return (
                     <tr key={o.requestId}>
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>
