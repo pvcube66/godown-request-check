@@ -35,28 +35,19 @@ function GroupCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: st
         <span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span>
       </header>
       {fill === null ? (
-        <p className="perf-none">We don’t know yet how much was sent. Quantities are read from the portal a few orders every hour.</p>
+        <p className="perf-none">Not enough information yet. {num(r.orders)} orders.</p>
       ) : (
         <div className="perf-main">
-          <div className="perf-big"><b>{fill}%</b><span>of what hostels asked for was sent</span></div>
+          <div className="perf-big"><b>{fill}%</b><span>of what was asked was sent</span></div>
           <div className="perf-meter" role="img" aria-label={`${fill}% sent`}><i style={{ width: `${fill}%` }} /></div>
-          {r.vsAverage !== null && <p className="perf-vs">{Math.abs(Math.round(r.vsAverage)) < 1 ? 'Same as the average of everyone shown.' : `${Math.abs(Math.round(r.vsAverage))} points ${r.vsAverage > 0 ? 'better' : 'worse'} than the average of everyone shown.`}</p>}
         </div>
       )}
-      <dl className="perf-facts">
-        <div><dt>Orders</dt><dd>{ordersHref ? <Link href={ordersHref}>{num(r.orders)}</Link> : num(r.orders)}<small>quantities known for {num(r.read)}</small></dd></div>
-        <div><dt>Waiting over a week</dt><dd className={r.backlog7 ? 'watch' : ''}>{num(r.backlog7)}<small>of {num(r.backlog)} not yet acknowledged</small></dd></div>
-        <div><dt>Waiting over two weeks</dt><dd className={r.backlog15 ? 'late' : ''}>{num(r.backlog15)}</dd></div>
-        <div><dt>Rejected or cancelled</dt><dd>{pct(r.rejectedShare)}</dd></div>
-        <div><dt>Reached the hostel</dt><dd>{pct(r.receivedFill)}<small>of what was sent</small></dd></div>
-        <div><dt>Days to get a delivery note</dt><dd>{dayAvg(r.daysToDc)}</dd></div>
-        <div><dt>Days from dispatch to acknowledged</dt><dd>{dayAvg(r.daysToAcknowledge)}</dd></div>
-        <div><dt>Orders with a quantity difference</dt><dd>{pct(r.variationShare)}</dd></div>
-      </dl>
-      <footer>
-        {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">See districts and hostels<Icon name="arrow" size={15} /></Link>}
-        {ordersHref && <Link href={ordersHref} className="link-arrow">See the orders<Icon name="arrow" size={15} /></Link>}
-      </footer>
+      <div className="perf-line">
+        <span><b className={r.backlog15 ? 'late' : ''}>{num(r.backlog15)}</b> waiting over 2 weeks</span>
+        <span><b>{num(r.orders)}</b> orders</span>
+        {ordersHref && <Link href={ordersHref} className="link-arrow">Orders<Icon name="arrow" size={14} /></Link>}
+        {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">Details<Icon name="arrow" size={14} /></Link>}
+      </div>
     </article>
   );
 }
@@ -107,20 +98,9 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
       <section className="hero">
         <p className="greet">Supplier performance</p>
         <h1>{v.focus ? focusLabel : WHO[v.by].title}</h1>
-        <p className="lede">
-          {v.focus
-            ? <>The {num(v.total)} orders behind this {WHO[v.by].one}. <Link href={here({ focus: undefined })} className="link-arrow">Back to all</Link></>
-            : 'For every order, the portal records what the hostel asked for and what the godown actually sent. We compare the two, item by item. The ones falling furthest behind come first.'}
-        </p>
-        {v.by === 'supplier' && v.main.rows.some((r) => r.key === '(unmapped)') && <p className="status bad" role="status">Some orders have no supplier yet. The portal names the supplier only once a delivery note exists, so orders still Pending are listed under “No supplier mapped yet”.</p>}
+        <p className="lede">{v.focus ? <>The {num(v.total)} orders behind this {WHO[v.by].one}. <Link href={here({ focus: undefined })} className="link-arrow">Back to all</Link></> : 'Weakest first.'}</p>
+        {v.by === 'supplier' && v.main.rows.some((r) => r.key === '(unmapped)') && <p className="mut small">“No supplier mapped yet” = orders still Pending; the portal names the supplier once a delivery note exists.</p>}
       </section>
-
-      <div className="perf-kpis">
-        <div><b>{num(o.orders)}</b><span>orders in view</span></div>
-        <div><b>{pct(o.fill)}</b><span>of what was asked was sent</span></div>
-        <div><b className={o.backlog15 ? 'late' : ''}>{num(o.backlog15)}</b><span>waiting over two weeks</span></div>
-        <div><b>{num(v.coverage.read)}<small> / {num(v.coverage.withDc)}</small></b><span>orders with known quantities</span></div>
-      </div>
 
       <div className="order-seg-wrap">
         <nav className="seg order-seg" aria-label="Group by">
@@ -156,14 +136,13 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
       )}
 
       {v.checkpoint && v.checkpoint.rows.length > 0 && (
-        <section aria-labelledby="checkpoint">
-          <h2 className="sub" id="checkpoint">Month by month</h2>
-          <p className="lede small">For orders placed in each month: how much was sent, and how that supplier is doing.</p>
+        <details className="summary how">
+          <summary><h2 id="checkpoint">Month by month</h2></summary>
           <div className="table-wrap"><table className="order-table dash-table">
             <thead><tr><th>Supplier</th>{v.checkpoint.months.map((m) => <th key={m} className="num">{monthText(m)}</th>)}</tr></thead>
             <tbody>{v.checkpoint.rows.map((r) => <tr key={r.key}><td><b>{r.label}</b></td>{v.checkpoint!.months.map((m) => { const x = r.months[m]; return <td key={m} className="num">{x ? <><span className={`verdict-chip ${x.verdict}`}>{VERDICT_TEXT[x.verdict]}</span><div className="small">{pct(x.fill)} sent · {x.orders} orders{x.backlog15 ? ` · ${x.backlog15} waiting 15+ days` : ''}</div></> : '—'}</td>; })}</tr>)}</tbody>
           </table></div>
-        </section>
+        </details>
       )}
 
       <details className="summary how">

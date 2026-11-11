@@ -4,6 +4,7 @@ import { PageLoader } from '@/components/Loader';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { overdueCount } from '@/lib/issues';
+import { loadUnits, unitFor, withUnit } from '@/lib/units';
 import { loadHealth, STALE_MINUTES } from '@/lib/health';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
@@ -105,10 +106,11 @@ async function HomeContent({ sp }: { sp: SP }) {
   const issueRows = view === 'confirmed' && flagKeys.length ? await c.issues.find(scoped({ anomalyKeys: { $in: flagKeys } }, names), { projection: { issueId: 1, anomalyKeys: 1 } }).toArray() : [];
   const issues: Record<string, string> = {};
   for (const i of issueRows) for (const k of i.anomalyKeys) issues[k] = i.issueId;
+  const units = await loadUnits(c);
   const waitDays = await getWaitDays(c);
   const health = await loadHealth(c);
   const overdue = await overdueCount(c, names, waitDays);
-  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues };
+  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues, units };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
   const reportQuery = new URLSearchParams(Object.entries({ month: sp.month ?? '', district: sp.district ?? '', q }).filter(([, v]) => v) as [string, string][]).toString();
@@ -125,9 +127,7 @@ async function HomeContent({ sp }: { sp: SP }) {
       <section className="hero">
         <p className="greet">{greeting}. Today is {dateLine}.</p>
         <h1>{headline}</h1>
-        <p className="lede">{view === 'open'
-          ? 'We compare every request with what the hostel normally asks for. Anything much bigger is listed here so you can check it.'
-          : 'You can move any of these back to the “To check” list.'}</p>
+        <p className="lede">{view === 'open' ? 'Biggest jumps first. Open a hostel to review.' : 'You can move any of these back to “To check”.'}</p>
         <p className={`status ${checkedOk === false ? 'bad' : ''}`}>
           <span className="live" aria-hidden="true" />
           {lastRun ? <>Last checked {ago(lastRun.startedAt)}. Next check at {nextCheck().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })}.</> : 'No check has run yet.'}
@@ -246,7 +246,7 @@ async function HomeContent({ sp }: { sp: SP }) {
                       ? <span className="tf-note">{top1.kind === 'order' ? 'bigger than similar hostels' : 'more than usual'}</span>
                       : <span className="tf-bar2" aria-label={`usually ${num(top1.expected)}, this time ${num(top1.requested)}`}>
                           <span className="tf-track"><i style={{ width: `${Math.max(2, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /></span>
-                          <span className="tf-nums"><em>{top1.expected < 0.1 ? '<0.1' : num(top1.expected)}</em> → <b>{num(top1.requested)}</b></span>
+                          <span className="tf-nums"><span className="tf-item">{itemLabel(top1.item.split(' [unit:')[0]!)}</span> <em>{withUnit(top1.expected < 0.1 ? '<0.1' : num(top1.expected), unitFor(top1.item, units))}</em> → <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b></span>
                         </span>}</>}
               </span>
               <span className="tf-chips">

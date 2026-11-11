@@ -4,10 +4,11 @@ import { hostelKey, monthsWithRequests } from '@/lib/history';
 import type { TypingGroup } from '@/lib/group';
 import type { AnomalyDoc } from '@anomaly/core';
 import FlagActions from './FlagActions';
+import { unitFor, withUnit, type UnitMap } from '@/lib/units';
 import HistoryChart, { windowMonths } from './HistoryChart';
 import { Icon } from './Icons';
 
-interface Ctx { history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean; issues?: Record<string, string> }
+interface Ctx { history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean; issues?: Record<string, string>; units?: UnitMap }
 
 function chartFor(a: AnomalyDoc, ctx: Ctx) {
   const h = ctx.history[hostelKey(a.godownId, a.hostelCode)];
@@ -18,7 +19,7 @@ function chartFor(a: AnomalyDoc, ctx: Ctx) {
   return {
     shown,
     earlierList: earlierMonths.map((m) => ({ m, q: h?.[a.item]?.[m] ?? 0 })),
-    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={h?.[a.item] ?? {}} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} />,
+    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={h?.[a.item] ?? {}} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} suffix={unitFor(a.item, ctx.units ?? {}) ? ` ${unitFor(a.item, ctx.units ?? {})}` : ''} />,
     note: earlier >= 3 ? null : earlier === 0
       ? 'This hostel has no earlier months on record yet, so we compared it with similar hostels.'
       : `Only ${earlier} earlier month${earlier > 1 ? 's are' : ' is'} on record for this hostel so far.`,
@@ -36,25 +37,26 @@ function Key({ peer }: { peer: boolean }) {
 }
 
 /** Side by side: what this hostel asked for, what it asked before, and what similar hostels ask. */
-function Compare({ a, earlier }: { a: AnomalyDoc; earlier: { m: string; q: number }[] }) {
+function Compare({ a, earlier, unit = '' }: { a: AnomalyDoc; earlier: { m: string; q: number }[]; unit?: string }) {
+  const q = (n: number) => withUnit(num(n), unit);
   const peer = a.peer;
   const byStudents = peer?.basis === 'students';
   return (
     <dl className="compare" aria-label="Comparison">
       <div className="cmp bad"><dt><i />This hostel asked for</dt>
-        <dd><b>{num(a.requested)}</b> in {monthLabel(a.month)}{a.students ? <span className="mut"> This hostel has {a.students.toLocaleString('en-IN')} students.</span> : null}</dd></div>
+        <dd><b>{q(a.requested)}</b> in {monthLabel(a.month)}{a.students ? <span className="mut"> This hostel has {a.students.toLocaleString('en-IN')} students.</span> : null}</dd></div>
       <div className="cmp ok"><dt><i />This hostel's earlier months</dt>
-        <dd>{earlier.length ? earlier.map((e) => `${monthLabel(e.m, true).replace(/\s\d{4}$/, '')}: ${num(e.q)}`).join(',  ') : <span className="mut">None on record yet</span>}</dd></div>
+        <dd>{earlier.length ? earlier.map((e) => `${monthLabel(e.m, true).replace(/\s\d{4}$/, '')}: ${q(e.q)}`).join(',  ') : <span className="mut">None on record yet</span>}</dd></div>
       {peer ? (
         <div className="cmp peer"><dt><i />{byStudents ? 'Hostels of a similar size ask for' : 'Other hostels ask for'}</dt>
-          <dd><b>about {num(peer.typical)}</b>
-            <span className="mut"> Most ask between {num(peer.low)} and {num(peer.high)}.{' '}
+          <dd><b>about {q(peer.typical)}</b>
+            <span className="mut"> Most ask between {q(peer.low)} and {q(peer.high)}.{' '}
               {byStudents
                 ? <>Compared with the {peer.count} hostels closest in size ({peer.sizeRange ? `${num(peer.sizeRange[0])} to ${num(peer.sizeRange[1])}` : 'a similar number of'} students), worked out per student. Hostels that did not ask for this item are left out.{peer.count < 15 ? ' This is a smaller group, so treat the range as a rough guide.' : ''}</>
                 : <>This is an estimate. We do not have this hostel's student count, so its size was judged from its other orders.</>}
             </span></dd></div>
       ) : a.method === 'peers' ? (
-        <div className="cmp peer"><dt><i />Other hostels ask for</dt><dd><b>about {num(a.expected)}</b></dd></div>
+        <div className="cmp peer"><dt><i />Other hostels ask for</dt><dd><b>about {q(a.expected)}</b></dd></div>
       ) : null}
     </dl>
   );
@@ -77,7 +79,7 @@ export function SpikeCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string
         <p className="sentence">
           That is <b>{timesMore(a.ratio)}</b> than {a.method === 'own-history' ? 'this hostel usually asks for' : a.peer?.basis === 'students' ? 'hostels with a similar number of students ask for' : 'other hostels ask for'}.
         </p>
-        <Compare a={a} earlier={ch.earlierList} />
+        <Compare a={a} earlier={ch.earlierList} unit={unitFor(a.item, ctx.units ?? {})} />
         {a.looksLikeExtraZero && (
           <p className="hint"><Icon name="pencil" size={16} />
             <span>{a.zeroFix

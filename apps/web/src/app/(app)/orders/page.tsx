@@ -42,7 +42,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
         <p className="greet">Order tracking</p>
         <h1>{num(all.length)} {tab === 'all' ? (all.length === 1 ? 'order' : 'orders') : `${TABS.find((t) => t.key === tab)?.label} ${all.length === 1 ? 'order' : 'orders'}`}</h1>
         <p className="lede">
-          Every order from the portal, and how long it has been at its current stage. The longest-waiting orders are at the top.
+          Longest-waiting first.
           {late > 0 && <> <b>{num(late)}</b> {late === 1 ? 'has' : 'have'} been waiting over two weeks.</>}
         </p>
         <p className="status">{lastSeen ? <>Last updated from the portal {fmtDay(lastSeen)}.</> : 'No orders recorded yet. They appear after the next hourly check.'}</p>
@@ -93,44 +93,40 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
       ) : (
         <>
           <div className="table-wrap">
-            <table className="order-table">
+            <table className="order-table order-slim">
               <thead>
                 <tr>
-                  <th>S.No</th><th>Request ID</th><th>Hostel</th><th>Placed on</th><th>Current stage</th><th>Issue type</th>
-                  {STAGE_COLUMNS.map((c) => <th key={c.key} className="stage-col">{c.label}</th>)}
-                  <th>Days since placed</th>
+                  <th>Request</th><th>Hostel</th><th>Placed</th><th>Now</th>
+                  {STAGE_COLUMNS.map((c) => <th key={c.key} className="stage-col" title={`${c.label}: days spent here`}>{c.label}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {shown.map((o, i) => {
+                {shown.map((o) => {
                   const u = urgency(o, now);
                   const placed = daysSincePlaced(o, now);
                   const cells = stageCells(o, now);
+                  const issue = issueTypes.get(o.hostelCode)?.[0];
                   return (
                     <tr key={o.requestId}>
-                      <td>{offset + i + 1}</td>
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>
-                      <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">Hostel ID {o.hostelCode} · {o.districtName}</div></td>
-                      <td>{fmtDay(o.placedOn)}</td>
+                      <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">{o.districtName}{issue && <span className="flag-note"> · {issue}</span>}</div></td>
+                      <td>{fmtDay(o.placedOn)}{placed !== null && <div className="mut small">{num(placed)}d ago</div>}</td>
                       <td><span className={`stage-chip st-${o.stage}`}>{STAGE_LABEL[o.stage]}</span>{OPEN_STAGES.includes(o.stage)
-                        ? <div className="mut small">for {num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div>
-                        : o.stage === 'received' ? <div className="small ack-date">on {fmtDay(o.stageSince)}</div>
-                        : <div className="mut small">final action</div>}</td>
-                      <td className="small">{(issueTypes.get(o.hostelCode) ?? []).map((t) => <div key={t}>{t}</div>)}{!issueTypes.get(o.hostelCode) && <span className="mut">—</span>}</td>
+                        ? <div className={`small now-days ${u}`}>{num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div>
+                        : o.stage === 'received' ? <div className="small ack-date">{fmtDay(o.stageSince)}</div> : null}</td>
                       {STAGE_COLUMNS.map((c) => {
                         const cell = cells[c.key];
-                        if (!cell) return <td key={c.key} className="stage-col none">—</td>;
+                        if (!cell) return <td key={c.key} className="stage-col none">·</td>;
                         const hot = cell.current ? u : 'ok';
+                        const when = `${c.label}: ${fmtDay(cell.since)}${cell.source === 'observed' ? ' (first seen by us)' : ''}`;
                         return (
-                          <td key={c.key} className={`stage-col ${cell.kind} ${cell.current ? 'current' : ''} ${hot === 'ok' ? '' : hot}`} title={cell.source === 'observed' ? 'Date we first saw this status' : 'Date from the portal'}>
-                            {cell.kind === 'counted' && <><b>{num(cell.days ?? 0)} {cell.days === 1 ? 'day' : 'days'}</b><div className="mut small">{cell.current ? 'still here' : 'done'} · since {fmtDay(cell.since)}</div></>}
-                            {cell.kind === 'ack' && <><b className="ack-date">{fmtDay(cell.since)}</b><div className="mut small">acknowledged</div></>}
-                            {cell.kind === 'final' && <><b>{fmtDay(cell.since)}</b><div className="mut small">final</div></>}
-                            {cell.source === 'observed' && <div className="mut small">first seen by us</div>}
+                          <td key={c.key} title={when} className={`stage-col ${cell.kind} ${cell.current ? 'current' : ''} ${hot === 'ok' ? '' : hot}`}>
+                            {cell.kind === 'counted' && <b>{num(cell.days ?? 0)}d</b>}
+                            {cell.kind === 'ack' && <b className="ack-date">{fmtDay(cell.since).replace(/\s\d{4}$/, '')}</b>}
+                            {cell.kind === 'final' && <b>{fmtDay(cell.since).replace(/\s\d{4}$/, '')}</b>}
                           </td>
                         );
                       })}
-                      <td>{placed === null ? '—' : `${num(placed)} ${placed === 1 ? 'day' : 'days'}`}</td>
                     </tr>
                   );
                 })}
@@ -149,9 +145,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                 : <span className="pager-btn off" aria-disabled="true">Next <Icon name="chevronRight" size={16} /></span>}
             </div>
           </nav>
-          <p className="mut small">
-            Days are counted from the date the portal gives for each stage, and only while an order is Pending, DC Generated, In-Transit or in Variation. Acknowledge stops the count and shows its date in green. Rejected and Cancelled are final actions with no count; the portal gives no date for them, so the date shown is when we first saw that status.
-          </p>
+          <p className="mut small">Numbers in the stage columns are days spent there (<b>d</b> = days). Hover for the date.</p>
         </>
       )}
     </div>

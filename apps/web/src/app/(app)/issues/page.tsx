@@ -24,8 +24,7 @@ export default async function Issues({ searchParams }: { searchParams: Promise<{
       <section className="hero">
         <p className="greet">Issues</p>
         <h1>{num(counts.waiting!)} waiting for a new indent</h1>
-        <p className="lede">When an indent is wrong, raise an issue, reject the indent on the government portal, and the hostel sends a new one. We read the portal every hour, so we notice both steps. If no new indent comes within {waitDays} {waitDays === 1 ? 'day' : 'days'} of the rejection, it is shown here as overdue.</p>
-        <p className="mut small">We only read the portal. Nothing here changes anything on it.</p>
+        <p className="lede">Wrong indents waiting for the hostel to send a new one. Overdue after {waitDays} {waitDays === 1 ? 'day' : 'days'}.</p>
       </section>
       <div className="order-seg-wrap">
         <nav className="seg order-seg" aria-label="Issue lists">

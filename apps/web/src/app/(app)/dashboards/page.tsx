@@ -32,7 +32,7 @@ export default async function Dashboards({ searchParams }: { searchParams: Promi
       <section className="hero">
         <p className="greet">Dashboards</p>
         <h1>{num(rows.length)} orders{month ? ` placed in ${monthText(month)}` : ''}</h1>
-        <p className="lede">How many orders are at each stage, and which are stuck. Days are counted only while an order is Pending, DC Generated, In-Transit or in Variation. “7+ days” and “15+ days” count orders that have stayed at their current stage that long. Click any number to see those orders.</p>
+        <p className="lede">Click a number to see those orders. “7+ days” and “15+ days” = waiting at the same stage that long.</p>
       </section>
 
       <div className="order-seg-wrap">
@@ -98,7 +98,7 @@ export default async function Dashboards({ searchParams }: { searchParams: Promi
           </tr></tfoot>
         </table></div>
       )}
-      <p className="mut small">“Hostels” counts hostels that have at least one order here. The totals are the same numbers as the tabs on Order tracking. A hostel with orders at different stages is counted in each of those stages.</p>
+      
     </>
   );
 }
