@@ -8,6 +8,7 @@ import type { IssueDoc, RemarkDoc } from './issues.js';
 import type { WhatsAppMessageDoc } from './whatsapp.js';
 import type { WaTemplateDoc } from './whatsappTemplates.js';
 import type { ContactDoc, GroupDoc } from './whatsappContacts.js';
+import type { ConversationDoc } from './whatsappConversations.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -81,6 +82,7 @@ export interface Collections extends MasterDataCollections {
   waTemplates: Collection<WaTemplateDoc>;
   waContacts: Collection<ContactDoc>;
   waGroups: Collection<GroupDoc>;
+  waConversations: Collection<ConversationDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -126,6 +128,7 @@ export const collections = (d: Db): Collections => ({
   waTemplates: d.collection('waTemplates'),
   waContacts: d.collection('waContacts'),
   waGroups: d.collection('waGroups'),
+  waConversations: d.collection('waConversations'),
   auditLog: d.collection('auditLog'),
   async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
     const session = d.client.startSession();
@@ -173,6 +176,9 @@ export async function ensureIndexes(c: Collections) {
   await c.waContacts.createIndex({ tags: 1 });
   await c.waContacts.createIndex({ name: 1 });
   await c.waGroups.createIndex({ name: 1 }, { unique: true });
+  await c.waConversations.createIndex({ phone: 1 }, { unique: true });
+  await c.waConversations.createIndex({ lastAt: -1 });
+  await c.whatsappMessages.createIndex({ phone: 1, createdAt: 1 });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }

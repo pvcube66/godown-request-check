@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { addHostelContacts, addToGroup, closeDb, createGroup, deleteContacts, deleteGroup, editContact, importContacts, messageable, removeFromGroup, saveContact, setOptOut, tagCounts } from '../../packages/core/src/index.ts';
-import { sealSecret, sendMessages } from '../../packages/core/src/index.ts';
+import { conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
 import { connectLocal } from './local.mts';
 
 /** Real-MongoDB checks of the WhatsApp CRM core (People so far; later phases add to this file). Local test database only (it_wa_crm). */
@@ -86,6 +86,37 @@ assert.equal((await c.whatsappMessages.findOne({ phone: '919876543210' }))!.stat
 await sendMessages(c, req, { preview: false, actor: 'u1' }, meta);
 assert.equal(sent.length, 1); assert.equal(await c.whatsappMessages.countDocuments({ phone: '919876543210' }), 1); ok('sending the same batch twice (double click) still sends once');
 assert.ok((await c.waContacts.findOne({ phone: '919876543210' }))!.lastMessagedAt); ok('the contact remembers when it was last messaged');
+
+// ---- Chats: inbound webhook, conversations, 24-hour window
+await c.waConversations.deleteMany({});
+const hook = (id: string, from: string, text: string, pn = '123456') => ({ entry: [{ changes: [{ value: { metadata: { phone_number_id: pn }, contacts: [{ wa_id: from, profile: { name: 'Meena' } }], messages: [{ id, from, type: 'text', text: { body: text } }] } }] }] });
+const st = { phoneNumberId: '123456' };
+await processWebhook(c, hook('wamid.in1', '919000011111', 'Hello, is my order coming?'), st, now);
+const ct = await c.waContacts.findOne({ phone: '919000011111' });
+assert.equal(ct!.source, 'inbound'); assert.equal(ct!.name, 'Meena'); ok('a message from an unknown number creates a person');
+let conv = await c.waConversations.findOne({ phone: '919000011111' });
+assert.equal(conv!.unread, 1); assert.equal(conv!.status, 'open'); assert.ok(conv!.lastInboundAt); ok('and a chat with one unread message');
+await processWebhook(c, hook('wamid.in1', '919000011111', 'Hello, is my order coming?'), st, now);
+assert.equal((await c.waConversations.findOne({ phone: '919000011111' }))!.unread, 1); assert.equal(await c.whatsappMessages.countDocuments({ messageId: 'wamid.in1' }), 1); ok('Meta sending the same message twice counts once');
+await processWebhook(c, hook('wamid.in2', '919000022222', 'hi', '999999'), st, now);
+assert.equal(await c.waContacts.countDocuments({ phone: '919000022222' }), 0); ok('events for another phone number are ignored');
+await markRead(c, '919000011111'); assert.equal((await c.waConversations.findOne({ phone: '919000011111' }))!.unread, 0); ok('opening a chat clears unread');
+await setConversationStatus(c, '919000011111', 'closed');
+await processWebhook(c, hook('wamid.in3', '919000011111', 'Any update?'), st, now);
+conv = await c.waConversations.findOne({ phone: '919000011111' }); assert.equal(conv!.status, 'open'); assert.equal(conv!.unread, 1); ok('a new reply reopens a closed chat');
+const sent2: { type: string }[] = [];
+const meta2 = (async (_u: string, init: { body: string }) => { sent2.push(JSON.parse(init.body)); return { ok: true, status: 200, json: async () => ({ messages: [{ id: `wamid.t${sent2.length}` }] }) }; }) as unknown as typeof fetch;
+const inWin = await sendMessages(c, { kind: 'text', text: 'Yes, tomorrow.', phones: ['919000011111'] }, { preview: false, actor: 'u1' }, meta2);
+assert.equal(inWin.sent, 1); assert.equal(sent2[0]!.type, 'text'); ok('a text reply inside 24 hours is sent');
+assert.equal((await c.waConversations.findOne({ phone: '919000011111' }))!.lastDirection, 'out'); ok('and shows as the latest message of the chat');
+await c.whatsappMessages.updateMany({ phone: '919000011111', direction: 'in' }, { $set: { createdAt: new Date(Date.now() - 30 * 3600_000) } });
+const outWin = await sendMessages(c, { kind: 'text', text: 'Late reply', phones: ['919000011111'] }, { preview: false, actor: 'u1' }, meta2);
+assert.equal(outWin.results[0]!.outcome, 'outside_window'); assert.equal(sent2.length, 1); ok('a text reply after 24 hours is refused');
+await processWebhook(c, hook('wamid.in4', '919000011111', 'STOP'), st, now);
+assert.equal((await c.waContacts.findOne({ phone: '919000011111' }))!.optedOut, true); ok('STOP opts the person out');
+const afterStop = await sendMessages(c, { kind: 'template', template: { name: 'hello', language: 'en' }, body: ['x', 'y'], phones: ['919000011111'] }, { preview: false, actor: 'u1' }, meta2);
+assert.equal(afterStop.results[0]!.outcome, 'opted_out'); ok('and they are never messaged again');
+assert.equal(await c.waConversations.countDocuments(conversationFilter({ filter: 'unread' })), 1); assert.equal(await c.waConversations.countDocuments(conversationFilter({ q: '.*' })), 0); ok('chat list filters work and search is literal');
 
 console.log(`\n${passed} checks passed`);
 await closeDb(); process.exit(0);

@@ -3,6 +3,8 @@ import type { Collection } from 'mongodb';
 import type { Collections } from './db.js';
 import { openSecret, sealSecret } from './secretBox.js';
 import { getMetaFailureCopy, parseMetaCode } from './metaErrorCopy.js';
+import type { ContactDoc } from './whatsappContacts.js';
+import { touchConversation, type ConversationDoc } from './whatsappConversations.js';
 import { createTemplate, getTemplateStatus, type Fetcher, type WaCredentials } from './whatsappApi.js';
 
 /** WhatsApp reminders: settings, the message wording, the message history, and what Meta tells us back (delivery ticks and replies).
@@ -147,7 +149,11 @@ export interface WhatsAppMessageDoc {
   errorCode?: string; errorText?: string;
   createdAt: Date; statusAt: Date;
 }
-export interface WhatsAppCollections extends Pick<Collections, 'settings' | 'auditLog' | 'orders' | 'hostelsMaster' | 'godowns'> { whatsappMessages: Collection<WhatsAppMessageDoc> }
+export interface WhatsAppCollections extends Pick<Collections, 'settings' | 'auditLog' | 'orders' | 'hostelsMaster' | 'godowns'> {
+  whatsappMessages: Collection<WhatsAppMessageDoc>;
+  /** When present, replies from anyone are kept as chats and a person is created for unknown numbers. */
+  waContacts?: Collection<ContactDoc>; waConversations?: Collection<ConversationDoc>;
+}
 
 const ALLOWED_FROM: Record<'sent' | 'delivered' | 'read' | 'failed', MessageStatus[]> = {
   sent: ['queued'],
@@ -180,20 +186,30 @@ export async function processWebhook(c: WhatsAppCollections, payload: unknown, s
     for (const st of (v.statuses as { id?: string; status?: string; errors?: { code?: number; title?: string; message?: string }[]; timestamp?: string }[] | undefined) ?? []) {
       if (st.id && st.status && await applyDeliveryStatus(c, st.id, st.status, st.errors, st.timestamp ? new Date(Number(st.timestamp) * 1000) : now)) out.statuses++;
     }
-    for (const m of (v.messages as { id?: string; from?: string; type?: string; text?: { body?: string } }[] | undefined) ?? []) {
-      const ten = String(m.from ?? '').replace(/[^0-9]/g, '').slice(-10);
-      if (!m.id || ten.length !== 10) continue;
+    const names = new Map<string, string>();
+    for (const ct of (v.contacts as { wa_id?: string; profile?: { name?: string } }[] | undefined) ?? []) if (ct.wa_id && ct.profile?.name) names.set(ct.wa_id, String(ct.profile.name).slice(0, 100));
+    for (const m of (v.messages as { id?: string; from?: string; type?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } } }[] | undefined) ?? []) {
+      const full = String(m.from ?? '').replace(/[^0-9]/g, '');
+      if (!m.id || full.length < 8 || full.length > 15) continue;
+      const ten = full.slice(-10);
       const hostel = await c.hostelsMaster.findOne({ hostelPhone: ten });
-      if (!hostel) continue;                                 // not one of our hostels' numbers: not stored
-      const text = m.type === 'text' ? String(m.text?.body ?? '').slice(0, 1000) : `[${m.type ?? 'message'}]`;
-      const lastOut = await c.whatsappMessages.findOne({ direction: 'out', hostelCode: hostel.hostelCode }, { sort: { createdAt: -1 } });
+      if (!hostel && !c.waContacts) continue;                // without the CRM tables only hostel numbers are kept (older behaviour)
+      const text = (m.type === 'text' ? m.text?.body : m.type === 'button' ? m.button?.text : m.type === 'interactive' ? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title : undefined) ?? `[${m.type ?? 'message'}]`;
+      const body = String(text).slice(0, 1000);
+      const lastOut = hostel ? await c.whatsappMessages.findOne({ direction: 'out', hostelCode: hostel.hostelCode }, { sort: { createdAt: -1 } }) : null;
       try {
-        await c.whatsappMessages.insertOne({ messageId: m.id, direction: 'in', requestId: lastOut?.requestId ?? null, hostelCode: hostel.hostelCode, hostelName: hostel.hostelName, districtName: hostel.districtName, phoneLast4: ten.slice(-4), text, status: 'received', counted: false, createdAt: now, statusAt: now });
+        await c.whatsappMessages.insertOne({ messageId: m.id, direction: 'in', requestId: lastOut?.requestId ?? null, hostelCode: hostel?.hostelCode ?? '', hostelName: hostel?.hostelName ?? names.get(full) ?? '', districtName: hostel?.districtName ?? '', phone: full, phoneLast4: ten.slice(-4), kind: 'single', text: body, status: 'received', counted: false, createdAt: now, statusAt: now });
         out.replies++;
       } catch (e) { if ((e as { code?: number }).code !== 11000) throw e; continue; }   // Meta redelivered it
-      if (isStopMessage(text)) {
-        await c.hostelsMaster.updateOne({ godownId: hostel.godownId, hostelCode: hostel.hostelCode }, { $set: { whatsappOptOut: true, whatsappOptOutAt: now, updatedAt: now } });
-        await c.auditLog.insertOne({ actor: 'whatsapp', action: 'whatsapp.opt-out', target: `hostel:${hostel.godownId}:${hostel.hostelCode}`, at: now });
+      if (c.waContacts) {
+        await c.waContacts.updateOne({ phone: full }, { $setOnInsert: { phone: full, name: names.get(full) ?? hostel?.hostelName ?? '', email: '', tags: [], source: 'inbound', notes: '', optedOut: false, optedOutAt: null, lastMessagedAt: null, createdAt: now }, $set: { updatedAt: now } }, { upsert: true });
+        if (names.has(full)) await c.waContacts.updateOne({ phone: full, name: '' }, { $set: { name: names.get(full)! } });
+      }
+      await touchConversation(c, full, { direction: 'in', text: body, at: now, name: names.get(full) ?? hostel?.hostelName ?? '' });
+      if (isStopMessage(body)) {
+        if (hostel) await c.hostelsMaster.updateMany({ hostelPhone: ten }, { $set: { whatsappOptOut: true, whatsappOptOutAt: now, updatedAt: now } });
+        if (c.waContacts) await c.waContacts.updateOne({ phone: full }, { $set: { optedOut: true, optedOutAt: now, updatedAt: now } });
+        await c.auditLog.insertOne({ actor: 'whatsapp', action: 'whatsapp.opt-out', target: hostel ? `hostel:${hostel.godownId}:${hostel.hostelCode}` : `contact:${full.slice(-4)}`, at: now });
         out.optOuts++;
       }
     }

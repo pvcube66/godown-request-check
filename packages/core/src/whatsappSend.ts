@@ -7,12 +7,13 @@ import { sendTemplateMessage, sendTextMessage, WhatsAppApiError, type Fetcher } 
 import type { ContactDoc, GroupDoc } from './whatsappContacts.js';
 import type { WaTemplateDoc } from './whatsappTemplates.js';
 import { previewText, variablesIn } from './whatsappTemplateRules.js';
+import { touchConversation, type ConversationDoc } from './whatsappConversations.js';
 import type { SendSummary } from './whatsappSendRules.js';
 export * from './whatsappSendRules.js';
 
 /** Send Message: one approved template (or a text reply inside the 24-hour window) to chosen people. Preview first; opted-out people are never messaged. */
 
-export interface SendCollections extends WhatsAppCollections { waContacts: Collection<ContactDoc>; waGroups: Collection<GroupDoc>; waTemplates: Collection<WaTemplateDoc> }
+export interface SendCollections extends WhatsAppCollections { waContacts: Collection<ContactDoc>; waGroups: Collection<GroupDoc>; waTemplates: Collection<WaTemplateDoc>; waConversations?: Collection<ConversationDoc> }
 
 export const MAX_DIRECT = 50;                 // more than this belongs in a campaign
 export const WINDOW_MS = 24 * 3600_000;
@@ -94,6 +95,7 @@ export async function sendMessages(c: SendCollections, req: SendRequest, opts: {
         : await sendTemplateMessage(cred!, ct.phone, { ...req.template!, headerParams: (req.header ?? []).map((v) => fillValue(v, ct)) }, (req.body ?? []).map((v) => fillValue(v, ct)), fetcher);
       await c.whatsappMessages.updateOne({ sendKey }, { $set: { messageId: id, status: 'sent', statusAt: new Date() } });
       await c.waContacts.updateOne({ phone: ct.phone }, { $set: { lastMessagedAt: new Date() } });
+      await touchConversation(c, ct.phone, { direction: 'out', text, at: new Date(), name: ct.name });
       out.results.push({ ...base, outcome: 'sent' }); out.sent++;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

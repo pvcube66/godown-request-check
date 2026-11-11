@@ -2,6 +2,7 @@ import { daysBetween, daysInStage, istDay } from './orders.js';
 import { hostelLabel } from './hostelName.js';
 import { getMetaFailureCopy } from './metaErrorCopy.js';
 import { sendTemplateMessage, WhatsAppApiError, type Fetcher } from './whatsappApi.js';
+import { touchConversation } from './whatsappConversations.js';
 import { credentialsOf, getWhatsAppSettings, noteWhatsAppError, renderTemplate, templateValues, whatsappNumber, type WhatsAppCollections, type WhatsAppSettings } from './whatsapp.js';
 
 /** "Delivery not acknowledged" reminders (decision D9): an order is In-Transit and still not acknowledged after N days -> WhatsApp the hostel,
@@ -102,11 +103,12 @@ export async function runReminders(c: WhatsAppCollections, now = new Date(), fet
     for (const item of plan.items) {
       const sendKey = `${item.requestId}|${item.reminderNo}`;
       try {
-        await c.whatsappMessages.insertOne({ sendKey, messageId: null, direction: 'out', requestId: item.requestId, hostelCode: item.hostelCode, hostelName: item.hostelName, districtName: item.districtName, phoneLast4: item.phone.slice(-4), template: s.templateName, reminderNo: item.reminderNo, text: item.text, status: 'queued', counted: true, createdAt: now, statusAt: now });
+        await c.whatsappMessages.insertOne({ sendKey, messageId: null, direction: 'out', requestId: item.requestId, hostelCode: item.hostelCode, hostelName: item.hostelName, districtName: item.districtName, phone: item.phone, phoneLast4: item.phone.slice(-4), kind: 'reminder', template: s.templateName, reminderNo: item.reminderNo, text: item.text, status: 'queued', counted: true, createdAt: now, statusAt: now });
       } catch (e) { if ((e as { code?: number }).code === 11000) continue; throw e; }      // another run already took this reminder
       try {
         const id = await sendTemplateMessage(cred, item.phone, { name: s.templateName, language: s.language }, item.values, fetcher);
         await c.whatsappMessages.updateOne({ sendKey }, { $set: { messageId: id, status: 'sent', statusAt: new Date() } });
+        await touchConversation(c, item.phone, { direction: 'out', text: item.text, at: new Date(), name: item.hostelName });
         run.sent++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);

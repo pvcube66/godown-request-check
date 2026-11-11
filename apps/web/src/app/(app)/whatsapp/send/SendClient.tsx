@@ -78,7 +78,7 @@ export default function SendClient({ mode, templates, contacts, groups, initial 
         {err && <p className="master-message master-error" role="alert">{err}</p>}
         <div className="send-actions">
           <button className="btn" disabled={!ready || pending} onClick={() => run(true)}>{pending ? <Loader size="sm" label="" /> : null}Preview who gets it</button>
-          <button className="btn primary-ish" disabled={!ready || pending || !live || !sum || !sum.preview || people > 50} title={live ? '' : 'Switch WhatsApp to live to send'} onClick={() => { if (confirm(`Send this message to ${counts?.ok ?? 0} ${counts?.ok === 1 ? 'person' : 'people'} now?`)) run(false); }}>Send to {counts?.ok ?? '…'}</button>
+          <button className="btn primary-ish" disabled={!ready || pending || !live || !sum || !sum.preview || people > 50} title={live ? '' : 'Switch WhatsApp to live to send'} onClick={() => { if (confirm(`Send this message to ${counts?.ok ?? 0} ${counts?.ok === 1 ? 'person' : 'people'} now?`)) run(false); }}>{counts ? `Send to ${counts.ok}` : 'Send'}</button>
         </div>
         {sum && (
           <div className="import-sum" aria-live="polite">
