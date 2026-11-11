@@ -21,7 +21,9 @@ export function monthsToSync(mode: 'backfill' | 'recent', now = new Date()): str
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function syncAccount(c: Collections, acct: AccountDoc, months: string[]): Promise<number> {
+/** `deadline` (a time in ms) lets a short-lived host stop the optional catch-up steps early; they are all resumable and simply continue next hour. */
+export async function syncAccount(c: Collections, acct: AccountDoc, months: string[], deadline?: number): Promise<number> {
+  const time = () => deadline === undefined || Date.now() < deadline;
   let token = await getToken(c, acct);
   let total = 0;
   for (const gd of acct.godowns) {
@@ -50,18 +52,18 @@ export async function syncAccount(c: Collections, acct: AccountDoc, months: stri
       await sleep(300);                                    // be gentle with the portal
     }
   }
-  await syncRequestItems(c, acct, token);
-  try { await syncCancelReasons(c, acct, token); } catch (e) {
+  if (time()) await syncRequestItems(c, acct, token);
+  if (time()) try { await syncCancelReasons(c, acct, token); } catch (e) {
     if (e instanceof PortalAuthError) throw e;
     console.error('cancel reasons failed:', e instanceof Error ? e.message : e);
   }
-  try { await syncHostelSizes(c, acct, token); } catch (e) { console.error('hostel size refresh failed:', e instanceof Error ? e.message : e); }
-  try { await syncOrders(c, acct, token); } catch (e) { console.error('order tracking failed:', e instanceof Error ? e.message : e); }
-  try { await syncFulfilment(c, acct, token); } catch (e) {
+  if (time()) try { await syncHostelSizes(c, acct, token); } catch (e) { console.error('hostel size refresh failed:', e instanceof Error ? e.message : e); }
+  if (time()) try { await syncOrders(c, acct, token); } catch (e) { console.error('order tracking failed:', e instanceof Error ? e.message : e); }
+  if (time()) try { await syncFulfilment(c, acct, token); } catch (e) {
     if (e instanceof PortalAuthError) throw e;
     console.error('supplied quantities failed:', e instanceof Error ? e.message : e);
   }
-  try { await syncOrderSuppliers(c, acct, token); } catch (e) {
+  if (time()) try { await syncOrderSuppliers(c, acct, token); } catch (e) {
     if (e instanceof PortalAuthError) throw e;
     console.error('suppliers failed:', e instanceof Error ? e.message : e);
   }
@@ -70,12 +72,12 @@ export async function syncAccount(c: Collections, acct: AccountDoc, months: stri
 }
 
 /** Sync every active account independently: one failing login never blocks the others. */
-export async function syncAll(c: Collections, mode: 'backfill' | 'recent', trigger = 'manual'): Promise<RunDoc> {
+export async function syncAll(c: Collections, mode: 'backfill' | 'recent', trigger = 'manual', deadline?: number): Promise<RunDoc> {
   const run: RunDoc = { startedAt: new Date(), ok: true, trigger, accounts: [] };
   const accts = await c.accounts.find({ status: { $ne: 'disabled' } }).toArray();
   for (const a of accts) {
     try {
-      const rows = await syncAccount(c, a, monthsToSync(mode));
+      const rows = await syncAccount(c, a, monthsToSync(mode), deadline);
       run.accounts.push({ username: a.username, ok: true, rows });
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);

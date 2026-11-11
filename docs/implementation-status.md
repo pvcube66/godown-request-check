@@ -263,3 +263,13 @@ The setup flow of the team's TeleCRM (`vivtej_telecrm` page `WhatsAppConnect.jsx
 ## WhatsApp CRM (People, Send Message, Chats, Campaigns, Settings, Stats)
 
 **Status:** built locally on branch `whatsapp-suite`, **not deployed**, nothing tested against the real WhatsApp service. See `docs/whatsapp-crm-plan.md` for the page list, limits and what was and was not tested. All pages are administrator-only. Sending stays in preview until an administrator switches WhatsApp to live.
+
+
+## Precision fixes, readable cards, dark mode and hosted check (branch `precision-fixes`)
+
+**Status:** built locally, **not deployed**. See `docs/hosting.md` for the scheduler setup (two GitHub secrets and one Vercel setting are still needed from the owner).
+- Detector: never flags a quantity close to what the hostel asked in any other month; ignores differences under 1 kg or litre (3 for other units); does not trust a student count under 30; drops Minor flags that rest on similar hostels alone; re-checks older open flags.
+- Student counts: the largest total over the last 7 days of the attendance report is used (a day with only some classes marked no longer gives a tiny number).
+- Cards and pages: readable item names, Hostel ID, request IDs and the hostel phone; chart rebuilt with readable text; Excel button aligned; dark mode with a toggle (device default); tokenised search in any format; supplier cards open exactly the orders they counted; per-order problem labels use the order's own month; fully served / short / waiting tiles; supplied quantities judged only from dispatch; districts saved automatically.
+- Hourly check can run from the website (`/api/cron/cycle`) or the worker (`serve`), with a database lock.
+- Not verified against production data (read access was not available): the student-count fix and the supplied-quantity change should be confirmed with the two read-only commands in `docs/hosting.md`.
