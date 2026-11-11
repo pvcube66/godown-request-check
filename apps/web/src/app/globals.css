@@ -1276,3 +1276,9 @@ html[data-theme="dark"] .wa-bubble .mut,html[data-theme="dark"] .wa-bubble .wa-b
 .flagged-row{background:var(--alert-high-tint)}.tag-flag{font-size:12px;font-weight:650;color:var(--alert-high)}
 .filters .check{display:inline-flex;align-items:center;gap:6px;min-height:36px;color:var(--ink-2)}
 .filters .select .search-box{min-width:260px}
+
+/* Dark mode: table rows and cells on hover stayed light (the light hover colour was set on each cell). */
+html[data-theme="dark"] .order-table tbody tr:hover td,
+html[data-theme="dark"] .order-table tbody tr:hover th,
+html[data-theme="dark"] .order-table tbody tr:nth-child(even):hover td{background:#1c1c1c}
+html[data-theme="dark"] .order-table tbody tr:hover{background:#1c1c1c}
