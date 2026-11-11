@@ -175,30 +175,47 @@ async function HomeContent({ sp }: { sp: SP }) {
         ];
         const numbered = cards.map((x, ci) => ({ ...x, node: cloneElement(x.node, { no: `${sn}.${ci + 1}` }) }));
         return (
-          <details className={`hostel hostel-tile tile sev-${top1.severity}`} key={`${top1.godownId}|${top1.hostelCode}`}>
-            <summary className="hostel-head tile-face">
-              <span className="tf-r1">
-                <span className="tf-name"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><span className="tf-nm">{hostelLabel(top1.hostelName)}</span></span>
-                {top1.severity !== sev && <span className={`pill ${top1.severity}`}>{SEVERITY[top1.severity].label}</span>}
-                <Icon name="chevron" size={15} />
+          <details className={`hostel hostel-tile tile hc sev-${top1.severity}`} key={`${top1.godownId}|${top1.hostelCode}`}>
+            <summary className="hc-head">
+              <span className="hc-top">
+                <span className="hc-no" aria-label={`Number ${sn}`}>{sn}</span>
+                <span className="hc-title">
+                  <span className="hc-name">{hostelLabel(top1.hostelName)}</span>
+                  <span className="hc-meta">{top1.districtName} · ID {top1.hostelCode}</span>
+                </span>
+                <Icon name="chevron" size={16} />
               </span>
-              <span className="tf-r2">{top1.districtName}<span className="hid">ID {top1.hostelCode}</span>{cards.length > 1 && <span className="count-chip">{cards.length} issues</span>}</span>
-              <span className="tf-r3" title={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toLocaleString('en-IN', { maximumFractionDigits: 1 })} times the usual`}>
-                {top1.kind === 'duplicate'
-                  ? <><b>{Math.round((top1.dup?.similarity ?? 0) * 100)}%</b><span className="tf-note">alike{top1.dup?.items ? ` across ${top1.dup.items} items` : ''}: two requests that look the same</span></>
-                  : <><b>{top1.ratio >= 1000 ? '999+' : top1.ratio >= 10 ? Math.round(top1.ratio).toLocaleString('en-IN') : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b>
-                    {top1.kind === 'order' || top1.expected <= 0
-                      ? <span className="tf-note">{top1.kind === 'order' ? 'bigger than similar hostels' : 'more than usual'}</span>
-                      : <span className="tf-bar2" aria-label={`usually ${num(top1.expected)}, this time ${num(top1.requested)}`}>
-                          <span className="tf-track"><i style={{ width: `${Math.max(2, Math.min(100, (top1.expected / Math.max(top1.requested, top1.expected)) * 100))}%` }} /></span>
-                          <span className="tf-nums"><span className="tf-item">{itemLabel(top1.item.split(' [unit:')[0]!)}</span> <em>{withUnit(top1.expected < 0.1 ? '<0.1' : num(top1.expected), unitFor(top1.item, units))}</em> → <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b></span>
-                        </span>}</>}
+              <span className="hc-body">
+                {top1.kind === 'duplicate' ? (
+                  <>
+                    <span className="hc-fig"><b>{Math.round((top1.dup?.similarity ?? 0) * 100)}%</b><small>alike</small></span>
+                    <span className="hc-detail">
+                      <span className="hc-line">Two requests that look the same</span>
+                      {top1.dup?.items ? <span className="hc-sub">{top1.dup.items} items match</span> : null}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="hc-fig">
+                      <b>{top1.ratio >= 1000 ? '999+' : top1.ratio >= 10 ? Math.round(top1.ratio).toLocaleString('en-IN') : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b>
+                      <small>{top1.kind === 'order' || top1.expected <= 0 ? 'bigger than similar hostels' : 'the usual amount'}</small>
+                    </span>
+                    <span className="hc-detail">
+                      <span className="hc-line">{top1.kind === 'order' ? 'Whole order' : itemLabel(top1.item.split(' [unit:')[0]!)}</span>
+                      {top1.kind !== 'order' && top1.expected > 0 && (
+                        <span className="hc-sub">Usually {withUnit(top1.expected < 0.1 ? '<0.1' : num(top1.expected), unitFor(top1.item, units))} · asked <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b></span>
+                      )}
+                      {top1.kind === 'order' && <span className="hc-sub">Asked <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b> in total</span>}
+                    </span>
+                  </>
+                )}
               </span>
-              <span className="tf-chips">
-                {duplicates.length > 0 && <i className="kchip k-duplicate">Possible duplicate</i>}
-                {orders.length > 0 && <i className="kchip k-order">Whole order too big</i>}
-                {typing.length > 0 && <i className="kchip k-typing">Same number typed</i>}
-                {spikes.length > 0 && <i className="kchip k-spike">Unusual quantity</i>}
+              <span className="hc-foot">
+                <span className="hc-problems">
+                  {[duplicates.length && 'Possible duplicate', orders.length && 'Whole order too big', typing.length && 'Same number typed', spikes.length && 'Unusual quantity'].filter(Boolean).slice(0, 2).map((t) => <span key={t as string}>{t}</span>)}
+                  {[duplicates.length, orders.length, typing.length, spikes.length].filter(Boolean).length > 2 && <span>+ more</span>}
+                </span>
+                {cards.length > 1 && <span className="hc-count">{cards.length} issues</span>}
               </span>
             </summary>
             <p className="tile-profile"><Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link></p>
