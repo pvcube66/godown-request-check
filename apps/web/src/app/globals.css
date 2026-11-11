@@ -1192,3 +1192,81 @@ input[type="checkbox"],input[type="radio"],.master-field input[type="checkbox"],
 /* ---- card extras: request IDs and the hostel phone ---- */
 details.hc>.tile-profile{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
 .tile-phone{color:var(--ink-2)}.tile-phone a{color:var(--ink);font-weight:600}
+
+/* ---- month-by-month chart: real-pixel text (no shrinking), same footprint as before ---- */
+.hc2{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:6px;align-items:end;min-height:150px}
+.hc2-col{display:grid;grid-template-rows:auto 84px auto;gap:4px;justify-items:center;min-width:0;text-align:center}
+.hc2-val{font-size:12.5px;font-weight:650;color:var(--ink);line-height:1.15;font-variant-numeric:tabular-nums;align-self:end;max-width:100%;overflow-wrap:anywhere}
+.hc2-val small{display:block;font-size:11px;font-weight:500;color:var(--muted)}
+.hc2-val em{font-style:italic;font-weight:500;font-size:11px;color:var(--muted)}
+.hc2-track{display:flex;align-items:flex-end;width:70%;max-width:34px;height:84px;border-bottom:1px solid var(--line)}
+.hc2-bar{display:block;width:100%;border-radius:4px 4px 0 0;background:var(--normal)}
+.hc2-col.bad .hc2-bar{background:var(--alert-high)}.hc2-col.bad .hc2-val{color:var(--alert-high)}
+.hc2-col.peer .hc2-bar{background:repeating-linear-gradient(135deg,var(--brand-line) 0 3px,var(--paper) 3px 6px);box-shadow:inset 0 0 0 1px var(--ink)}
+.hc2-lab{font-size:12px;font-weight:550;color:var(--ink-2);line-height:1.15;max-width:100%}
+.hc2-lab b{display:block;font-size:10.5px;color:var(--alert-high);font-weight:650}
+.hc-nums{display:none}
+
+/* ---- filter row: every control sits on the same bottom line, Excel included ---- */
+.filters{align-items:flex-end}
+.filters .select select{min-height:36px;box-sizing:border-box}
+.filters .dl-link{align-self:flex-end;margin-left:auto;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 4px}
+.filters .seg{align-self:flex-end;min-height:36px}
+
+/* ==================================================================================
+   DARK THEME. Switched by <html data-theme="dark"> (device setting by default; the toggle top right overrides and is remembered).
+   ================================================================================== */
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --page:#0a0a0a; --paper:#141414; --surface:#0f0f0f; --line:#2a2a2a; --line-strong:#3d3d3d;
+  --ink:#ededed; --ink-2:#bdbdbd; --muted:#999999;
+  --brand:#ededed; --brand-2:#ffffff; --brand-3:#ffffff; --brand-tint:#1f1f1f; --brand-line:#3d3d3d;
+  --accent:#52a8ff; --accent-tint:#0b1b2e;
+  --alert-high:#ff6166; --alert-high-tint:#2c1014; --alert-mid:#f5a623; --alert-mid-tint:#2b1e07; --ok:#3ecf8e; --ok-tint:#0b2417;
+  --sev-high:#ff6166; --sev-medium:#f5a623; --sev-low:#8f8f8f;
+  --normal:#5a5a5a; --peer:#242424; --input-line:#3d3d3d;
+  --sh1:0 0 0 1px rgba(255,255,255,.08); --sh2:0 0 0 1px rgba(255,255,255,.1),0 8px 24px -8px rgba(0,0,0,.7);
+}
+html[data-theme="dark"] ::selection{background:#52a8ff55;color:#fff}
+html[data-theme="dark"] .sidebar-link:hover,html[data-theme="dark"] .sidebar-signout:hover{background:#1f1f1f;color:var(--ink)}
+html[data-theme="dark"] .sidebar-link.on{background:#1c1c1c;box-shadow:0 0 0 1px var(--line-strong)}
+html[data-theme="dark"] .seg,html[data-theme="dark"] .bar,html[data-theme="dark"] .hc-no,html[data-theme="dark"] .type-n{background:#222}
+html[data-theme="dark"] .seg a.on,html[data-theme="dark"] .seg button.on{background:#2e2e2e;color:var(--ink);box-shadow:0 0 0 1px var(--line-strong)}
+html[data-theme="dark"] .primary,html[data-theme="dark"] .btn.primary-ish,html[data-theme="dark"] .type-chip.on,html[data-theme="dark"] .login-card .primary.big{background:#ededed;color:#0a0a0a}
+html[data-theme="dark"] .primary:hover,html[data-theme="dark"] .btn.primary-ish:hover{background:#fff;color:#0a0a0a}
+html[data-theme="dark"] .type-chip.on .type-n{background:rgba(0,0,0,.15);color:#0a0a0a}
+html[data-theme="dark"] .btn:hover{background:#1c1c1c;box-shadow:0 0 0 1px #555}
+html[data-theme="dark"] .btn.problem{background:#e5484d;color:#fff}
+html[data-theme="dark"] .order-table tbody tr:hover,html[data-theme="dark"] details.hc>summary.hc-head:hover{background:#1a1a1a}
+html[data-theme="dark"] .hc-body,html[data-theme="dark"] .pcard .pc-body,html[data-theme="dark"] .chat-msgs{background:#0f0f0f}
+html[data-theme="dark"] .pc-meter,html[data-theme="dark"] .hc2-track{background:#262626}
+html[data-theme="dark"] .pc-meter i{background:var(--ink)}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea,html[data-theme="dark"] .plain-input,html[data-theme="dark"] .search-box,html[data-theme="dark"] .bulk-bar select,html[data-theme="dark"] .chat-reply textarea,html[data-theme="dark"] .chat-reply select{background:var(--paper);color:var(--ink)}
+html[data-theme="dark"] .global-search input:focus-visible{background:var(--paper)}
+html[data-theme="dark"] .chat-msg{background:var(--paper)}
+html[data-theme="dark"] .chat-msg.out{background:#0b2036;box-shadow:0 0 0 1px #164a7c}
+html[data-theme="dark"] .alert-bar{box-shadow:0 0 0 1px #5a4310}html[data-theme="dark"] .alert-bar[role="alert"]{box-shadow:0 0 0 1px #6b2328}
+html[data-theme="dark"] .modal-back{background:rgba(0,0,0,.65)}
+html[data-theme="dark"] .login-main{background:var(--paper)}
+html[data-theme="dark"] .login-form input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px var(--paper) inset;-webkit-text-fill-color:var(--ink)}
+html[data-theme="dark"] .hc2-col.peer .hc2-bar{background:repeating-linear-gradient(135deg,#444 0 3px,var(--paper) 3px 6px);box-shadow:inset 0 0 0 1px var(--ink)}
+html[data-theme="dark"] .tpl-status,html[data-theme="dark"] .verdict-chip{filter:none}
+html[data-theme="dark"] .master-table th,html[data-theme="dark"] .order-table th{background:var(--paper)}
+html[data-theme="dark"] .wa-phone{background:#1b2a2f}
+
+/* the toggle itself */
+.theme-toggle{display:inline-grid;place-items:center;width:34px;height:34px;border:0;border-radius:var(--r1);background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line-strong);cursor:pointer}
+.theme-toggle:hover{background:var(--surface)}
+.theme-toggle svg{display:block}
+.theme-toggle .moon{display:none}html[data-theme="dark"] .theme-toggle .sun{display:none}html[data-theme="dark"] .theme-toggle .moon{display:block}
+.workspace-header{display:flex;align-items:center;gap:12px}.workspace-header .global-search{flex:1;min-width:0}
+.mobile-spacer{flex:1}
+:root{--bad:#b42318}
+html[data-theme="dark"]{--bad:#ff6166}
+html[data-theme="dark"] .master-button,html[data-theme="dark"] .sev-opt.on,html[data-theme="dark"] .sev-opt.on b,html[data-theme="dark"] .chat-unread,html[data-theme="dark"] .tab.on,html[data-theme="dark"] .grid-row .hit{color:#0a0a0a}
+html[data-theme="dark"] .master-button:hover{color:#0a0a0a}
+html[data-theme="dark"] .alert-bar a{color:inherit}
+html[data-theme="dark"] .wa-bubble,html[data-theme="dark"] .wa-body,html[data-theme="dark"] .wa-head,html[data-theme="dark"] .wa-foot,html[data-theme="dark"] .wa-time{color:#111}
+html[data-theme="dark"] .bad-text{color:var(--alert-high)}
+html[data-theme="dark"] .wiz-steps li.now span{background:#ededed;color:#0a0a0a;border-color:#ededed}
+html[data-theme="dark"] .wa-bubble .mut,html[data-theme="dark"] .wa-bubble .wa-body span{color:#666}
