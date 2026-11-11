@@ -135,16 +135,6 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
         </>
       )}
 
-      {v.checkpoint && v.checkpoint.rows.length > 0 && (
-        <details className="summary how">
-          <summary><h2 id="checkpoint">Month by month</h2></summary>
-          <div className="table-wrap"><table className="order-table dash-table">
-            <thead><tr><th>Supplier</th>{v.checkpoint.months.map((m) => <th key={m} className="num">{monthText(m)}</th>)}</tr></thead>
-            <tbody>{v.checkpoint.rows.map((r) => <tr key={r.key}><td><b>{r.label}</b></td>{v.checkpoint!.months.map((m) => { const x = r.months[m]; return <td key={m} className="num">{x ? <><span className={`verdict-chip ${x.verdict}`}>{VERDICT_TEXT[x.verdict]}</span><div className="small">{pct(x.fill)} sent · {x.orders} orders{x.backlog15 ? ` · ${x.backlog15} waiting 15+ days` : ''}</div></> : '—'}</td>; })}</tr>)}</tbody>
-          </table></div>
-        </details>
-      )}
-
       <details className="summary how">
         <summary><h2>How are these numbers worked out?</h2></summary>
         <ol>

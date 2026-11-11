@@ -39,13 +39,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   return (
     <div className="orders-page">
       <section className="hero">
-        <p className="greet">Order tracking</p>
         <h1>{num(all.length)} {tab === 'all' ? (all.length === 1 ? 'order' : 'orders') : `${TABS.find((t) => t.key === tab)?.label} ${all.length === 1 ? 'order' : 'orders'}`}</h1>
-        <p className="lede">
-          Longest-waiting first.
-          {late > 0 && <> <b>{num(late)}</b> {late === 1 ? 'has' : 'have'} been waiting over two weeks.</>}
-        </p>
-        <p className="status">{lastSeen ? <>Last updated from the portal {fmtDay(lastSeen)}.</> : 'No orders recorded yet. They appear after the next hourly check.'}</p>
       </section>
 
       <div className="order-seg-wrap">
@@ -145,7 +139,6 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                 : <span className="pager-btn off" aria-disabled="true">Next <Icon name="chevronRight" size={16} /></span>}
             </div>
           </nav>
-          <p className="mut small">Numbers in the stage columns are days spent there (<b>d</b> = days). Hover for the date.</p>
         </>
       )}
     </div>

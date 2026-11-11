@@ -11,9 +11,7 @@ import { groupFlags } from '@/lib/group';
 import { loadHistory, loadOrderItems, loadRequestsById } from '@/lib/history';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
-import BarChart from './BarChart';
 import FilterSelect from './FilterSelect';
-import SearchBox from './SearchBox';
 import { scoped, canEdit, getWaitDays, type AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
@@ -66,28 +64,16 @@ async function HomeContent({ sp }: { sp: SP }) {
   const attention = { ...scope, status: 'open', severity: { $in: ['high', 'medium'] } };
   const showSummary = view === 'open';
 
-  const [kindCounts, rows, counts, months, districts, topRows, byDistrict, byItem, lastRun, requestMonths] = await Promise.all([
+  const [kindCounts, rows, counts, months, districts, lastRun, requestMonths] = await Promise.all([
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: '$kind', n: { $sum: 1 } } }]).toArray(),
     c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: '$severity', n: { $sum: 1 } } }]).toArray(),
     c.anomalies.distinct('month', scoped({}, names)),
     c.anomalies.distinct('districtName', scoped({}, names)),
-    showSummary ? c.anomalies.find({ ...scope, status: 'open', severity: 'high' } as never).sort({ ratio: -1 }).limit(60).toArray() : [],
-    showSummary ? c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: attention }, { $group: { _id: '$districtName', h: { $addToSet: '$hostelCode' } } }, { $project: { n: { $size: '$h' } } }, { $sort: { n: -1 } }, { $limit: 6 }]).toArray() : [],
-    showSummary ? c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: attention }, { $group: { _id: '$item', h: { $addToSet: '$hostelCode' } } }, { $project: { n: { $size: '$h' } } }, { $sort: { n: -1 } }, { $limit: 6 }]).toArray() : [],
     c.runs.find().sort({ startedAt: -1 }).limit(1).next(),
     c.requests.distinct('month', scoped({}, names)),
   ]);
   const count = (s: string) => counts.find((x) => x._id === s)?.n ?? 0;
-
-  // Start-here list: one line per hostel. A typing mistake counts as one line, not five.
-  const seen = new Set<string>();
-  const top: { hostel: AnomalyDoc; text: 'typing' | 'spike' | 'order' | 'duplicate'; a: AnomalyDoc; n: number }[] = [];
-  for (const r of topRows) {
-    if (seen.has(r.hostelCode)) continue; seen.add(r.hostelCode);
-    top.push({ hostel: r, a: r, text: r.kind === 'typing' ? 'typing' : r.kind === 'order' ? 'order' : r.kind === 'duplicate' ? 'duplicate' : 'spike', n: r.slip?.count ?? r.order?.itemsCompared ?? r.dup?.items ?? 1 });
-    if (top.length === 3) break;
-  }
 
   const byHostel = new Map<string, AnomalyDoc[]>();
   for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}`; (byHostel.get(k) ?? byHostel.set(k, []).get(k)!).push(r); }
@@ -125,9 +111,7 @@ async function HomeContent({ sp }: { sp: SP }) {
   return (
     <>
       <section className="hero">
-        <p className="greet">{greeting}. Today is {dateLine}.</p>
         <h1>{headline}</h1>
-        <p className="lede">{view === 'open' ? 'Biggest jumps first. Open a hostel to review.' : 'You can move any of these back to “To check”.'}</p>
         <p className={`status ${checkedOk === false ? 'bad' : ''}`}>
           <span className="live" aria-hidden="true" />
           {lastRun ? <>Last checked {ago(lastRun.startedAt)}. Next check at {nextCheck().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })}.</> : 'No check has run yet.'}
@@ -139,53 +123,18 @@ async function HomeContent({ sp }: { sp: SP }) {
       {viewer.role === 'admin' && health.needAttention > 0 && <p className="alert-bar" role="alert">{health.needAttention} godown {health.needAttention === 1 ? 'login needs' : 'logins need'} attention (portal sign-in failing). <Link href="/accounts">See Godowns</Link></p>}
       {overdue > 0 && <p className="alert-bar" role="status">{overdue} {overdue === 1 ? 'hostel has' : 'hostels have'} not sent a new indent {waitDays}+ {waitDays === 1 ? 'day' : 'days'} after a rejection. <Link href="/issues">See the list</Link></p>}
 
-      {showSummary && top.length > 0 && (
-        <details className="summary overview-details">
-          <summary><h2>Start here</h2><span className="mut">{top.length} biggest jumps — expand to review</span></summary>
-          <p className="sub-lede">These are the biggest jumps. Check these first.</p>
-          <ul>
-            {top.map(({ a, text, n }) => (
-              <li key={a.key}>
-                <span className="sum-icon"><Icon name={text === 'typing' ? 'pencil' : 'alert'} size={18} /></span>
-                <span>
-                  <b>{hostelLabel(a.hostelName)}</b>{' '}
-                  {text === 'duplicate'
-                    ? <>has two requests for {monthLabel(a.month)} that are <b>{Math.round((a.dup?.similarity ?? 0) * 100)}% the same</b> across <b>{n} items</b>. One may be a duplicate.</>
-                    : text === 'order'
-                    ? <>asked for <b>{timesMore(a.ratio).replace(' more', '')}</b> what hostels with a similar number of students ask, across <b>{n} items</b> in {monthLabel(a.month)}.</>
-                    : text === 'typing'
-                    ? <>entered the same number, <b>{num(a.slip!.value)}</b>, for <b>{n} different items</b> in {monthLabel(a.month)}. This may be a typing mistake.</>
-                    : <>asked for {itemLabel(a.item)}: <b>{num(a.requested)}</b>, when {a.method === 'peers' ? 'other hostels like it ask for' : 'it usually asks for'} about <b>{num(a.expected)}</b>.</>}
-                  {' '}<Link href={`/hostel/${a.hostelCode}?g=${a.godownId}`} className="link-arrow">See this hostel<Icon name="arrow" size={15} /></Link>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {showSummary && (byDistrict.length > 0 || byItem.length > 0) && (
-        <details className="summary overview-details">
-          <summary><h2>District and item overview</h2><span className="mut">Expand charts</span></summary>
-          <div className="charts">
-          <BarChart title="Where are the unusual requests?" note="Hostels to check, by district." unit="hostel" data={byDistrict.map((d) => ({ label: d._id, value: d.n }))} />
-          <BarChart title="What is asked for too much?" note="Items that many hostels asked for far more than usual." unit="hostel" data={byItem.map((d) => ({ label: itemLabel(d._id), value: d.n }))} />
-          </div>
-        </details>
-      )}
-
-      <nav className="tabs" aria-label="How big is the difference">
+      <nav className="sev-seg" aria-label="How big is the difference">
         {(['high', 'medium', 'low'] as const).map((s) => (
-          <Link key={s} href={qs(sp, { sev: s, p: '' })} className={`tab ${s} ${sev === s ? 'on' : ''}`} aria-current={sev === s ? 'page' : undefined}>
-            <span className="tab-icon"><Icon name={SEV_ICON[s]} size={20} /></span>
-            <span className="tab-body"><span className="tab-label">{SEVERITY[s].label}</span><b>{count(s)} <small>{count(s) === 1 ? 'item' : 'items'}</small></b><span>{SEVERITY[s].hint}.</span></span>
+          <Link key={s} href={qs(sp, { sev: s, p: '' })} className={`sev-opt ${s} ${sev === s ? 'on' : ''}`} aria-current={sev === s ? 'page' : undefined}>
+            <i className="dot" aria-hidden="true" />{SEVERITY[s].label}<b>{count(s)}</b>
           </Link>
         ))}
       </nav>
 
       <div className="filters">
-        <SearchBox base={Object.fromEntries(Object.entries(base).filter(([k]) => k !== 'q' && k !== 'all'))} q={q} />
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
+        <Link href={`/report/csv${reportQuery ? `?${reportQuery}` : ''}`} className="link-arrow dl-link"><Icon name="download" size={16} />Excel</Link>
         <div className="seg" role="group" aria-label="Which requests to show">
           {[['open', 'To check'], ['confirmed', 'Issues raised'], ['fine', 'Marked fine']].map(([v, l]) => (
             <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, p: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>
@@ -204,10 +153,6 @@ async function HomeContent({ sp }: { sp: SP }) {
         })}
       </nav>
 
-      <p className="report-links">
-        <Link href={`/report${reportQuery ? `?${reportQuery}` : ''}`} className="link-arrow"><Icon name="print" size={17} />Print or save as PDF</Link>
-        <Link href={`/report/csv${reportQuery ? `?${reportQuery}` : ''}`} className="link-arrow"><Icon name="download" size={17} />Download for Excel</Link>
-      </p>
 
       {groups.length === 0 && (
         <div className="empty">

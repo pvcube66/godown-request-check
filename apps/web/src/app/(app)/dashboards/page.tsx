@@ -30,9 +30,7 @@ export default async function Dashboards({ searchParams }: { searchParams: Promi
   return (
     <>
       <section className="hero">
-        <p className="greet">Dashboards</p>
         <h1>{num(rows.length)} orders{month ? ` placed in ${monthText(month)}` : ''}</h1>
-        <p className="lede">Click a number to see those orders. “7+ days” and “15+ days” = waiting at the same stage that long.</p>
       </section>
 
       <div className="order-seg-wrap">

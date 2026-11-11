@@ -866,3 +866,16 @@ main{max-width:none;padding:18px 22px 24px}
 .tab-body>span{display:inline}
 .tab-body>span:not(.tab-label){display:none}
 .perf-cards{margin-bottom:14px}
+
+/* Simpler first page: one small control for how big, one row of filters */
+.sev-seg{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
+.sev-opt{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink-2);font-weight:650;font-size:13.5px;text-decoration:none;box-shadow:var(--sh1)}
+.sev-opt .dot{width:10px;height:10px;border-radius:50%;background:var(--sev-low)}
+.sev-opt.high .dot{background:var(--sev-high)}.sev-opt.medium .dot{background:var(--sev-medium)}
+.sev-opt b{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.sev-opt:hover{border-color:var(--brand)}
+.sev-opt.on{background:var(--ink);border-color:var(--ink);color:#fff}.sev-opt.on b{color:#fff}
+.dl-link{margin-left:auto;align-self:center}
+.sidebar-group{display:block;margin:14px 12px 4px;font-size:11.5px;font-weight:650;letter-spacing:.04em;color:#8fb0b6;text-transform:none}
+.sidebar.collapsed .sidebar-group{display:none}
+details.quiet>summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:6px}

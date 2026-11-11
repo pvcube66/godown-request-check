@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Logo, Icon } from '@/components/Icons';
@@ -15,11 +16,11 @@ export type SidebarProps = {
 
 const LINKS = [
   { href: '/', label: 'Unusual requests', icon: 'alert', admin: false },
-  { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
-  { href: '/dashboards', label: 'Dashboards', icon: 'chart', admin: false },
-  { href: '/orders', label: 'Order tracking', icon: 'truck', admin: false },
-  { href: '/suppliers', label: 'Supplier performance', icon: 'scale', admin: false },
+  { href: '/orders', label: 'Orders', icon: 'truck', admin: false },
+  { href: '/suppliers', label: 'Suppliers', icon: 'scale', admin: false },
   { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
+  { href: '/dashboards', label: 'Dashboards', icon: 'chart', admin: false },
+  { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
   { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
   { href: '/users', label: 'Users', icon: 'user', admin: true },
   { href: '/whatsapp', label: 'WhatsApp', icon: 'chat', admin: true },
@@ -93,12 +94,14 @@ export default function Sidebar({
         </div>
 
         <nav className="sidebar-nav" aria-label="Main">
-          {LINKS.filter((l) => !l.admin || user.role === 'admin').map(({ href, label, icon }) => {
+          {LINKS.filter((l) => !l.admin || user.role === 'admin').map(({ href, label, icon, admin }, i, all) => {
             const on =
               href === '/'
                 ? path === '/' || path.startsWith('/hostel') || path.startsWith('/report')
                 : path.startsWith(href);
             return (
+              <Fragment key={href}>
+              {admin && !all[i - 1]?.admin && <span className="sidebar-group">Admin</span>}
               <Link
                 key={href}
                 href={href}
@@ -112,6 +115,7 @@ export default function Sidebar({
                 </span>
                 <span className="sidebar-label">{label}</span>
               </Link>
+              </Fragment>
             );
           })}
         </nav>

@@ -88,12 +88,6 @@ export default async function Hostel({ params, searchParams }: { params: Promise
       <section className="hero">
         <h1>{hostelLabel(reqs[0]!.hostelName)}</h1>
         <p className="where big"><Icon name="pin" size={17} />{reqs[0]!.districtName} district<span className="hid">Hostel ID {code}</span></p>
-        <ul className="facts">
-          <li>{size?.students ? <><b>{size.students.toLocaleString('en-IN')}</b> students</> : <span className="mut">Student count not available</span>}</li>
-          <li><b>{reqs.length}</b> request{reqs.length > 1 ? 's' : ''} on record</li>
-          <li><b>{months.length}</b> month{months.length > 1 ? 's' : ''} of history</li>
-          <li className={nCards ? 'warn' : 'good'}><b>{nCards}</b> to look at</li>
-        </ul>
       </section>
 
       <section className="summary" aria-labelledby="hostel-assignment">
@@ -107,12 +101,14 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         {!assignment.mapping && <p className="mut small">An administrator can import district assignments under Master data. Portal history is not reassigned or rewritten.</p>}
       </section>
 
-      <section className="summary" aria-labelledby="hostel-wa">
-        <h2 id="hostel-wa">WhatsApp reminders</h2>
-        {assignment.hostel?.whatsappOptOut && <p className="bad-text"><b>This hostel asked us to stop WhatsApp reminders.</b> None will be sent.</p>}
-        <WhatsAppHistory messages={whatsapp} />
-        {canEdit(viewer) && assignment.hostel && <OptOutForm godownId={assignment.hostel.godownId} hostelCode={code} optedOut={assignment.hostel.whatsappOptOut === true} />}
-      </section>
+      {(whatsapp.length > 0 || assignment.hostel?.whatsappOptOut) && (
+        <section className="summary" aria-labelledby="hostel-wa">
+          <h2 id="hostel-wa">WhatsApp reminders</h2>
+          {assignment.hostel?.whatsappOptOut && <p className="bad-text"><b>This hostel asked us to stop WhatsApp reminders.</b></p>}
+          <WhatsAppHistory messages={whatsapp} />
+          {canEdit(viewer) && assignment.hostel && <details className="quiet"><summary>Options</summary><OptOutForm godownId={assignment.hostel.godownId} hostelCode={code} optedOut={assignment.hostel.whatsappOptOut === true} /></details>}
+        </section>
+      )}
 
       <section className="summary" aria-labelledby="needs-attention">
         <h2 id="needs-attention">Needs attention now</h2>
@@ -185,24 +181,6 @@ export default async function Hostel({ params, searchParams }: { params: Promise
         )}
       </section>
 
-      <h2 className="sub">Everything this hostel asked for</h2>
-      <p className="lede small">Month by month. Numbers in red looked much bigger than usual. Rejected requests are not counted.</p>
-      <div className="grid" role="table" aria-label="Quantities requested each month">
-        <div className="grid-row head" style={cols} role="row"><span role="columnheader">Item</span>{months.map((m) => <span className="c" role="columnheader" key={m}>{monthLabel(m, true)}</span>)}</div>
-        {items.map((it) => (
-          <div className="grid-row" style={cols} key={it} role="row">
-            <span role="rowheader">{itemLabel(it)}</span>
-            {months.map((m) => <span key={m} className="c" role="cell"><span className={hit.has(`${it}|${m}`) ? 'hit' : ''}>{num(h[it]![m] ?? 0)}</span></span>)}
-          </div>
-        ))}
-      </div>
-
-      <h2 className="sub">Each request</h2>
-      <ul className="reqlist">
-        {[...reqs].sort((a, b) => b.requestDate.localeCompare(a.requestDate)).map((r) => (
-          <li key={r.requestId}><span>Placed on {r.requestDate.split('-').reverse().join('-')} for <b>{monthLabel(r.month)}</b></span><span className={`state ${/^reject/i.test(r.status) ? 'bad' : 'ok'}`}>{r.status.replace(/_/g, ' ')}</span></li>
-        ))}
-      </ul>
     </>
   );
 }

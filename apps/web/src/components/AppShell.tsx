@@ -68,14 +68,6 @@ export default function AppShell({ children, user }: { children: ReactNode; user
             <input id="global-query" name="q" type="search" maxLength={60} placeholder="Hostel name, code or request ID" autoComplete="off" />
             <button type="submit">Search</button>
           </form>
-          <div className="density-toggle" role="group" aria-label="Display density">
-            {(['compact', 'comfortable'] as const).map((value) => (
-              <button key={value} type="button" aria-pressed={density === value} onClick={() => {
-                setDensity(value);
-                try { localStorage.setItem('dashboard_density', value); } catch { /* Keep the setting for this session. */ }
-              }}>{value === 'compact' ? 'Compact' : 'Comfortable'}</button>
-            ))}
-          </div>
         </header>
 
         <main id="main">{children}</main>
