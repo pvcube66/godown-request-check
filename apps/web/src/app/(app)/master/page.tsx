@@ -25,7 +25,8 @@ function Pager({ query, page, total, field, anchor }: { query: Query; page: numb
       if (value) params.set(key, value);
     }
     params.set(field, String(next));
-    return `/master?${params.toString()}#${anchor}`;
+    params.set('tab', anchor);
+    return `/master?${params.toString()}`;
   };
   return <nav className="master-pager" aria-label={`${anchor} pages`}>
     <span>{total} records · Page {page} of {last}</span>
@@ -46,6 +47,8 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
   </div>;
 
   const query = await searchParams;
+  const TABS = [['mappings', 'Mappings'], ['items', 'Item master'], ['contacts', 'Contacts'], ['changes', 'Change log']] as const;
+  const tab = (TABS.find(([k]) => k === queryText(query, 'tab'))?.[0] ?? 'mappings') as 'mappings' | 'items' | 'contacts' | 'changes';
   const itemQuery = queryText(query, 'items'), hostelQuery = queryText(query, 'hostels');
   const itemFilter = itemQuery ? { name: { $regex: escaped(itemQuery), $options: 'i' } } : {};
   const hostelFilter = hostelQuery ? { $or: [{ hostelName: { $regex: escaped(hostelQuery), $options: 'i' } }, { hostelCode: { $regex: escaped(hostelQuery), $options: 'i' } }] } : {};
@@ -74,18 +77,18 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
       <div><h1>Master data</h1><p>Keep district assignments, item details and business contacts consistent without changing the government portal.</p></div>
       
     </header>
-    <nav className="master-nav" aria-label="Master data sections">
-      <a href="#mappings">Mappings</a><a href="#items">Item master</a><a href="#contacts">Contacts</a><a href="#changes">Change log</a>
+    <nav className="seg order-seg master-tabs" aria-label="Master data sections">
+      {TABS.map(([k, label]) => <Link key={k} href={`/master?tab=${k}`} className={k === tab ? 'on' : ''} aria-current={k === tab ? 'page' : undefined}>{label}</Link>)}
     </nav>
 
-    <section className="master-section master-bootstrap" aria-labelledby="master-bootstrap-title">
+    {tab === 'mappings' && <section className="master-section master-bootstrap" aria-labelledby="master-bootstrap-title">
       <div><h2 id="master-bootstrap-title">Start with data already stored here</h2><p>Bootstrap godowns, hostels and districts from saved accounts and requests. This does not log in to, refresh or write to the portal.</p>
         <p className="master-note">Catalog: {districts.length} districts, {godowns.length} godowns, {suppliers.length} suppliers. Import the mapping sheet to add suppliers and dated assignments.</p>
       </div>
       <ActionForm action={bootstrapAction} submitLabel="Bootstrap stored data" pendingLabel="Reading stored data…" />
-    </section>
+    </section>}
 
-    <section className="master-section" id="mappings" aria-labelledby="master-mappings-title">
+    {tab === 'mappings' && <section className="master-section" id="mappings" aria-labelledby="master-mappings-title">
       <div className="master-section-heading"><h2 id="master-mappings-title">District → godown → supplier</h2><span>{mappings.length} history records</span></div>
       <p>Every assignment uses From [inclusive] and To [exclusive]. For example, an assignment ending on 1 June does not include 1 June; its successor starts that day. Blank To means open-ended, not necessarily current.</p>
       {!godowns.length && <p className="master-empty">No godown catalog yet. Bootstrap stored data first. If it is still empty, an authorized administrator must add a godown in Godowns; uploads never invent portal godown IDs.</p>}
@@ -124,11 +127,11 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
           <td><time dateTime={m.from}>{m.from}</time></td><td>{m.to ? <time dateTime={m.to}>{m.to}</time> : 'Open-ended'}</td><td>{m.remarks || '—'}</td><td>{m.changedBy}<span className="master-meta"><time dateTime={m.createdAt.toISOString()}>{timestamp(m.createdAt)} IST</time></span></td>
         </tr>)}</tbody>
       </table></div>}
-    </section>
+    </section>}
 
-    <section className="master-section" id="items" aria-labelledby="master-items-title">
+    {tab === 'items' && <section className="master-section" id="items" aria-labelledby="master-items-title">
       <h2 id="master-items-title">Item master</h2><p>Correct units, pack sizes, brands and categories without changing the observed item identity or historical order snapshots. Blank fields explicitly mark metadata as unknown.</p>
-      <form className="master-search" method="get" action="/master#items"><label className="master-field">Find item by name<input name="items" defaultValue={itemQuery} maxLength={100} type="search" /></label><input type="hidden" name="hostels" value={hostelQuery} /><button className="master-button" type="submit">Find items</button></form>
+      <form className="master-search" method="get" action="/master"><input type="hidden" name="tab" value="items" /><label className="master-field">Find item by name<input name="items" defaultValue={itemQuery} maxLength={100} type="search" /></label><input type="hidden" name="hostels" value={hostelQuery} /><button className="master-button" type="submit">Find items</button></form>
       {!items.length && <p className="master-empty">{itemQuery ? 'No items match this name. Clear the search to see the catalog.' : 'No item observations are stored yet. The next normal background sync will populate the item master; this page never fetches from the portal.'}</p>}
       <div className="master-records">{items.map((item) => {
         const metadata = effectiveItemMetadata(item);
@@ -144,9 +147,9 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
         </details>;
       })}</div>
       <Pager query={query} page={itemPage} total={itemTotal} field="ip" anchor="items" />
-    </section>
+    </section>}
 
-    <section className="master-section" id="contacts" aria-labelledby="master-contacts-title">
+    {tab === 'contacts' && <section className="master-section" id="contacts" aria-labelledby="master-contacts-title">
       <h2 id="master-contacts-title">Business contacts</h2><p>Use official work numbers only: exactly 10 digits, without spaces or +91. Leave a number or contact person blank to remove it. Contact edits and their audit entries commit together.</p>
       <h3 className="master-subheading">Godown in-charges</h3>
       {!godowns.length && <p className="master-empty">Bootstrap stored accounts to load the godown catalog before editing contacts.</p>}
@@ -158,7 +161,7 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
         </ActionForm></div>
       </details>)}</div>
       <h3 className="master-subheading">Hostel phones</h3>
-      <form className="master-search" method="get" action="/master#contacts"><label className="master-field">Find hostel by name or code<input name="hostels" defaultValue={hostelQuery} maxLength={100} type="search" /></label><input type="hidden" name="items" value={itemQuery} /><button className="master-button" type="submit">Find hostels</button></form>
+      <form className="master-search" method="get" action="/master"><input type="hidden" name="tab" value="contacts" /><label className="master-field">Find hostel by name or code<input name="hostels" defaultValue={hostelQuery} maxLength={100} type="search" /></label><input type="hidden" name="items" value={itemQuery} /><button className="master-button" type="submit">Find hostels</button></form>
       {!hostels.length && <p className="master-empty">{hostelQuery ? 'No hostels match. Clear the search or bootstrap stored request data.' : 'No hostels in the master catalog yet. Bootstrap saved requests; there is no contacts or operators sheet import on this page.'}</p>}
       <div className="master-records">{hostels.map((h) => <details className="master-record" key={`${h.godownId}:${h.hostelCode}`}>
         <summary><span><strong>{h.hostelName}</strong><span className="master-meta">{h.hostelCode} · {districtByCode.get(h.districtCode)?.name ?? h.districtName} ({h.districtCode || 'district not linked'}) · {godownById.get(h.godownId)?.name ?? 'Unknown godown'} (ID {h.godownId}) · {h.hostelPhone || 'No phone'}</span></span><span className="master-edit-label">Edit phone</span></summary>
@@ -168,14 +171,14 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
         </ActionForm></div>
       </details>)}</div>
       <Pager query={query} page={hostelPage} total={hostelTotal} field="hp" anchor="contacts" />
-    </section>
+    </section>}
 
-    <section className="master-section" id="changes" aria-labelledby="master-changes-title">
+    {tab === 'changes' && <section className="master-section" id="changes" aria-labelledby="master-changes-title">
       <h2 id="master-changes-title">Change log</h2><p>Latest 100 recorded changes. All times are India Standard Time (IST).</p>
       {!audit.length ? <p className="master-empty">No changes have been recorded yet. Imports, reassignments and contact or item corrections will appear here with their actor and time.</p> : <div className="master-table-wrap" role="region" aria-label="Master data change log" tabIndex={0}><table className="master-table">
         <caption>Most recent changes first</caption><thead><tr><th scope="col">Time (IST)</th><th scope="col">Actor</th><th scope="col">Action</th><th scope="col">Target / code</th></tr></thead>
         <tbody>{audit.map((entry, index) => <tr key={index}><td><time dateTime={entry.at.toISOString()}>{timestamp(entry.at)}</time></td><td>{entry.actor}</td><td>{entry.action}</td><td className="master-break">{entry.target}</td></tr>)}</tbody>
       </table></div>}
-    </section>
+    </section>}
   </div>;
 }

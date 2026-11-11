@@ -1,3 +1,8 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+vi.mock('./ActionForm', () => ({ default: ({ submitLabel, children }: { submitLabel?: string; children?: unknown }) => createElement('form', null, submitLabel, children as never) }));
+vi.mock('./ImportForm', () => ({ default: () => createElement('form') }));
+vi.mock('next/link', () => ({ default: ({ href, className, children, ...rest }: { href: string; className?: string; children?: unknown }) => createElement('a', { href, className, ...rest }, children as never) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSession } from 'mongodb';
 
@@ -90,9 +95,12 @@ describe('master access isolation', () => {
     expect(getDb).toHaveBeenCalledOnce();
     for (const table of Object.values(tables)) expect(table.find).toHaveBeenCalledOnce();
     expect(tables.itemsMaster.find).toHaveBeenCalledWith({ name: { $regex: '\\.\\*', $options: 'i' } });
-    expect(JSON.stringify(page)).toContain('Bootstrap stored data');
-    expect(JSON.stringify(page)).toContain('No mapping history yet');
-    expect(JSON.stringify(page)).toContain('No changes have been recorded yet');
+    const html = renderToStaticMarkup(page);
+    expect(html).toContain('Bootstrap stored data');
+    expect(html).toContain('No mapping history yet');
+    const changes = renderToStaticMarkup(await MasterPage({ searchParams: Promise.resolve({ tab: 'changes' }) }));
+    expect(changes).toContain('No changes have been recorded yet');
+    expect(changes).not.toContain('No mapping history yet');
   });
   it.each([bootstrapAction, importAction, reassignAction, itemCorrectionAction, godownContactAction, hostelContactAction])('guards every privileged action before DB access: %s', async (action) => {
     vi.mocked(requireMasterAdmin).mockRejectedValue(new Error('locked'));
