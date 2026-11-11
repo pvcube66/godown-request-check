@@ -71,3 +71,13 @@ export async function loadHostelPhones(c: Collections, pairs: { godownId: number
   for (const r of rows) if (r.hostelPhone) out.set(`${r.godownId}|${r.hostelCode}`, r.hostelPhone);
   return out;
 }
+
+/** Hostel phone for each hostel code (for screens that list orders or search results, where the godown is not needed). */
+export async function phonesByHostelCode(c: Collections, codes: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = [...new Set(codes.filter(Boolean))];
+  if (!unique.length) return out;
+  const rows = await c.hostelsMaster.find({ hostelCode: { $in: unique }, hostelPhone: { $nin: [null, ''] } } as never, { projection: { hostelCode: 1, hostelPhone: 1 } }).toArray();
+  for (const r of rows) if (r.hostelPhone && !out.has(r.hostelCode)) out.set(r.hostelCode, r.hostelPhone);
+  return out;
+}

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, num } from '@/lib/format';
+import { phonesByHostelCode } from '@/lib/history';
 import { daysSincePlaced, fmtDay, hostelIssueTypes, loadOrders, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
 import { godownLabels } from '@/lib/dashboard';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
@@ -31,7 +32,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const shown = all.slice(offset, offset + PAGE_SIZE);
   const base = Object.fromEntries(Object.entries(sp).filter(([k, v]) => v && k !== 'p')) as Record<string, string>;
   const late = all.filter((o) => urgency(o, now) === 'late').length;
-  const [issueTypes, label] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn) }))), godownLabels(c)]);
+  const [issueTypes, label, phones] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn) }))), godownLabels(c), phonesByHostelCode(c, shown.map((o) => o.hostelCode))]);
   const stuckDays = (STUCK_DAYS as readonly number[]).includes(Number(sp.stuck)) ? Number(sp.stuck) : 0;
   const lastSeen = all.reduce<Date | null>((m, o) => (!m || o.lastSeenAt > m ? o.lastSeenAt : m), null);
 
@@ -104,7 +105,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                   return (
                     <tr key={o.requestId}>
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>
-                      <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">{o.districtName}{issue && <span className="flag-note"> · {issue}</span>}</div></td>
+                      <td><Link href={`/hostel/${o.hostelCode}`}>{hostelLabel(o.hostelName)}</Link><div className="mut small">{o.districtName}{phones.get(o.hostelCode) && <> · <a href={`tel:${phones.get(o.hostelCode)!.replace(/[^+0-9]/g, '')}`}>{phones.get(o.hostelCode)}</a></>}{issue && <span className="flag-note"> · {issue}</span>}</div></td>
                       <td>{fmtDay(o.placedOn)}{placed !== null && <div className="mut small">{num(placed)}d ago</div>}</td>
                       <td><span className={`stage-chip st-${o.stage}`}>{STAGE_LABEL[o.stage]}</span>{OPEN_STAGES.includes(o.stage)
                         ? <div className={`small now-days ${u}`}>{num(daysInStage(o, now))} {daysInStage(o, now) === 1 ? 'day' : 'days'}</div>

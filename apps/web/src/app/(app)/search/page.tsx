@@ -5,6 +5,7 @@ import { scopeFor } from '@/lib/viewer';
 import { hostelLabel } from '@/lib/format';
 import { fmtDay } from '@/lib/orders';
 import { searchDashboard, searchQuery, SEARCH_LIMIT } from '@/lib/search';
+import { phonesByHostelCode } from '@/lib/history';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Search' };
@@ -14,6 +15,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const c = await getDb();
   const { names } = await scopeFor(c);
   const results = q ? await searchDashboard(c, q, names) : null;
+  const phones = results ? await phonesByHostelCode(c, results.hostels.map((h) => h.hostelCode)) : new Map<string, string>();
   return (
     <>
       <section className="hero">
@@ -33,7 +35,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         {!!results.hostels.length && <section aria-labelledby="hostel-results">
           <h2 id="hostel-results" className="sub">Hostels</h2>
           <ul className="reqlist search-results">{results.hostels.map((h) => <li key={`${h.godownId}|${h.hostelCode}`}>
-            <div><Link href={`/hostel/${encodeURIComponent(h.hostelCode)}?g=${h.godownId}`}>{hostelLabel(h.hostelName)}</Link><p className="mut small">Hostel {h.hostelCode} · {h.districtName} · {h.godownName}</p></div>
+            <div><Link href={`/hostel/${encodeURIComponent(h.hostelCode)}?g=${h.godownId}`}>{hostelLabel(h.hostelName)}</Link><p className="mut small">Hostel {h.hostelCode}{phones.get(h.hostelCode) && <> · <a href={`tel:${phones.get(h.hostelCode)!.replace(/[^+0-9]/g, '')}`}>{phones.get(h.hostelCode)}</a></>} · {h.districtName} · {h.godownName}</p></div>
           </li>)}</ul>
           {results.moreHostels && <p className="mut small">Showing the first {SEARCH_LIMIT} hostels. Refine your search to find others.</p>}
         </section>}
