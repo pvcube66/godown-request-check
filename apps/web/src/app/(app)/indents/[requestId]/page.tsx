@@ -43,7 +43,7 @@ export default async function IndentView({ params }: { params: Promise<{ request
         <p className="lede small"><Link href={`/orders/${encodeURIComponent(order.requestId)}`} className="link-arrow">Order tracking<Icon name="arrow" size={14} /></Link> <Link href={`/hostel/${encodeURIComponent(order.hostelCode)}`} className="link-arrow">Hostel page<Icon name="arrow" size={14} /></Link></p>
       </section>
       {flags.length > 0 && <p className="alert-bar" role="status">{flags.length} unusual request{flags.length === 1 ? '' : 's'} for this hostel in {monthLabel(month)}. The items are highlighted below.</p>}
-      {rows.length === 0 ? <div className="empty">The item list for this indent is not stored yet. It appears after the next full check.</div> : (
+      {rows.length === 0 ? <div className="empty">The portal returned no items for this indent.</div> : (
         <div className="table-wrap"><table className="order-table">
           <thead><tr><th>Item</th><th className="num">Asked for</th><th>Pack size</th>{hasSupplied && <th className="num">Supplied</th>}<th /></tr></thead>
           <tbody>{rows.map((r) => {

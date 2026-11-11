@@ -29,7 +29,7 @@ export default async function IssuePage({ params }: { params: Promise<{ issueId:
   ]);
   const flagged = new Set(flags.map((a) => flaggedItemName(a.item)));
   const shownIds = [...new Set([...issue.targetRequestIds, ...(issue.newRequestId ? [issue.newRequestId] : [])])];
-  const indents = await Promise.all(shownIds.map(async (id) => ({ id, rows: await loadIndent(c, id), isNew: id === issue.newRequestId })));
+  const indents = await Promise.all(shownIds.map(async (id) => ({ id, rows: await loadIndent(c, id, { live: false }), isNew: id === issue.newRequestId })));
   const w = waitingDays(issue, now); const late = isOverdue(issue, waitDays, now);
   const open = ACTIVE_STATES.includes(issue.state);
 
