@@ -1,17 +1,18 @@
 /* Release 0: printed-ledger tokens. Colour is reserved for labelled alerts/status. */
 :root{
-  --paper:#ffffff; --surface:#f5f5f5; --line:#e2e2e2; --line-strong:#0a0a0a;
-  --ink:#0a0a0a; --ink-2:#3d3d3d; --muted:#6b6b6b;
-  --alert-high:#b3261e; --alert-mid:#8a5a00; --alert-mid-tint:#fff4d6; --ok:#1a6b3a;
-  --normal:#929292; --peer:#eeeeee; --input-line:#929292;
-  /* Existing components use these aliases; non-alert accents stay monochrome. */
-  --bg:var(--paper); --card:var(--paper); --mut:var(--muted); --line-2:var(--line);
-  --brand:var(--ink); --brand-2:var(--ink); --brand-3:var(--ink); --brand-tint:var(--surface); --brand-line:var(--line);
-  --high:var(--alert-high); --high-tint:var(--paper); --med:var(--alert-mid); --med-tint:var(--alert-mid-tint);
-  --low:var(--ink-2); --low-tint:var(--surface); --good:var(--normal); --ref:var(--ink); --ref-tint:var(--surface); --ok-tint:var(--paper);
-  --r1:3px; --r2:3px; --r3:3px; --sh1:none; --sh2:none;
+  /* Theme: deep navy for text and navigation, one blue accent for actions, clear red / amber / green for urgency. */
+  --paper:#ffffff; --surface:#f5f7fb; --line:#e3e8f0; --line-strong:#1e2d4f;
+  --ink:#172238; --ink-2:#3a4863; --muted:#66728a;
+  --brand:#2456d6; --brand-2:#1d47b5; --brand-3:#1d47b5; --brand-tint:#eaf1ff; --brand-line:#c9d8fb;
+  --alert-high:#c62828; --alert-high-tint:#fdecec; --alert-mid:#92400e; --alert-mid-tint:#fef3c7; --ok:#15803d; --ok-tint:#e8f6ee;
+  --normal:#94a3b8; --peer:#e6ecf5; --input-line:#c5cedb;
+  --bg:var(--surface); --card:var(--paper); --mut:var(--muted); --line-2:var(--line);
+  --high:var(--alert-high); --high-tint:var(--alert-high-tint); --med:var(--alert-mid); --med-tint:var(--alert-mid-tint);
+  --low:var(--ink-2); --low-tint:var(--surface); --good:var(--ok); --ref:var(--brand); --ref-tint:var(--brand-tint);
+  --r1:6px; --r2:8px; --r3:12px;
+  --sh1:0 1px 2px rgba(16,24,40,.06); --sh2:0 6px 18px rgba(16,24,40,.08);
   --ease:cubic-bezier(.2,.7,.2,1);
-  --page-pad:18px; --panel-pad:12px; --row-pad:7px; --gap:10px; --control-height:32px;
+  --page-pad:20px; --panel-pad:14px; --row-pad:9px; --gap:12px; --control-height:34px;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -109,7 +110,7 @@ main{max-width:1200px;width:100%;margin:0 auto;padding:var(--page-pad) var(--pag
 .summary{background:var(--paper);border:1px solid var(--line);border-radius:var(--r3);padding:var(--panel-pad);margin-bottom:var(--gap)}
 .summary h2{font-size:15px}.sub-lede{color:var(--muted);margin:2px 0 8px}
 .summary ul{list-style:none;padding:0;display:grid;gap:6px}
-.summary li{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.45}
+.summary li{font-size:13.5px;line-height:1.5}
 .sum-icon{flex:none;width:22px;height:22px;color:var(--ink);display:grid;place-items:center}
 .charts{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap);margin-bottom:14px;align-items:start}
 .chart{background:var(--paper);border:1px solid var(--line);border-radius:var(--r3);padding:var(--panel-pad)}
@@ -219,13 +220,13 @@ main{max-width:1200px;width:100%;margin:0 auto;padding:var(--page-pad) var(--pag
 
 /* Actions */
 .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
-.btn,.primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:4px 12px;min-height:var(--control-height);border-radius:var(--r1);border:1.5px solid var(--ink);background:var(--paper);color:var(--ink);font-weight:600;text-decoration:none}
+.btn,.primary{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:4px 12px;min-height:var(--control-height);border-radius:var(--r1);border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);font-weight:600;text-decoration:none}
 .btn:hover{background:var(--surface)}.btn:disabled,.primary:disabled{opacity:.55;cursor:wait}
 .btn.problem,.btn.fine{border-color:var(--ink);color:var(--ink);background:var(--paper)}
 .btn.problem:hover,.btn.fine:hover{background:var(--surface)}
 .btn.quiet{border-color:transparent;background:transparent;color:var(--muted);font-weight:400;text-decoration:underline;padding:4px 6px}.btn.quiet:hover{color:var(--ink)}
-.primary,.btn.primary-ish{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.primary:hover,.btn.primary-ish:hover{background:var(--ink-2)}
+.primary,.btn.primary-ish{background:var(--brand);color:#fff;border-color:var(--brand)}
+.primary:hover,.btn.primary-ish:hover{background:var(--brand-2);border-color:var(--brand-2)}
 .primary.big{width:100%;font-size:13.5px;min-height:38px}
 .linkish{background:none;border:0;color:inherit;text-decoration:underline;padding:4px 6px;border-radius:var(--r1)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;background:var(--ink);color:var(--paper);padding:10px 12px;border:1px solid var(--paper);border-radius:var(--r2);max-width:min(92vw,560px)}
@@ -344,7 +345,7 @@ body[data-loading] main{opacity:.55;pointer-events:none}.btn .spin,.primary .spi
   .sidebar.collapsed .sidebar-brand{flex:1;justify-content:flex-start}.sidebar.collapsed .sidebar-brand-text,.sidebar.collapsed .sidebar-label{display:inline}
   .sidebar.collapsed .sidebar-link{width:100%;height:auto;padding:8px 10px;margin:0;justify-content:flex-start}
   .sidebar.collapsed .sidebar-signout{width:100%;height:auto;padding:8px 10px;margin:0;justify-content:flex-start}
-  .sidebar-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90}
+  .sidebar-backdrop{position:fixed;inset:0;background:rgba(23,34,56,.55);z-index:90}
   main{padding-inline:12px}.workspace-header{padding-inline:12px}.global-search{flex-basis:100%;max-width:none}
   .charts{grid-template-columns:1fr}.tabs{gap:6px}.tab{padding:8px;gap:6px}.tab-icon{display:none}
   .filters{gap:10px}.search{width:100%}.search-row{flex-wrap:wrap}.search-box{flex:1;min-width:0}.search-box input{min-width:0;width:100%}
@@ -468,3 +469,7 @@ td.stage-col.final b{font-weight:600}
 
 /* Sign-in: browsers paint saved logins yellow; keep the field white and black */
 .login-form input:-webkit-autofill,.login-form input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px var(--paper) inset;-webkit-text-fill-color:var(--ink);caret-color:var(--ink)}
+
+/* Supplier table: keep names readable */
+.perf-table td:nth-child(2){min-width:200px;white-space:normal}
+.perf-table td:nth-child(2) a{white-space:normal}
