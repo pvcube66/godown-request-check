@@ -169,4 +169,4 @@ export async function hostelIssueTypes(c: Collections, names: string[] | null, p
 
 /** The open unusual-request flags for one hostel and month: the ONE definition used by every screen that counts them
  *  (high and medium only; not the items grouped under a whole-order flag). Keep the list and the detail page on this. */
-export const openFlagFilter = (hostelCode: string, month: string) => ({ hostelCode, month, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } });
+export const openFlagFilter = (hostelCode: string, month: string) => ({ hostelCode, month, status: 'open' as const, severity: { $in: ['high', 'medium'] as ('high' | 'medium')[] }, partOfOrder: { $ne: true } });
