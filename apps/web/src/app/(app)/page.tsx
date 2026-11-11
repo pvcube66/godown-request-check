@@ -24,7 +24,7 @@ const KIND_TABS = [
   { key: 'order', label: 'Whole order too big' },
   { key: 'duplicate', label: 'Possible duplicate' },
 ] as const;
-const PAGE_SIZE = 30, CARDS_SHOWN = 3;
+const PAGE_SIZE = 12, CARDS_SHOWN = 3;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const qs = (cur: SP, patch: Partial<SP>) => {
   const p = new URLSearchParams(Object.entries({ ...cur, ...patch }).filter(([, v]) => v) as [string, string][]);
@@ -179,10 +179,10 @@ async function HomeContent({ sp }: { sp: SP }) {
             <summary className="hostel-head tile-face">
               <span className="tf-r1">
                 <span className="tf-name"><span className="serial" aria-label={`Number ${sn}`}>{sn}</span><span className="tf-nm">{hostelLabel(top1.hostelName)}</span></span>
-                <span className={`pill ${top1.severity}`}>{SEVERITY[top1.severity].label}</span>
+                {top1.severity !== sev && <span className={`pill ${top1.severity}`}>{SEVERITY[top1.severity].label}</span>}
                 <Icon name="chevron" size={15} />
               </span>
-              <span className="tf-r2">{top1.districtName}<span className="hid">ID {top1.hostelCode}</span><span className="count-chip">{cards.length} {cards.length === 1 ? 'issue' : 'issues'}</span></span>
+              <span className="tf-r2">{top1.districtName}<span className="hid">ID {top1.hostelCode}</span>{cards.length > 1 && <span className="count-chip">{cards.length} issues</span>}</span>
               <span className="tf-r3" title={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toLocaleString('en-IN', { maximumFractionDigits: 1 })} times the usual`}>
                 {top1.kind === 'duplicate'
                   ? <><b>{Math.round((top1.dup?.similarity ?? 0) * 100)}%</b><span className="tf-note">alike{top1.dup?.items ? ` across ${top1.dup.items} items` : ''}: two requests that look the same</span></>
