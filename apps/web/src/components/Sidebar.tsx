@@ -122,7 +122,7 @@ export default function Sidebar({
           {user.role === 'admin' && (
             <>
               <span className="sidebar-group">WhatsApp Cloud API</span>
-              {(waConnected ? [{ href: '/whatsapp', label: 'Reminders', icon: 'chat', exact: true }, { href: '/whatsapp/connect', label: 'Connection', icon: 'plug', exact: false }] : [{ href: '/whatsapp/connect', label: 'Connect WhatsApp', icon: 'plug', exact: false }]).map(({ href, label, icon, exact }) => {
+              {(waConnected ? [{ href: '/whatsapp/templates', label: 'Templates', icon: 'pencil', exact: false }, { href: '/whatsapp', label: 'Reminders', icon: 'chat', exact: true }, { href: '/whatsapp/connect', label: 'Connection', icon: 'plug', exact: false }] : [{ href: '/whatsapp/connect', label: 'Connect WhatsApp', icon: 'plug', exact: false }]).map(({ href, label, icon, exact }) => {
                 const on = exact ? path === href : path.startsWith(href);
                 return (
                   <Link key={href} href={href} onClick={handleLinkClick} className={`sidebar-link ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined} title={label}>
