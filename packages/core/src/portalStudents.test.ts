@@ -3,7 +3,7 @@ import { fetchHostelStudents } from './portalClient.js';
 
 afterEach(() => vi.unstubAllGlobals());
 const reply = (days: Record<number, number[]>) => vi.fn(async (url: string) => {
-  const back = Math.round((Date.now() - new Date(new URL(url).searchParams.get('date')! + 'T00:00:00Z').getTime()) / 86_400_000);
+  const back = Math.floor((Date.now() - new Date(new URL(url).searchParams.get("date")! + "T00:00:00Z").getTime()) / 86_400_000);
   return new Response(JSON.stringify({ success: true, data: (days[back] ?? []).map((n) => ({ total_students: n })) }), { status: 200 });
 });
 
