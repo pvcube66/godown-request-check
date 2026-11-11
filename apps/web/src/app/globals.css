@@ -936,7 +936,7 @@ details.tpl>summary{cursor:pointer;list-style:none}details.tpl[open]>summary{mar
 .tag-chip{display:inline-block;margin:0 4px 2px 0;padding:1px 9px;border-radius:999px;background:var(--brand-tint);color:var(--brand-2);font-size:12px;font-weight:600}
 .bulk-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:8px;border:1px solid var(--brand-line);background:var(--brand-tint);border-radius:var(--r2)}
 .bulk-bar select{border:1px solid var(--input-line);border-radius:var(--r1);padding:5px 8px;background:#fff}
-.modal-back{position:fixed;inset:0;background:rgba(16,52,59,.45);z-index:80;display:grid;place-items:center;padding:16px}
+.modal-back{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;display:grid;place-items:center;padding:16px}
 .modal{background:var(--paper);border-radius:var(--r3);box-shadow:var(--sh2);width:min(520px,100%);max-height:90vh;overflow:auto;padding:20px;display:grid;gap:12px}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end}
 .opt-row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px dashed var(--line);font-size:13px;color:var(--ink-2)}
@@ -1177,3 +1177,14 @@ input,select,textarea{font:inherit;color:var(--ink)}
 .login-form input:focus-visible{box-shadow:0 0 0 2px var(--accent);outline:0}
 .login-card .primary.big{border-radius:var(--r1)}
 input[type="checkbox"],input[type="radio"],.master-field input[type="checkbox"],.master-field input[type="radio"]{width:auto;min-height:0;height:auto;box-shadow:none;border-radius:4px;accent-color:#000}
+
+/* ---- Vercel theme, mobile: the top bar is light now, so its text and button must be dark ---- */
+.mobile-header,.mobile-header a,.mobile-header .sidebar-brand,.mobile-header .sidebar-brand-text{color:var(--ink)}
+.mobile-menu-btn{border:0;box-shadow:0 0 0 1px var(--line-strong);color:var(--ink);background:var(--paper)}
+.sidebar-backdrop,.scrim{background:rgba(0,0,0,.4)}
+.master-record>summary.user-sum{display:block}
+.master-record>summary.user-sum .mut{display:block;margin-top:2px}
+.check-row>div>b{display:block}
+.check-row .btn{display:inline-flex}
+.order-table td.stage-col.none{color:#b8b8b8}
+.modal-back{background:rgba(0,0,0,.4)}
