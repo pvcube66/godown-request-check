@@ -1273,3 +1273,6 @@ html[data-theme="dark"] .wa-bubble .mut,html[data-theme="dark"] .wa-bubble .wa-b
 .stat-tile b small{font-size:13px;font-weight:550;color:var(--muted);margin-left:4px}
 .stat-tile.ok b{color:var(--ok)}.stat-tile.warn b{color:var(--alert-mid)}
 .tile-row{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.flagged-row{background:var(--alert-high-tint)}.tag-flag{font-size:12px;font-weight:650;color:var(--alert-high)}
+.filters .check{display:inline-flex;align-items:center;gap:6px;min-height:36px;color:var(--ink-2)}
+.filters .select .search-box{min-width:260px}

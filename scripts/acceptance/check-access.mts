@@ -28,7 +28,7 @@ const adminOnly = /administrators? only|for administrators|by administrators|onl
 console.log(`Checking ${base} (database ${dbName})\n`);
 
 // ---- not signed in
-for (const p of ['/', '/orders', '/orders/csv', '/dashboards', '/suppliers', '/search?q=a', '/exports/orders', '/whatsapp', '/users']) {
+for (const p of ['/', '/orders', '/orders/csv', '/dashboards', '/suppliers', '/search?q=a', '/indents', '/indents/S-A1-pending', '/exports/orders', '/whatsapp', '/users']) {
   const r = await get(null, p); check(`signed out: ${p} goes to the sign-in page`, r.status === 307 && r.location.includes('/login'), `${r.status} ${r.location}`);
 }
 const forged = await fetch(base + '/', { redirect: 'manual', headers: { cookie: 'anomaly_session=x.9999999999999.abc' } });
@@ -54,6 +54,11 @@ for (const [who, own, other] of [['operator', 'A1', 'B1'], ['other', 'B1', 'A1']
   const mo = await get(who, `/orders/S-${own}-pending`), to = await get(who, `/orders/S-${other}-pending`);
   check(`${who}: own order opens`, mo.status === 200 && /Timeline/.test(mo.text));
   check(`${who}: another district's order is not found`, /could not be found|404/.test(to.body) && !/Timeline/.test(to.text));
+  const mx = await get(who, `/indents/S-${own}-pending`), tx = await get(who, `/indents/S-${other}-pending`);
+  check(`${who}: own indent opens`, mx.status === 200 && new RegExp(`Indent S-${own}-pending`).test(mx.text));
+  check(`${who}: another district's indent is not found and lists nothing`, !new RegExp(`Indent S-${other}-pending`).test(tx.text));
+  const lst = await get(who, '/indents');
+  check(`${who}: the indents list shows only own district`, lst.status === 200 && !new RegExp(`S-${other}-pending`).test(lst.text));
   const mi = await get(who, `/issues/${issues[own]}`), ti = await get(who, `/issues/${issues[other]}`);
   check(`${who}: own issue opens`, mi.status === 200 && /Progress/.test(mi.text));
   check(`${who}: another district's issue is not found`, /could not be found|404/.test(ti.body) && !/Progress/.test(ti.text));

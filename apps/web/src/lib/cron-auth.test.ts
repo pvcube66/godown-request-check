@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorised } from './route';
+import { authorised } from './cron-auth';
 
 describe('the hourly check address', () => {
   const secret = 'a-long-random-secret-value-123';
