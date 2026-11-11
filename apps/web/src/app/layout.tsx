@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import '@fontsource-variable/figtree';
+import '@fontsource-variable/geist';
 import './globals.css';
 
 export const metadata = {

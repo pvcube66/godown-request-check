@@ -52,7 +52,7 @@ export default async function Users() {
         {users.length === 0 && <p className="master-empty">No one has a login yet. Until you add an administrator here, sign in with the word “admin” and the dashboard password.</p>}
         {users.map((u) => (
           <details key={u.userId} className="master-record">
-            <summary><b>{u.name}</b> · {u.email} · {u.role === 'admin' ? 'Administrator' : u.role === 'operator' ? 'Operator' : 'View only'}{u.status === 'disabled' ? ' · TURNED OFF' : ''}{u.lockedUntil && u.lockedUntil > new Date() ? ' · LOCKED' : ''}
+            <summary className="user-sum"><b>{u.name}</b> · {u.email} · {u.role === 'admin' ? 'Administrator' : u.role === 'operator' ? 'Operator' : 'View only'}{u.status === 'disabled' ? ' · TURNED OFF' : ''}{u.lockedUntil && u.lockedUntil > new Date() ? ' · LOCKED' : ''}
               <span className="mut small"> · {u.role === 'admin' ? 'all districts' : `${u.districts.length} district${u.districts.length === 1 ? '' : 's'}: ${u.districts.map((d) => nameOf.get(d) ?? d).join(', ')}`} · last sign-in {u.lastLoginAt ? ago(u.lastLoginAt) : 'never'}</span></summary>
             <div className="master-record-body">
               <ActionForm action={updateUserAction} submitLabel="Save changes">

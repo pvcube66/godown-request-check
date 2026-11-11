@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
-import { num } from '@/lib/format';
+import { hostelLabel, num } from '@/lib/format';
 import { MEETING, BYS, VERDICT_TEXT, type By, type PerfRow } from '@/lib/performance';
 import { loadPerformanceView } from '@/lib/performance-view';
 import { orderMonths } from '@/lib/orders';
@@ -24,62 +24,44 @@ const WHO: Record<By, { title: string; one: string }> = {
 };
 const TAB_LABEL: Record<By, string> = { supplier: 'By supplier', godown: 'By godown', district: 'By district', hostel: 'By hostel' };
 
-/** One card per supplier / godown / district: the first number is how much of what hostels asked for was actually sent. */
-function GroupCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: string; focusHref: string | null }) {
+/** One card per supplier / godown / district / hostel. Every card has the same size; the figure is how much of what was asked was sent. */
+function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: string; focusHref: string | null }) {
   const ordersHref = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
   const fill = r.fill === null ? null : Math.round(r.fill * 100);
   return (
-    <article className={`perf-card v-${r.verdict}`}>
-      <header>
-        <h3>{focusHref ? <Link href={focusHref}>{r.label}</Link> : r.label}</h3>
+    <article className={`pcard v-${r.verdict}`}>
+      <div className="pc-top">
+        <h3 className="pc-name">{focusHref ? <Link href={focusHref}>{r.filter.hostel ? hostelLabel(r.label) : r.label}</Link> : r.filter.hostel ? hostelLabel(r.label) : r.label}</h3>
         <span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span>
-      </header>
-      {fill === null ? (
-        <p className="perf-none">Not enough information yet. {num(r.orders)} orders.</p>
-      ) : (
-        <div className="perf-main">
-          <div className="perf-big"><b>{fill}%</b><span>of what was asked was sent</span></div>
-          <div className="perf-meter" role="img" aria-label={`${fill}% sent`}><i style={{ width: `${fill}%` }} /></div>
-        </div>
-      )}
-      <div className="perf-line">
+      </div>
+      <div className="pc-body">
+        {fill === null ? (
+          <p className="pc-none">Not enough information yet.</p>
+        ) : (
+          <>
+            <div className="pc-fig"><b>{fill}%</b><small>of what was asked was sent</small></div>
+            <div className="pc-meter" role="img" aria-label={`${fill}% sent`}><i style={{ width: `${fill}%` }} /></div>
+          </>
+        )}
+      </div>
+      <div className="pc-foot">
         <span><b className={r.backlog15 ? 'late' : ''}>{num(r.backlog15)}</b> waiting over 2 weeks</span>
         <span><b>{num(r.orders)}</b> orders</span>
-        {ordersHref && <Link href={ordersHref} className="link-arrow">Orders<Icon name="arrow" size={14} /></Link>}
-        {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">Details<Icon name="arrow" size={14} /></Link>}
+        <span className="pc-links">
+          {ordersHref && <Link href={ordersHref} className="link-arrow">{r.filter.hostel ? 'Hostel page' : 'Orders'}<Icon name="arrow" size={14} /></Link>}
+          {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">Details<Icon name="arrow" size={14} /></Link>}
+        </span>
       </div>
     </article>
   );
 }
 
-/** A compact list for the many rows (hostels, or the districts inside one supplier). */
-function Rows({ rows, by, month }: { rows: PerfRow[]; by: By; month?: string }) {
+/** The districts inside one supplier, and the weakest hostels: the same cards. */
+function PerfCards({ rows, month }: { rows: PerfRow[]; month?: string }) {
   return (
-    <div className="table-wrap"><table className="order-table dash-table perf-table">
-      <thead><tr>
-        <th>{by === 'district' ? 'District' : 'Hostel'}</th>
-        <th className="num" title="How many orders; in brackets, the orders whose quantities are known">Orders</th>
-        <th className="num" title="Of everything the hostels asked for, how much was sent">Sent</th>
-        <th className="num" title="Of what was sent, how much reached the hostel">Reached</th>
-        <th className="num" title="Not yet acknowledged and the same stage for 7 days or more">Waiting 7+ days</th>
-        <th className="num" title="Not yet acknowledged and the same stage for 15 days or more">Waiting 15+ days</th>
-        <th className="num">Rejected</th>
-        <th>Verdict</th>
-      </tr></thead>
-      <tbody>{rows.map((r) => {
-        const href = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
-        return (
-          <tr key={r.key}>
-            <td><b>{href ? <Link href={href}>{r.label}</Link> : r.label}</b></td>
-            <td className="num">{num(r.orders)} <span className="mut small">({num(r.read)})</span></td>
-            <td className="num"><b>{pct(r.fill)}</b></td><td className="num">{pct(r.receivedFill)}</td>
-            <td className={`num ${r.backlog7 ? 'watch' : ''}`}>{r.backlog7 ? num(r.backlog7) : '—'}</td><td className={`num ${r.backlog15 ? 'late' : ''}`}>{r.backlog15 ? num(r.backlog15) : '—'}</td>
-            <td className="num">{pct(r.rejectedShare)}</td>
-            <td><span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span></td>
-          </tr>
-        );
-      })}</tbody>
-    </table></div>
+    <div className="perf-cards pc-grid">
+      {rows.map((r) => <PerfCard key={r.key} r={r} by={r.filter.hostel ? 'hostel' : 'district'} month={month} focusHref={null} />)}
+    </div>
   );
 }
 
@@ -117,11 +99,11 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
       </form>
 
       {v.main.rows.length === 0 ? <div className="empty">No orders match these choices.</div> : cards ? (
-        <div className="perf-cards">{v.main.rows.map((r) => <GroupCard key={r.key} r={r} by={v.by} month={v.month} focusHref={here({ focus: r.key })} />)}</div>
+        <div className="perf-cards pc-grid">{v.main.rows.map((r) => <PerfCard key={r.key} r={r} by={v.by} month={v.month} focusHref={here({ focus: r.key })} />)}</div>
       ) : v.focus ? (
-        <GroupCard r={v.main.rows[0]!} by={v.by} month={v.month} focusHref={null} />
+        <div className="perf-cards pc-grid"><PerfCard r={v.main.rows[0]!} by={v.by} month={v.month} focusHref={null} /></div>
       ) : (
-        <Rows rows={v.main.rows} by={v.by} month={v.month} />
+        <PerfCards rows={v.main.rows} month={v.month} />
       )}
 
       {v.sub && (
@@ -129,9 +111,9 @@ export default async function Suppliers({ searchParams }: { searchParams: Promis
           <h2 className="sub">Hostels under this {WHO[v.by].one}</h2>
           <p className="lede small">Out of {num(v.sub.service.served + v.sub.service.short + v.sub.service.waiting)} hostels with orders: <b>{num(v.sub.service.served)}</b> were fully served (90% or more of what they asked for was sent), <b>{num(v.sub.service.short)}</b> were short, and <b>{num(v.sub.service.waiting)}</b> have no delivery quantities recorded yet.</p>
           <h3 className="sub-h">Districts, weakest first</h3>
-          <Rows rows={v.sub.districts} by="district" month={v.month} />
+          <PerfCards rows={v.sub.districts} month={v.month} />
           <h3 className="sub-h">The 15 hostels furthest behind</h3>
-          <Rows rows={v.sub.weakestHostels} by="hostel" month={v.month} />
+          <PerfCards rows={v.sub.weakestHostels} month={v.month} />
         </>
       )}
 
