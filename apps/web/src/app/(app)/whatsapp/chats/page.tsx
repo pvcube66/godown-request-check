@@ -25,14 +25,15 @@ export default async function Chats({ searchParams }: { searchParams: Promise<{ 
 
   let thread: React.ReactNode = <div className="empty chat-empty">Choose a chat on the left.</div>;
   if (open) {
-    const [conv, contact, msgs, templates] = await Promise.all([
+    const [conv, contact, msgs, templates, quick] = await Promise.all([
       c.waConversations.findOne({ phone: open }), c.waContacts.findOne({ phone: open }),
       c.whatsappMessages.find({ phone: open }).sort({ createdAt: -1 }).limit(200).toArray(),
       c.waTemplates.find({ status: 'APPROVED' }).sort({ name: 1 }).limit(100).toArray(),
+      c.waQuickReplies.find({}).sort({ title: 1 }).limit(50).toArray(),
     ]);
     const ends = windowEndsAt(conv?.lastInboundAt ?? null);
     const rows: Msg[] = msgs.reverse().map((m, i) => ({ id: String(m.messageId ?? `${m.createdAt.getTime()}-${i}`), out: m.direction === 'out', text: m.text, status: m.status, at: m.createdAt.toISOString(), time: shortTime(m.createdAt), note: m.status === 'failed' ? failureText(m)?.title ?? 'Not sent' : '', by: m.kind === 'reminder' ? 'Reminder' : m.kind === 'campaign' ? 'Campaign' : '' }));
-    thread = <ChatThread phone={open} name={conv?.contactName || contact?.name || ''} status={conv?.status ?? 'open'} unread={conv?.unread ?? 0} optedOut={!!contact?.optedOut} windowEnds={ends && ends.getTime() > Date.now() ? ends.toISOString() : null} live={s.mode === 'live'} msgs={rows}
+    thread = <ChatThread phone={open} name={conv?.contactName || contact?.name || ''} status={conv?.status ?? 'open'} unread={conv?.unread ?? 0} optedOut={!!contact?.optedOut} windowEnds={ends && ends.getTime() > Date.now() ? ends.toISOString() : null} live={s.mode === 'live'} msgs={rows} quick={quick.map((q) => ({ title: q.title, text: q.text }))}
       templates={templates.map((t) => ({ name: t.name, language: t.language, body: t.bodyText, hasHeaderVar: /\{\{\d+\}\}/.test(t.form?.headerText ?? '') }))} />;
   }
 

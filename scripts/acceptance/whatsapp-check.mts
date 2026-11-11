@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { addHostelContacts, addToGroup, closeDb, createGroup, deleteContacts, deleteGroup, editContact, importContacts, messageable, removeFromGroup, saveContact, setOptOut, tagCounts } from '../../packages/core/src/index.ts';
-import { campaignStats, changeCampaign, createCampaign, reviewCampaign, retryFailed, runCampaignBatch, runCampaigns, conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
+import { addQuickReply, deleteQuickReply, campaignStats, changeCampaign, createCampaign, reviewCampaign, retryFailed, runCampaignBatch, runCampaigns, conversationFilter, markRead, processWebhook, sealSecret, sendMessages, setConversationStatus } from '../../packages/core/src/index.ts';
 import { connectLocal } from './local.mts';
 
 /** Real-MongoDB checks of the WhatsApp CRM core (People so far; later phases add to this file). Local test database only (it_wa_crm). */
@@ -163,6 +163,12 @@ const c3 = await createCampaign(c, { ...input, name: 'Third' }, 'u1');
 await changeCampaign(c, c3.campaignId, 'start', 'u1'); await changeCampaign(c, c3.campaignId, 'cancel', 'u1');
 assert.equal(await c.waCampaignRecipients.countDocuments({ campaignId: c3.campaignId, status: 'queued' }), 0); ok('cancelling stops everyone still waiting');
 await c.settings.updateOne({ _id: 'whatsapp' }, { $set: { 'value.mode': 'live' } });
+
+// ---- Quick replies
+await c.waQuickReplies.deleteMany({});
+await addQuickReply(c, 'Thanks', 'Thank you, noted.', 'u1');
+await assert.rejects(addQuickReply(c, 'Thanks', 'again', 'u1'), /already exists/); ok('quick replies: a title can only exist once (enforced by the database)');
+await deleteQuickReply(c, 'Thanks', 'u1'); assert.equal(await c.waQuickReplies.countDocuments(), 0); ok('quick replies can be deleted');
 
 console.log(`\n${passed} checks passed`);
 await closeDb(); process.exit(0);

@@ -13,7 +13,7 @@ const tick = (s: string) => (s === 'read' ? <span className="tick read" title="R
 const newBatch = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
 const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
-export default function ChatThread({ phone, name, status, unread, optedOut, windowEnds, live, msgs, templates }: { phone: string; name: string; status: 'open' | 'closed'; unread: number; optedOut: boolean; windowEnds: string | null; live: boolean; msgs: Msg[]; templates: Tpl[] }) {
+export default function ChatThread({ phone, name, status, unread, optedOut, windowEnds, live, msgs, templates, quick }: { phone: string; name: string; status: 'open' | 'closed'; unread: number; optedOut: boolean; windowEnds: string | null; live: boolean; msgs: Msg[]; templates: Tpl[]; quick: { title: string; text: string }[] }) {
   const router = useRouter();
   const [text, setText] = useState('');
   const [tpl, setTpl] = useState(templates[0]?.name ?? '');
@@ -68,6 +68,7 @@ export default function ChatThread({ phone, name, status, unread, optedOut, wind
         <div className="chat-reply">
           {inWindow ? <p className="mut small">You can reply freely until {new Date(windowEnds!).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}.</p> : <p className="mut small">More than 24 hours since they last wrote, so WhatsApp only allows an approved template.</p>}
           {!live && <p className="mut small">WhatsApp is not live, so messages cannot be sent yet.</p>}
+          {inWindow && quick.length > 0 && <div className="type-chips" aria-label="Quick replies">{quick.map((q) => <button type="button" key={q.title} className="type-chip" onClick={() => setText((t) => (t ? `${t} ${q.text}` : q.text).slice(0, 4000))}>{q.title}</button>)}</div>}
           {inWindow ? <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a reply" maxLength={4000} aria-label="Reply" /> : templates.length === 0 ? <p className="mut small">No approved templates yet.</p> : (
             <>
               <select value={tpl} onChange={(e) => { setTpl(e.target.value); setVals([]); }} aria-label="Template">{templates.map((x) => <option key={x.name + x.language} value={x.name}>{x.name}</option>)}</select>

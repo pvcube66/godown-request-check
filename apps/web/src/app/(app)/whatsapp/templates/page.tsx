@@ -5,6 +5,7 @@ import { when } from '@/lib/format';
 import { masterAdminAccess } from '@/lib/master-auth';
 import { Icon } from '@/components/Icons';
 import WaPreview from '@/components/WaPreview';
+import WaSettingsTabs from '@/components/WaSettingsTabs';
 import { RowActions, SyncButton } from './RowActions';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,7 @@ export default async function Templates({ searchParams }: { searchParams: Promis
   return (
     <>
       <section className="hero"><h1>Message templates</h1><p className="lede">Messages WhatsApp has approved, ready to send.</p></section>
+      <WaSettingsTabs active="templates" />
       {!isConnected(s) && <p className="alert-bar" role="status">WhatsApp is not connected yet. You can write drafts, but sending and syncing need a connection. <Link href="/whatsapp/connect">Connect WhatsApp</Link></p>}
       <div className="toolbar">
         <form method="get" action="/whatsapp/templates" className="toolbar-search">

@@ -29,3 +29,4 @@ export * from './reminders.js';
 export * from './whatsappSend.js';
 export * from './whatsappConversations.js';
 export * from './whatsappCampaigns.js';
+export * from './whatsappProfile.js';
