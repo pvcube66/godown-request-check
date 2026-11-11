@@ -24,7 +24,7 @@ const KIND_TABS = [
   { key: 'order', label: 'Whole order too big' },
   { key: 'duplicate', label: 'Possible duplicate' },
 ] as const;
-const PAGE_SIZE = 8, CARDS_SHOWN = 3;
+const PAGE_SIZE = 30, CARDS_SHOWN = 3;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const qs = (cur: SP, patch: Partial<SP>) => {
   const p = new URLSearchParams(Object.entries({ ...cur, ...patch }).filter(([, v]) => v) as [string, string][]);
@@ -185,7 +185,7 @@ async function HomeContent({ sp }: { sp: SP }) {
               <span className="tf-r2">{top1.districtName}<span className="hid">ID {top1.hostelCode}</span><span className="count-chip">{cards.length} {cards.length === 1 ? 'issue' : 'issues'}</span></span>
               <span className="tf-r3" title={top1.kind === 'duplicate' ? 'Possible duplicate' : `${top1.ratio.toLocaleString('en-IN', { maximumFractionDigits: 1 })} times the usual`}>
                 {top1.kind === 'duplicate'
-                  ? <><b>2×</b><span className="tf-note">same request twice</span></>
+                  ? <><b>{Math.round((top1.dup?.similarity ?? 0) * 100)}%</b><span className="tf-note">alike{top1.dup?.items ? ` across ${top1.dup.items} items` : ''}: two requests that look the same</span></>
                   : <><b>{top1.ratio >= 1000 ? '999+' : top1.ratio >= 10 ? Math.round(top1.ratio).toLocaleString('en-IN') : top1.ratio.toFixed(1).replace(/\.0$/, '')}×</b>
                     {top1.kind === 'order' || top1.expected <= 0
                       ? <span className="tf-note">{top1.kind === 'order' ? 'bigger than similar hostels' : 'more than usual'}</span>
@@ -214,10 +214,17 @@ async function HomeContent({ sp }: { sp: SP }) {
       })}
       </div>
       {pages > 1 && (
-        <nav className="pager" aria-label="More hostels">
-          {pageNo > 1 ? <Link className="btn" href={qs(sp, { p: pageNo === 2 ? '' : String(pageNo - 1) })}>Previous</Link> : <span />}
-          <span className="mut">Hostels {offset + 1} to {Math.min(offset + PAGE_SIZE, groups.length)} of {groups.length}</span>
-          {pageNo < pages ? <Link className="btn primary-ish" href={qs(sp, { p: String(pageNo + 1) })}>Next {Math.min(PAGE_SIZE, groups.length - offset - PAGE_SIZE)} hostels</Link> : <span />}
+        <nav className="pager-bar" aria-label="Pages of hostels">
+          <span className="mut">Showing {offset + 1} to {Math.min(offset + PAGE_SIZE, groups.length)} of {groups.length} hostels</span>
+          <div className="pager-ctrl">
+            {pageNo > 1
+              ? <Link className="pager-btn" href={qs(sp, { p: pageNo === 2 ? '' : String(pageNo - 1) })} rel="prev"><Icon name="chevronLeft" size={16} /> Previous</Link>
+              : <span className="pager-btn off" aria-disabled="true"><Icon name="chevronLeft" size={16} /> Previous</span>}
+            <span className="pager-page">Page {pageNo} of {pages}</span>
+            {pageNo < pages
+              ? <Link className="pager-btn" href={qs(sp, { p: String(pageNo + 1) })} rel="next">Next <Icon name="chevronRight" size={16} /></Link>
+              : <span className="pager-btn off" aria-disabled="true">Next <Icon name="chevronRight" size={16} /></span>}
+          </div>
         </nav>
       )}
     </>
