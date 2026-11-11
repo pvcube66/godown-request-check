@@ -5,12 +5,13 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import { runBench } from './bench.js';
 import { runSweep } from './sweep.js';
-import { DEFAULT_CONFIG, detectAnomalies, stableItemName, addAccount, closeDb, connectDb, fetchAttendanceRows, fetchRequestItems, getToken, reviewStats, runCycle, runDetection, syncAll } from '@anomaly/core';
+import { DEFAULT_CONFIG, detectAnomalies, normalizedItemName, addAccount, closeDb, connectDb, fetchAttendanceRows, fetchRequestItems, getToken, reviewStats, runCycle, runDetection, syncAll } from '@anomaly/core';
 
 // Load the repo-root .env regardless of where the command is run from.
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env') });
 
 const [cmd, ...args] = process.argv.slice(2);
+const stableItemName = (item: string) => normalizedItemName(item.includes(' [unit:') ? item.split(' [unit:')[0]! : item);
 
 async function main() {
   const c = await connectDb();
