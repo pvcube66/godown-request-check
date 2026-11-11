@@ -63,7 +63,7 @@ export default async function Indents({ searchParams }: { searchParams: Promise<
         <div className="table-wrap"><table className="order-table">
           <thead><tr><th>Request</th><th>Hostel</th><th>Month</th><th>Stage</th><th className="num">Items</th><th className="num">Unusual</th></tr></thead>
           <tbody>{rows.map((r) => {
-            const month = orderMonth(r.placedOn), fc = flagCount(r.hostelCode, month);
+            const month = orderMonth(r.placedOn), fc = r.stage === 'rejected' || r.stage === 'cancelled' ? 0 : flagCount(r.hostelCode, month);
             return (
               <tr key={r.requestId}>
                 <td><Link href={`/indents/${encodeURIComponent(r.requestId)}`}><b>{r.requestId}</b></Link></td>

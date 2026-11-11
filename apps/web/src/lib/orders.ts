@@ -145,7 +145,7 @@ export function stageCells(o: Pick<OrderDoc, 'stage' | 'stages' | 'reached'>, no
   return out;
 }
 
-const FLAG_TEXT: Record<string, string> = { spike: 'Unusual quantity', typing: 'Same number typed for many items', order: 'Whole order too big', duplicate: 'Possible duplicate' };
+export const FLAG_TEXT: Record<string, string> = { spike: 'Unusual quantity', typing: 'Same number typed for many items', order: 'Whole order too big', duplicate: 'Possible duplicate' };
 
 /** The month an order belongs to, as the unusual-request flags and issues name it (yyyy-mm, India time). */
 export const orderMonth = (placedOn: Date | null | undefined): string => (placedOn ? placedOn.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 7) : '');
