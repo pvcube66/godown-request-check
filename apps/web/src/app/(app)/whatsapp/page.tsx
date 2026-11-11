@@ -1,3 +1,4 @@
+import WaSettingsTabs from '@/components/WaSettingsTabs';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { ensureWhatsAppSettings, failureText, hostelLabel, isConnected, planReminders, REMINDER_LINES, SKIP_TEXT, TEMPLATE_BODY, type SkipReason } from '@anomaly/core';
@@ -30,6 +31,8 @@ export default async function WhatsApp() {
   return (
     <div className="master-page">
       <header className="master-header"><div><h1>WhatsApp reminders</h1><p>When a delivery has been In-Transit for a few days and the hostel has not acknowledged it on the portal, the hostel gets a WhatsApp reminder from the department’s own WhatsApp number. Reminders stop the moment the order is acknowledged, rejected or cancelled.</p></div></header>
+
+      <WaSettingsTabs active="reminders" />
 
       <section className="master-section" aria-labelledby="wa-status">
         <h2 id="wa-status">Where things stand</h2>

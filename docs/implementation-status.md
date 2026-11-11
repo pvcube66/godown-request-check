@@ -258,3 +258,8 @@ The setup flow of the team's TeleCRM (`vivtej_telecrm` page `WhatsAppConnect.jsx
 - **Your Meta app:** both ways go through a Meta app, so the page first asks for its **App ID** and **App secret** (and the **Embedded Signup configuration ID** for one-click signup). The CRM hard-codes the VivTej Meta app and keeps the secret in its server settings; here they are entered on the page and stored sealed. **Decision for the client:** use the client's own Meta app, or VivTej's as a technology provider. Using VivTej's would register the client's number under VivTej's app.
 - Tests: 12 core tests with a fake Meta (token path, code path, invalid token, no WhatsApp access, wrong number, refused subscription, checks, fix, disconnect, secrets never stored in the clear or in the change log) and 8 action tests (admin only, plain messages, size limits). **Not tested against real Meta:** the one-click Facebook popup and the live calls. Try the access-token path first with the client's details.
 - The Reminders page lost its connection fields (they live in the wizard now).
+
+
+## WhatsApp CRM (People, Send Message, Chats, Campaigns, Settings, Stats)
+
+**Status:** built locally on branch `whatsapp-suite`, **not deployed**, nothing tested against the real WhatsApp service. See `docs/whatsapp-crm-plan.md` for the page list, limits and what was and was not tested. All pages are administrator-only. Sending stays in preview until an administrator switches WhatsApp to live.

@@ -6,6 +6,11 @@ import type { ItemMasterDoc } from './itemMaster.js';
 import type { UserDoc } from './users.js';
 import type { IssueDoc, RemarkDoc } from './issues.js';
 import type { WhatsAppMessageDoc } from './whatsapp.js';
+import type { WaTemplateDoc } from './whatsappTemplates.js';
+import type { ContactDoc, GroupDoc } from './whatsappContacts.js';
+import type { QuickReplyDoc } from './whatsappProfile.js';
+import type { CampaignDoc, RecipientDoc } from './whatsappCampaigns.js';
+import type { ConversationDoc } from './whatsappConversations.js';
 
 export interface AccountDoc {
   username: string;                 // portal login id, e.g. GDN-JGL (unique)
@@ -76,6 +81,13 @@ export interface Collections extends MasterDataCollections {
   issues: Collection<IssueDoc>;
   remarks: Collection<RemarkDoc>;
   whatsappMessages: Collection<WhatsAppMessageDoc>;
+  waTemplates: Collection<WaTemplateDoc>;
+  waContacts: Collection<ContactDoc>;
+  waGroups: Collection<GroupDoc>;
+  waConversations: Collection<ConversationDoc>;
+  waQuickReplies: Collection<QuickReplyDoc>;
+  waCampaigns: Collection<CampaignDoc>;
+  waCampaignRecipients: Collection<RecipientDoc>;
   accounts: Collection<AccountDoc>;
   requests: Collection<RequestDoc>;
   orders: Collection<OrderDoc>;
@@ -118,6 +130,13 @@ export const collections = (d: Db): Collections => ({
   issues: d.collection('issues'),
   remarks: d.collection('remarks'),
   whatsappMessages: d.collection('whatsappMessages'),
+  waTemplates: d.collection('waTemplates'),
+  waContacts: d.collection('waContacts'),
+  waGroups: d.collection('waGroups'),
+  waConversations: d.collection('waConversations'),
+  waQuickReplies: d.collection('waQuickReplies'),
+  waCampaigns: d.collection('waCampaigns'),
+  waCampaignRecipients: d.collection('waCampaignRecipients'),
   auditLog: d.collection('auditLog'),
   async transaction<T>(fn: Parameters<MasterDataCollections['transaction']>[0]): Promise<T> {
     const session = d.client.startSession();
@@ -159,6 +178,21 @@ export async function ensureIndexes(c: Collections) {
   await c.whatsappMessages.createIndex({ sendKey: 1 }, { unique: true, partialFilterExpression: { sendKey: { $type: 'string' } } });
   await c.whatsappMessages.createIndex({ requestId: 1, createdAt: 1 });
   await c.whatsappMessages.createIndex({ hostelCode: 1, createdAt: -1 });
+  await c.waTemplates.createIndex({ name: 1, language: 1 }, { unique: true });
+  await c.waTemplates.createIndex({ status: 1, updatedAt: -1 });
+  await c.waContacts.createIndex({ phone: 1 }, { unique: true });
+  await c.waContacts.createIndex({ tags: 1 });
+  await c.waContacts.createIndex({ name: 1 });
+  await c.waGroups.createIndex({ name: 1 }, { unique: true });
+  await c.waConversations.createIndex({ phone: 1 }, { unique: true });
+  await c.waConversations.createIndex({ lastAt: -1 });
+  await c.waQuickReplies.createIndex({ title: 1 }, { unique: true });
+  await c.waCampaigns.createIndex({ campaignId: 1 }, { unique: true });
+  await c.waCampaigns.createIndex({ status: 1, createdAt: -1 });
+  await c.waCampaignRecipients.createIndex({ campaignId: 1, phone: 1 }, { unique: true });
+  await c.waCampaignRecipients.createIndex({ campaignId: 1, status: 1 });
+  await c.whatsappMessages.createIndex({ campaignId: 1, status: 1 }, { sparse: true });
+  await c.whatsappMessages.createIndex({ phone: 1, createdAt: 1 });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }

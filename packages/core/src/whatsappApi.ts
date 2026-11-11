@@ -22,12 +22,12 @@ async function call(f: Fetcher, url: string, init: RequestInit, token: string): 
 }
 
 /** Sends one approved template with text values for {{1}}, {{2}}... Returns Meta's message id. */
-export async function sendTemplateMessage(cred: WaCredentials, to: string, template: { name: string; language: string }, params: string[], f: Fetcher = fetch): Promise<string> {
+export async function sendTemplateMessage(cred: WaCredentials, to: string, template: { name: string; language: string; headerParams?: string[] }, params: string[], f: Fetcher = fetch): Promise<string> {
   const body = await call(f, `${GRAPH_URL}/${encodeURIComponent(cred.phoneNumberId)}/messages`, {
     method: 'POST',
     body: JSON.stringify({
       messaging_product: 'whatsapp', to, type: 'template',
-      template: { name: template.name, language: { code: template.language }, components: [{ type: 'body', parameters: params.map((text) => ({ type: 'text', text })) }] },
+      template: { name: template.name, language: { code: template.language }, components: [...(template.headerParams?.length ? [{ type: 'header', parameters: template.headerParams.map((text) => ({ type: 'text', text })) }] : []), ...(params.length ? [{ type: 'body', parameters: params.map((text) => ({ type: 'text', text })) }] : [])] },
     }),
   }, cred.accessToken);
   const id = (body.messages as { id?: string }[] | undefined)?.[0]?.id;
@@ -53,4 +53,14 @@ export async function getTemplateStatus(cred: WaCredentials, name: string, langu
   const list = (body.data as { name: string; language: string; status: string; rejected_reason?: string }[] | undefined) ?? [];
   const hit = list.find((t) => t.name === name && t.language === language);
   return hit ? { status: hit.status, reason: hit.rejected_reason && hit.rejected_reason !== 'NONE' ? hit.rejected_reason : '' } : null;
+}
+
+/** A free-form text message. WhatsApp only allows this within 24 hours of the person's last message to us. */
+export async function sendTextMessage(cred: WaCredentials, to: string, text: string, f: Fetcher = fetch): Promise<string> {
+  const body = await call(f, `${GRAPH_URL}/${encodeURIComponent(cred.phoneNumberId)}/messages`, {
+    method: 'POST', body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: text, preview_url: false } }),
+  }, cred.accessToken);
+  const id = (body.messages as { id?: string }[] | undefined)?.[0]?.id;
+  if (!id) throw new WhatsAppApiError('Meta accepted the request but returned no message id', 'no-id', 200);
+  return id;
 }
