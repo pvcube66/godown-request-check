@@ -53,7 +53,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const [monthOrders, hostelOrders, indents] = await Promise.all([
     monthReqs.length ? c.orders.find(scoped({ requestId: { $in: monthReqs.map((r) => r.requestId) } }, names)).toArray() : [],
     c.orders.find(scoped({ hostelCode: code, stage: { $in: OPEN_STAGES } }, names)).toArray(),
-    Promise.all(monthReqs.filter((r) => !/^reject/i.test(r.status)).map(async (r) => ({ id: r.requestId, rows: await loadIndent(c, r.requestId) }))),
+    Promise.all(monthReqs.filter((r) => !/^reject/i.test(r.status)).map(async (r) => ({ id: r.requestId, rows: await loadIndent(c, r.requestId, { live: false }) }))),
   ]);
   const orderById = new Map(monthOrders.map((o) => [o.requestId, o]));
   const stuckOrders = hostelOrders.filter((o) => urgency(o, now) !== 'ok').sort((a, b) => daysInStage(b, now) - daysInStage(a, now));
