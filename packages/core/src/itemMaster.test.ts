@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { comparisonItems, effectiveItemMetadata, itemVariantKey, quantityLabel, requestItemSnapshots, syncItemMasters, updateItemMaster } from './itemMaster.js';
+import { comparisonItems, effectiveItemMetadata, itemVariantKey, quantityLabel, requestItemSnapshots, snapshotsComplete, syncItemMasters, updateItemMaster } from './itemMaster.js';
 import type { ItemMasterCollections, RequestItemSnapshot } from './itemMaster.js';
 import type { AccountDoc, Collections } from './db.js';
 import type { MasterDataCollections } from './masterData.js';
@@ -121,7 +121,7 @@ describe('metadata synchronization', () => {
     await vi.runAllTimersAsync();
     expect(await first).toBe(1);
     expect(updates).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'IR-1' }), { $set: {
-      itemSnapshots: [{ sourceKey: 'Rice', name: 'Rice', requestedQuantity: 10 }], itemMetadataSyncedAt: expect.any(Date),
+      itemSnapshots: [{ sourceKey: 'Rice', name: 'Rice', requestedQuantity: 10 }], itemMetadataSyncedAt: expect.any(Date), itemSnapshotsIncomplete: false, itemReadAttempts: 1,
     } });
     expect(r.items).toEqual({ Rice: 10 });
     expect(await syncRequestItems(c, acct, 'token')).toBe(0);
@@ -162,7 +162,7 @@ describe('metadata synchronization', () => {
     expect(updates).not.toHaveBeenCalled();
   });
 
-  it('caps attempts at 40 for the whole account, excluding completed requests and other godowns', async () => {
+  it('reads up to 150 requests per run for the whole account, excluding completed requests and other godowns', async () => {
     const records = Array.from({ length: 45 }, (_, i) => request(`IR-${i}`));
     const { c, limit } = memoryCollections([
       { ...request('completed'), itemSnapshots: [] }, { ...request('other'), godownId: 99 }, ...records,
@@ -170,7 +170,7 @@ describe('metadata synchronization', () => {
     const fetchItems = vi.spyOn(portal, 'fetchRequestItems').mockResolvedValue([]);
     const pending = syncRequestItems(c, acct, 'token');
     await vi.runAllTimersAsync();
-    expect(await pending).toBe(40); expect(limit).toHaveBeenCalledWith(40); expect(fetchItems).toHaveBeenCalledTimes(40);
+    expect(await pending).toBe(45); expect(limit).toHaveBeenCalledWith(150); expect(fetchItems).toHaveBeenCalledTimes(45);
   });
 
   it('fills nonempty business contacts only into blank master fields', async () => {
@@ -230,5 +230,12 @@ describe('metadata synchronization', () => {
       expect(update.$set).toEqual({ portalLogin: acct.username, name: 'Test Godown', updatedAt: expect.any(Date) });
       expect(update.$setOnInsert).toEqual({ godownId: 2, status: 'active', createdAt: expect.any(Date) });
     } finally { vi.unstubAllEnvs(); }
+  });
+});
+
+describe('incomplete item details are read again', () => {
+  it('flags a request that still lacks a unit so it is read again', () => {
+    expect(snapshotsComplete([{ sourceKey: 'X', name: 'X', requestedQuantity: 1 }])).toBe(false);
+    expect(snapshotsComplete([{ sourceKey: 'X', name: 'X', requestedQuantity: 1, unit: 'Kg' }])).toBe(true);
   });
 });

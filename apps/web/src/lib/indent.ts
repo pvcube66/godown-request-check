@@ -12,7 +12,7 @@ export async function loadIndent(c: Collections, requestId: string): Promise<Ind
     const snapshot = snapshots.find((s) => s.sourceKey === name);
     const master = snapshot ? masters.find((m) => m.key === itemVariantKey(snapshot)) : undefined;
     const meta = master ? effectiveItemMetadata(master) : snapshot;
-    return { name, quantity, unit: meta?.unit || 'Not read yet', packSize: meta?.packSize || 'Not read yet' };
+    return { name, quantity, unit: meta?.unit || '—', packSize: meta?.packSize || '—' };
   });
 }
 

@@ -81,7 +81,7 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
           {o.fulfilment.short.length > 0 && (
             <div className="table-wrap"><table className="order-table">
               <thead><tr><th>Item supplied short</th><th>Unit</th><th className="num">Asked for</th><th className="num">Supplied</th></tr></thead>
-              <tbody>{o.fulfilment.short.map((s) => <tr key={s.name}><td>{itemLabel(s.name)}</td><td>{s.unit ?? 'Not read yet'}</td><td className="num">{num(s.requested)}</td><td className="num">{num(s.supplied)}</td></tr>)}</tbody>
+              <tbody>{o.fulfilment.short.map((s) => <tr key={s.name}><td>{itemLabel(s.name)}</td><td>{s.unit ?? '—'}</td><td className="num">{num(s.requested)}</td><td className="num">{num(s.supplied)}</td></tr>)}</tbody>
             </table></div>
           )}
           <p className="mut small">Read from the portal’s item list at the {STAGE_LABEL[o.fulfilment.stage]} stage. Items are compared one by one; different units are never added together.</p>
