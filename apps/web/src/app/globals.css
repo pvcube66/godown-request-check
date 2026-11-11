@@ -694,3 +694,24 @@ td.watch{color:var(--alert-mid)}td.late,.dash-table td.late{color:var(--alert-hi
 .tb-row b{white-space:nowrap}
 .tile[open]>.tile-face{flex:none}
 @media (max-width:640px){.tile-face{grid-template-columns:auto minmax(0,1fr)!important}.tile-side{grid-column:auto}}
+
+/* Month-by-month chart: quantities are the point, so they are large and also listed underneath */
+.hc-val{font-size:15px;font-weight:700;fill:var(--ink)}
+.hc-col.bad .hc-val{font-size:16px;font-weight:750;fill:var(--alert-high)}
+.hc-col.bad .hc-bar{fill:var(--alert-high)}
+.hc-col.peer .hc-bar{fill:var(--brand-tint);stroke:var(--brand)}
+.hc-hatch{stroke:var(--brand)}
+.hc-month{font-size:12.5px;fill:var(--ink-2)}
+.hc-col.bad .hc-month{fill:var(--alert-high)}.hc-col.peer .hc-month{fill:var(--brand-2)}
+.hc-none{font-size:12px}
+.hc-nums{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 0;padding:0}
+.hc-nums li{display:inline-flex;align-items:baseline;gap:6px;padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:var(--paper);font-size:12.5px;color:var(--ink-2)}
+.hc-nums li b{font-size:13.5px;color:var(--ink);font-variant-numeric:tabular-nums}
+.hc-nums li.bad{border-color:#f1c3bb;background:var(--alert-high-tint)}.hc-nums li.bad b{color:var(--alert-high)}
+.hc-nums li.peer{border-color:var(--brand-line);background:var(--brand-tint)}
+.hc-nums li em{font-style:normal;font-size:11.5px;font-weight:650;color:var(--alert-high)}
+
+/* Legend and highlight colours match the chart */
+.key .k-ok{background:var(--normal)}.key .k-bad{background:var(--alert-high)}
+.cmp.bad dt i{background:var(--alert-high)}
+.grid-row .hit{background:var(--alert-high-tint);color:var(--alert-high);font-weight:700;border-radius:6px}

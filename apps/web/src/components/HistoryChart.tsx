@@ -13,7 +13,7 @@ export function windowMonths(all: string[], flagMonth: string): string[] {
  * When the hostel has no earlier months, `peer` adds a labelled bar for what other hostels ask,
  * so the "usual" number is always visible and never has to be explained.
  */
-export default function HistoryChart({ itemName, months, values, flagMonth, peer, suffix = '', peerLabel = 'Other hostels' }: {
+export default function HistoryChart({ itemName, months, values, flagMonth, peer, suffix = '', peerLabel = 'Similar hostels' }: {
   itemName: string; months: string[]; values: Record<string, number>; flagMonth: string; peer?: number; suffix?: string; peerLabel?: string;
 }) {
   type Col = { key: string; label: string; value: number | undefined; kind: 'peer' | 'ok' | 'bad' };
@@ -21,13 +21,14 @@ export default function HistoryChart({ itemName, months, values, flagMonth, peer
     ...(peer !== undefined ? [{ key: 'peer', label: peerLabel, value: peer, kind: 'peer' as const }] : []),
     ...months.map((m) => ({ key: m, label: monthLabel(m, true).replace(/\s\d{4}$/, ''), value: values[m], kind: (m === flagMonth ? 'bad' : 'ok') as 'bad' | 'ok' })),
   ];
-  const n = cols.length, W = Math.max(300, n * 80), H = 190, L = 10, R = 10, T = 34, B = 34;
+  const n = cols.length, W = Math.max(320, n * 88), H = 210, L = 10, R = 10, T = 40, B = 40;
   const plotH = H - T - B, slot = (W - L - R) / n, barW = Math.min(40, slot * 0.58);
   const max = Math.max(1e-9, ...cols.map((c) => c.value ?? 0)) * 1.04;
   const y = (v: number) => T + plotH * (1 - v / max);
   const summary = cols.map((c) => `${c.label}${c.kind === 'bad' ? ' (unusual)' : c.kind === 'peer' ? ' (peer comparison)' : ' (normal)'}, ${c.value === undefined ? 'not asked' : `${num(c.value)}${suffix}`}`).join('; ');
 
   return (
+    <>
     <svg className="hc" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${itemName}, month by month: ${summary}.`}>
       <line className="hc-base" x1={L} x2={W - R} y1={T + plotH} y2={T + plotH} />
       {cols.map((c, i) => {
@@ -52,5 +53,15 @@ export default function HistoryChart({ itemName, months, values, flagMonth, peer
         );
       })}
     </svg>
+    <ul className="hc-nums" aria-hidden="true">
+      {cols.map((c) => (
+        <li key={c.key} className={c.kind}>
+          <span>{c.label}</span>
+          <b>{c.value === undefined ? 'not asked' : `${num(c.value)}${suffix ? ` ${suffix.trim()}` : ''}`}</b>
+          {c.kind === 'bad' && <em>flagged</em>}
+        </li>
+      ))}
+    </ul>
+    </>
   );
 }

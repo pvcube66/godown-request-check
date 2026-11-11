@@ -185,7 +185,7 @@ export default async function Hostel({ params, searchParams }: { params: Promise
       </section>
 
       <h2 className="sub">Everything this hostel asked for</h2>
-      <p className="lede small">Month by month. Numbers highlighted in black looked much bigger than usual. Rejected requests are not counted.</p>
+      <p className="lede small">Month by month. Numbers in red looked much bigger than usual. Rejected requests are not counted.</p>
       <div className="grid" role="table" aria-label="Quantities requested each month">
         <div className="grid-row head" style={cols} role="row"><span role="columnheader">Item</span>{months.map((m) => <span className="c" role="columnheader" key={m}>{monthLabel(m, true)}</span>)}</div>
         {items.map((it) => (
