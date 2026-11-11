@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { Logo, Icon } from '@/components/Icons';
 
-export default function AppShell({ children, user }: { children: ReactNode; user: { name: string; role: 'admin' | 'operator' | 'viewer' } }) {
+export default function AppShell({ children, user, waConnected = false }: { children: ReactNode; user: { name: string; role: 'admin' | 'operator' | 'viewer' }; waConnected?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
     const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
@@ -43,6 +43,7 @@ export default function AppShell({ children, user }: { children: ReactNode; user
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
         user={user}
+        waConnected={waConnected}
       />
 
       <div className="app-main">

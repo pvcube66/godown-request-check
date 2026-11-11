@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
-import { ensureWhatsAppSettings, failureText, hostelLabel, planReminders, REMINDER_LINES, SKIP_TEXT, TEMPLATE_BODY, type SkipReason } from '@anomaly/core';
+import Link from 'next/link';
+import { ensureWhatsAppSettings, failureText, hostelLabel, isConnected, planReminders, REMINDER_LINES, SKIP_TEXT, TEMPLATE_BODY, type SkipReason } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { when } from '@/lib/format';
 import { masterAdminAccess } from '@/lib/master-auth';
@@ -38,13 +39,15 @@ export default async function WhatsApp() {
           <li>Rules: first reminder after <b>{s.firstAfterDays}</b> days in transit, then every <b>{s.everyDays}</b> days, up to <b>{s.maxMessages}</b> reminders, one message per hostel per day.</li>
         </ul>
         {error && <p className="master-message master-error" role="alert">{error}{s.lastErrorAt ? ` (${when(s.lastErrorAt)})` : ''}</p>}
-        {!s.phoneNumberId && <p className="master-note">Setup is not finished: the department’s WhatsApp details have not been added yet, so nothing can be sent. Preview still works.</p>}
+        {isConnected(s)
+          ? <p className="master-note">Connected number: <b>{s.displayPhone || s.phoneNumberId}</b>. <Link href="/whatsapp/connect">Connection</Link></p>
+          : <p className="master-note">WhatsApp is not connected yet, so nothing can be sent. Preview still works. <Link href="/whatsapp/connect">Connect WhatsApp</Link></p>}
       </section>
 
       <section className="master-section" aria-labelledby="wa-settings">
         <h2 id="wa-settings">Settings</h2>
-        <p className="master-note">The access key and app secret are stored encrypted and are never shown again. “Live” stays unavailable until the reminder wording is approved by WhatsApp.</p>
-        <SettingsForm phoneNumberId={s.phoneNumberId} wabaId={s.wabaId} hasToken={!!s.accessTokenEnc} hasSecret={!!s.appSecretEnc} mode={s.mode} firstAfterDays={s.firstAfterDays} everyDays={s.everyDays} maxMessages={s.maxMessages} />
+        <p className="master-note">“Live” stays unavailable until WhatsApp is connected and the reminder wording is approved.</p>
+        <SettingsForm mode={s.mode} firstAfterDays={s.firstAfterDays} everyDays={s.everyDays} maxMessages={s.maxMessages} />
       </section>
 
       <section className="master-section" aria-labelledby="wa-template">
@@ -58,15 +61,6 @@ export default async function WhatsApp() {
         </div>
       </section>
 
-      <section className="master-section" aria-labelledby="wa-hook">
-        <h2 id="wa-hook">Delivery ticks and replies (one-time setup in Meta)</h2>
-        <p>In the Meta developer dashboard, open the WhatsApp product → Configuration → Webhook, and enter:</p>
-        <ul>
-          <li>Callback URL: <code>{webhookUrl}</code></li>
-          <li>Verify token: <code>{s.verifyToken}</code></li>
-          <li>Subscribe to <b>messages</b>. Then save the app secret above, so incoming updates can be checked as genuine.</li>
-        </ul>
-      </section>
 
       <section className="master-section" aria-labelledby="wa-preview">
         <h2 id="wa-preview">Who would be messaged right now</h2>

@@ -70,15 +70,15 @@ for (const k of ['orders', 'flags', 'issues', 'remarks']) {
 check('full copy: unknown kind is not found', (await get('admin', '/exports/users')).status === 404);
 
 // ---- admin-only screens, buttons, navigation
-for (const p of ['/users', '/master', '/accounts', '/whatsapp', '/exports', '/runs', '/accuracy']) {
+for (const p of ['/users', '/master', '/accounts', '/whatsapp', '/whatsapp/connect', '/exports', '/runs', '/accuracy']) {
   const a = await get('admin', p), o = await get('operator', p), v = await get('viewer', p);
   check(`${p}: admin can use it`, a.status === 200 && !adminOnly.test(a.text), `${a.status}`);
   check(`${p}: operator and viewer are told it is for administrators`, adminOnly.test(o.text) && adminOnly.test(v.text));
 }
 const nav = (r: { body: string }, href: string) => r.body.includes(`href="${href}"`);
 const an = await get('admin', '/'), on = await get('operator', '/');
-check('menu: admin sees Users, WhatsApp, Full copy', ['/users', '/whatsapp', '/exports'].every((h) => nav(an, h)));
-check('menu: operator does not', ['/users', '/whatsapp', '/exports', '/master'].every((h) => !nav(on, h)));
+check('menu: admin sees Users, Connect WhatsApp, Full copy', ['/users', '/whatsapp/connect', '/exports'].every((h) => nav(an, h)));
+check('menu: operator does not', ['/users', '/whatsapp', '/whatsapp/connect', '/exports', '/master'].every((h) => !nav(on, h)));
 check('menu: everyone sees Dashboards, Supplier performance, Issues', ['/dashboards', '/suppliers', '/issues'].every((h) => nav(on, h)));
 check('viewer has no "Issue" button, operator has', !(await get('viewer', '/')).text.includes('Issue (reject') && on.text.includes('Issue (reject'));
 const vi = await get('viewer', `/issues/${issues.A1}`), oi = await get('operator', `/issues/${issues.A1}`);

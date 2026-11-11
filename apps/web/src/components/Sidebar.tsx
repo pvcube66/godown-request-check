@@ -12,6 +12,7 @@ export type SidebarProps = {
   mobileOpen: boolean;
   onCloseMobile: () => void;
   user: { name: string; role: 'admin' | 'operator' | 'viewer' };
+  waConnected?: boolean;
 };
 
 const LINKS = [
@@ -23,7 +24,6 @@ const LINKS = [
   { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
   { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
   { href: '/users', label: 'Users', icon: 'user', admin: true },
-  { href: '/whatsapp', label: 'WhatsApp', icon: 'chat', admin: true },
   { href: '/exports', label: 'Full copy', icon: 'download', admin: true },
   { href: '/runs', label: 'Past checks', icon: 'clock', admin: true },
 ] as const;
@@ -36,6 +36,7 @@ export default function Sidebar({
   mobileOpen,
   onCloseMobile,
   user,
+  waConnected = false,
 }: SidebarProps) {
   const path = usePathname();
 
@@ -118,6 +119,20 @@ export default function Sidebar({
               </Fragment>
             );
           })}
+          {user.role === 'admin' && (
+            <>
+              <span className="sidebar-group">WhatsApp Cloud API</span>
+              {(waConnected ? [{ href: '/whatsapp', label: 'Reminders', icon: 'chat', exact: true }, { href: '/whatsapp/connect', label: 'Connection', icon: 'plug', exact: false }] : [{ href: '/whatsapp/connect', label: 'Connect WhatsApp', icon: 'plug', exact: false }]).map(({ href, label, icon, exact }) => {
+                const on = exact ? path === href : path.startsWith(href);
+                return (
+                  <Link key={href} href={href} onClick={handleLinkClick} className={`sidebar-link ${on ? 'on' : ''}`} aria-current={on ? 'page' : undefined} title={label}>
+                    <span className="sidebar-icon"><Icon name={icon} size={20} /></span>
+                    <span className="sidebar-label">{label}</span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         <div className="sidebar-foot">

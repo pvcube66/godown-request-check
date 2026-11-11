@@ -22,4 +22,5 @@ export * from './hostelName.js';
 export * from './metaErrorCopy.js';
 export * from './whatsappApi.js';
 export * from './whatsapp.js';
+export * from './whatsappConnect.js';
 export * from './reminders.js';

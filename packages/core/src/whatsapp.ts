@@ -27,6 +27,8 @@ export type WhatsAppMode = 'off' | 'dry_run' | 'live';
 export interface WhatsAppSettings {
   mode: WhatsAppMode;                      // dry_run = work out who would be messaged, send nothing
   phoneNumberId: string; wabaId: string;
+  appId: string; configId: string;         // the Meta app the connection goes through; configId = Embedded Signup configuration (optional)
+  displayPhone: string | null; verifiedName: string | null; connectedAt: Date | null;
   accessTokenEnc: string | null; appSecretEnc: string | null;      // sealed like the portal passwords; never shown
   verifyToken: string;                     // pasted into Meta when the webhook is set up
   templateName: string; language: string;
@@ -37,7 +39,7 @@ export interface WhatsAppSettings {
 }
 
 export const DEFAULT_SETTINGS = (): WhatsAppSettings => ({
-  mode: 'dry_run', phoneNumberId: '', wabaId: '', accessTokenEnc: null, appSecretEnc: null, verifyToken: randomBytes(18).toString('hex'),
+  mode: 'dry_run', phoneNumberId: '', wabaId: '', appId: '', configId: '', displayPhone: null, verifiedName: null, connectedAt: null, accessTokenEnc: null, appSecretEnc: null, verifyToken: randomBytes(18).toString('hex'),
   templateName: TEMPLATE_NAME, language: TEMPLATE_LANGUAGE, templateStatus: null, templateReason: null, templateCheckedAt: null,
   firstAfterDays: 3, everyDays: 2, maxMessages: 4,
   lastError: null, lastErrorAt: null, updatedAt: new Date(),
