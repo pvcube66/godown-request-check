@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
-import { num } from '@/lib/format';
+import { hostelLabel, num } from '@/lib/format';
 import { MEETING, BYS, VERDICT_TEXT, type By, type PerfRow } from '@/lib/performance';
 import { loadPerformanceView } from '@/lib/performance-view';
 import { orderMonths } from '@/lib/orders';
@@ -31,7 +31,7 @@ function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: str
   return (
     <article className={`pcard v-${r.verdict}`}>
       <div className="pc-top">
-        <h3 className="pc-name">{focusHref ? <Link href={focusHref}>{r.label}</Link> : r.label}</h3>
+        <h3 className="pc-name">{focusHref ? <Link href={focusHref}>{r.filter.hostel ? hostelLabel(r.label) : r.label}</Link> : r.filter.hostel ? hostelLabel(r.label) : r.label}</h3>
         <span className={`verdict-chip ${r.verdict}`}>{VERDICT_TEXT[r.verdict]}</span>
       </div>
       <div className="pc-body">
@@ -48,7 +48,7 @@ function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: str
         <span><b className={r.backlog15 ? 'late' : ''}>{num(r.backlog15)}</b> waiting over 2 weeks</span>
         <span><b>{num(r.orders)}</b> orders</span>
         <span className="pc-links">
-          {ordersHref && <Link href={ordersHref} className="link-arrow">Orders<Icon name="arrow" size={14} /></Link>}
+          {ordersHref && <Link href={ordersHref} className="link-arrow">{r.filter.hostel ? 'Hostel page' : 'Orders'}<Icon name="arrow" size={14} /></Link>}
           {focusHref && by !== 'hostel' && <Link href={focusHref} className="link-arrow">Details<Icon name="arrow" size={14} /></Link>}
         </span>
       </div>
@@ -60,10 +60,7 @@ function PerfCard({ r, by, month, focusHref }: { r: PerfRow; by: By; month?: str
 function PerfCards({ rows, month }: { rows: PerfRow[]; month?: string }) {
   return (
     <div className="perf-cards pc-grid">
-      {rows.map((r) => {
-        const href = r.filter.hostel ? `/hostel/${encodeURIComponent(r.filter.hostel)}` : (r.filter.district || r.filter.account) ? `/orders?${qs({ ...r.filter, month })}` : null;
-        return <PerfCard key={r.key} r={{ ...r, label: r.label }} by="district" month={month} focusHref={href} />;
-      })}
+      {rows.map((r) => <PerfCard key={r.key} r={r} by={r.filter.hostel ? 'hostel' : 'district'} month={month} focusHref={null} />)}
     </div>
   );
 }
