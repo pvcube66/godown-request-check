@@ -18,6 +18,7 @@ export type SidebarProps = {
 const LINKS = [
   { href: '/', label: 'Unusual requests', icon: 'alert', admin: false },
   { href: '/orders', label: 'Orders', icon: 'truck', admin: false },
+  { href: '/indents', label: 'Indents', icon: 'flag', admin: false },
   { href: '/suppliers', label: 'Suppliers', icon: 'scale', admin: false },
   { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
   { href: '/dashboards', label: 'Dashboards', icon: 'chart', admin: false },

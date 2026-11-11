@@ -46,4 +46,25 @@ export function sizeWords(ratio: number | null): string {
 /** The item's unit-less display key is the same one the history uses; this recovers the plain name for a unit lookup. */
 export const historyItemName = (key: string) => (key.includes(' [unit:') ? key.split(' [unit:')[0]! : key);
 export const sameItem = (rowName: string, historyKey: string) => normalizedItemName(rowName) === normalizedItemName(historyItemName(historyKey));
+
+const unitOfKey = (key: string): string => { const m = /\[unit:([^;\]]*)/.exec(key); const u = m ? decodeURIComponent(m[1]!).trim().toLowerCase() : ''; return u === 'unknown' ? '' : u; };
+
+/** One item's month-by-month quantities for a hostel. The item can be saved under more than one key (with a unit and pack size, or as a plain name,
+ *  depending on when the unit details were read), so the exact key is used first and any other key for the same item with the same (or unknown) unit
+ *  fills the months it is missing. Different units are never added together. */
+export function seriesFor(h: Record<string, Record<string, number>> | undefined, item: string): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!h) return out;
+  const exact = h[item];
+  const base = normalizedItemName(historyItemName(item)), unit = unitOfKey(item);
+  const months = new Set<string>(Object.keys(exact ?? {}));
+  const others = Object.keys(h).filter((k) => k !== item && normalizedItemName(historyItemName(k)) === base && (!unit || !unitOfKey(k) || unitOfKey(k) === unit));
+  for (const k of others) for (const m of Object.keys(h[k]!)) months.add(m);
+  for (const m of months) {
+    if (exact && m in exact && exact[m]! > 0) { out[m] = exact[m]!; continue; }
+    const fromOthers = others.reduce((n, k) => n + (h[k]![m] ?? 0), 0);
+    out[m] = fromOthers > 0 ? fromOthers : (exact?.[m] ?? 0);
+  }
+  return out;
+}
 export { itemVariantKey };

@@ -323,3 +323,41 @@ describe('duplicate requests', () => {
     expect(run([req('IR1', '2026-11-03', { A: 5, B: 5 }), req('IR2', '2026-11-03', { A: 5, B: 5 })]).filter((a) => a.kind === 'duplicate')).toHaveLength(0);
   });
 });
+
+describe('precision: real requests that must not be flagged (and the real mistakes that must still be)', () => {
+  const peerSet = (month: string, item: string, qty: number, n = 12): Req[] => Array.from({ length: n }, (_, i) => ({ godownId: 2, hostelCode: `Q${i}`, hostelName: `Q${i}-X`, districtName: 'D', month, status: 'Pending', items: { [item]: qty + (i % 3) * (qty > 5 ? 1 : qty * 0.02) } }));
+  const one = (hostel: string, month: string, items: Record<string, number>): Req => ({ godownId: 2, hostelCode: hostel, hostelName: `${hostel}-X`, districtName: 'D', month, status: 'Pending', items });
+
+  it('does not flag sunflower oil asked at 48 litre after 64 litre the month before (the hostel asked about the same)', () => {
+    const rows = [...peerSet('2026-10', 'oil', 12), one('H', '2026-09', { oil: 64 }), one('H', '2026-10', { oil: 48 })];
+    const sizes = new Map<string, number>(rows.map((r) => [`2|${r.hostelCode}`, 72] as [string, number]));
+    const old = { ...DEFAULT_CONFIG, ownConsistency: 0, minExcessUnits: {}, minExcessOther: 0, dropMinor: false };
+    expect(detectAnomalies(rows, ['2026-10'], old, sizes).some((a) => a.hostelCode === 'H')).toBe(true);       // it WAS flagged before
+    expect(detectAnomalies(rows, ['2026-10'], DEFAULT_CONFIG, sizes).filter((a) => a.hostelCode === 'H')).toEqual([]);
+  });
+  it('does not flag a tiny amount whose "usual" rounds to almost nothing (0.2 kg against under 0.1 kg)', () => {
+    const k = 'chilli [unit:kg; pack:kg]';
+    const rows = [...peerSet('2026-09', k, 0.04, 40), one('H', '2026-09', { [k]: 0.2 })];
+    const sizes = new Map<string, number>(rows.map((r) => [`2|${r.hostelCode}`, 100] as [string, number]));
+    const old = { ...DEFAULT_CONFIG, ownConsistency: 0, minExcessUnits: {}, minExcessOther: 0, dropMinor: false };
+    expect(detectAnomalies(rows, ['2026-09'], old, sizes).some((a) => a.hostelCode === 'H')).toBe(true);       // it WAS flagged before
+    expect(detectAnomalies(rows, ['2026-09'], DEFAULT_CONFIG, sizes).filter((a) => a.hostelCode === 'H')).toEqual([]);
+  });
+  it('still flags a real mistake: 250 kg of an item that similar hostels ask under 1 kg for', () => {
+    const k = 'cardamom [unit:kg; pack:kg]';
+    const rows = [...peerSet('2026-10', k, 0.4, 20), one('H', '2026-10', { [k]: 250 })];
+    const sizes = new Map<string, number>(rows.map((r) => [`2|${r.hostelCode}`, 100] as [string, number]));
+    expect(detectAnomalies(rows, ['2026-10'], DEFAULT_CONFIG, sizes).some((a) => a.hostelCode === 'H' && a.item === k)).toBe(true);
+  });
+  it('does not trust a very small student count (a partial attendance day) when judging size', () => {
+    const k = 'rice [unit:kg; pack:kg]';
+    const rows = [...peerSet('2026-10', k, 300, 20), one('H', '2026-10', { [k]: 320 })];
+    const sizes = new Map<string, number>([...rows.map((r) => [`2|${r.hostelCode}`, 300] as [string, number]), ['2|H', 15]]);
+    expect(detectAnomalies(rows, ['2026-10'], DEFAULT_CONFIG, sizes).filter((a) => a.hostelCode === 'H')).toEqual([]);
+  });
+  it('never stores a Minor flag that rests on similar hostels alone', () => {
+    const k = 'soap [unit:litre; pack:litre]';
+    const rows = [...peerSet('2026-09', k, 4.5, 30), one('H', '2026-09', { [k]: 17 })];
+    for (const a of detectAnomalies(rows, ['2026-09'])) expect(a.severity).not.toBe('low');
+  });
+});

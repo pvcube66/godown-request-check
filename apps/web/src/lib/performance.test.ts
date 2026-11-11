@@ -8,7 +8,7 @@ type Over = Partial<PerfOrder> & { fill?: number | null; full?: [number, number]
 function order(district: string, hostel: string, stage: PerfOrder['stage'], o: Over = {}): PerfOrder {
   const { fill, full, ...rest } = o;
   return {
-    account: 'GDN-A', districtName: district, hostelCode: hostel, hostelName: `Hostel ${hostel}`, stage, stageSince: d('2026-11-15'), placedOn: d('2026-11-01'),
+    requestId: `R-${hostel}-${stage}`, account: 'GDN-A', districtName: district, hostelCode: hostel, hostelName: `Hostel ${hostel}`, stage, stageSince: d('2026-11-15'), placedOn: d('2026-11-01'),
     reached: { pending: d('2026-11-01'), dc: null, transit: null, received: null },
     ...(fill !== undefined ? { fulfilment: { lineFill: fill, receivedFill: null, lines: 4, linesWithSupply: 4, fullLines: full ? full[0] : fill === 1 ? 4 : 2, variationLines: 0 } } : {}),
     ...rest,
@@ -47,7 +47,7 @@ describe('performance table', () => {
     order('Nalgonda', 'H2', 'transit', { fill: 0.5 }),
     order('Warangal', 'H3', 'pending', { stageSince: d('2026-11-01') }),                    // 19 days pending: 15+ backlog
     order('Warangal', 'H4', 'cancelled'),
-    order('Warangal', 'H5', 'dc', { fill: 0.4, stageSince: d('2026-11-18') }),
+    order('Warangal', 'H5', 'transit', { fill: 0.4, stageSince: d('2026-11-18') }),
   ];
   const { rows, overall } = performance(orders, 'district', NOW, names);
   it('averages each order’s fill, and counts only orders that were read', () => {
@@ -112,5 +112,14 @@ describe('supplier named by the portal', () => {
     const resolve = supplierResolver([{ districtCode: normalizedDistrictCode('Nalgonda'), supplierCode: 'S9', from: '2026-01-01', to: null }], (c) => `Mapped ${c}`);
     expect(resolve({ districtName: 'Nalgonda', placedOn: d('2026-11-01'), stageSince: NOW, supplier: { id: 'VND0001', name: 'Portal Supplier' } })).toEqual({ key: 'VND0001', label: 'Portal Supplier' });
     expect(resolve({ districtName: 'Nalgonda', placedOn: d('2026-11-01'), stageSince: NOW }).key).toBe('S9');
+  });
+});
+
+describe('supplied quantities before dispatch are not a shortfall', () => {
+  it('ignores a Delivery-note-stage order that has partial supplied quantities, but counts it once it is in transit', () => {
+    const dc = order('Nalgonda', 'H9', 'dc', { fill: 0.2 });
+    const transit = order('Nalgonda', 'H9', 'transit', { fill: 0.2 });
+    expect(performance([dc], 'district', NOW, { supplier: () => ({ key: 'x', label: 'x' }), godown: (a) => a }).rows[0]!.fill).toBeNull();
+    expect(performance([transit], 'district', NOW, { supplier: () => ({ key: 'x', label: 'x' }), godown: (a) => a }).rows[0]!.fill).toBeCloseTo(0.2);
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import ThemeToggle from './ThemeToggle';
 import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
@@ -61,6 +62,8 @@ export default function AppShell({ children, user, waConnected = false }: { chil
             <Logo size={26} />
             <span>Godown Request Check</span>
           </Link>
+          <span className="mobile-spacer" />
+          <ThemeToggle />
         </header>
 
         <header className="workspace-header noprint">
@@ -69,6 +72,7 @@ export default function AppShell({ children, user, waConnected = false }: { chil
             <input id="global-query" name="q" type="search" maxLength={60} placeholder="Hostel name, code or request ID" autoComplete="off" />
             <button type="submit">Search</button>
           </form>
+          <ThemeToggle />
         </header>
 
         <main id="main">{children}</main>

@@ -22,7 +22,7 @@ export async function loadPerformanceView(c: Collections, names: string[] | null
   const checkpoint = by === 'supplier' && !focus ? monthlyCheckpoint(all, now, supplier.resolve) : null;
   const withDc = all.filter((o) => SUPPLIED_STAGES.includes(o.stage));
   return {
-    by, month, focus, main, sub, checkpoint, mapped: supplier.mapped,
+    by, month, focus, main, sub, service: hostelService(scopeOrders), checkpoint, mapped: supplier.mapped,
     coverage: { withDc: withDc.length, read: withDc.filter((o) => o.fulfilment !== undefined).length },
     total: scopeOrders.length,
   };

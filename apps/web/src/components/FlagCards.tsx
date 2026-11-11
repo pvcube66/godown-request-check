@@ -1,6 +1,7 @@
-import { BANNER, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
+import { BANNER, itemLabel, monthLabel, num, SEVERITY, timesMore, type ItemNames } from '@/lib/format';
 import type { History } from '@/lib/history';
 import { hostelKey, monthsWithRequests } from '@/lib/history';
+import { seriesFor } from '@/lib/hostel';
 import type { TypingGroup } from '@/lib/group';
 import type { AnomalyDoc } from '@anomaly/core';
 import FlagActions from './FlagActions';
@@ -8,18 +9,20 @@ import { unitFor, withUnit, type UnitMap } from '@/lib/units';
 import HistoryChart, { windowMonths } from './HistoryChart';
 import { Icon } from './Icons';
 
-interface Ctx { history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean; issues?: Record<string, string>; units?: UnitMap }
+interface Ctx { names?: ItemNames; history: History; months: string[]; view: 'open' | 'confirmed' | 'fine'; showActions?: boolean; issues?: Record<string, string>; units?: UnitMap }
 
 function chartFor(a: AnomalyDoc, ctx: Ctx) {
   const h = ctx.history[hostelKey(a.godownId, a.hostelCode)];
   const shown = windowMonths(ctx.months, a.month);
   const have = monthsWithRequests(h);
+  const series = seriesFor(h, a.item);
+  if (!(series[a.month]! > 0) && a.requested > 0) series[a.month] = a.requested;   // the flag itself says what was asked; the chart must agree with the card
   const earlierMonths = [...have].filter((m) => m < a.month).sort();
   const earlier = earlierMonths.length;
   return {
     shown,
-    earlierList: earlierMonths.map((m) => ({ m, q: h?.[a.item]?.[m] ?? 0 })),
-    node: <HistoryChart itemName={itemLabel(a.item)} months={shown} values={h?.[a.item] ?? {}} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} suffix={unitFor(a.item, ctx.units ?? {}) ? ` ${unitFor(a.item, ctx.units ?? {})}` : ''} />,
+    earlierList: earlierMonths.map((m) => ({ m, q: series[m] ?? 0 })),
+    node: <HistoryChart itemName={itemLabel(a.item, ctx.names)} months={shown} values={series} flagMonth={a.month} peer={a.peer?.typical ?? (a.method === 'peers' ? a.expected : undefined)} suffix={unitFor(a.item, ctx.units ?? {}) ? ` ${unitFor(a.item, ctx.units ?? {})}` : ''} />,
     note: earlier >= 3 ? null : earlier === 0
       ? 'This hostel has no earlier months on record yet, so we compared it with similar hostels.'
       : `Only ${earlier} earlier month${earlier > 1 ? 's are' : ' is'} on record for this hostel so far.`,
@@ -50,7 +53,7 @@ function Compare({ a, earlier, unit = '' }: { a: AnomalyDoc; earlier: { m: strin
       {peer ? (
         <div className="cmp peer"><dt><i />{byStudents ? 'Hostels of a similar size ask for' : 'Other hostels ask for'}</dt>
           <dd><b>about {q(peer.typical)}</b>
-            <span className="mut"> Most ask between {q(peer.low)} and {q(peer.high)}.{' '}
+            <span className="mut"> {q(peer.low) === q(peer.high) ? <>Most ask about {q(peer.low)}.</> : <>Most ask between {q(peer.low)} and {q(peer.high)}.</>}{' '}
               {byStudents
                 ? <>Compared with the {peer.count} hostels closest in size ({peer.sizeRange ? `${num(peer.sizeRange[0])} to ${num(peer.sizeRange[1])}` : 'a similar number of'} students), worked out per student. Hostels that did not ask for this item are left out.{peer.count < 15 ? ' This is a smaller group, so treat the range as a rough guide.' : ''}</>
                 : <>This is an estimate. We do not have this hostel's student count, so its size was judged from its other orders.</>}
@@ -72,7 +75,7 @@ export function SpikeCard({ a, ctx, no }: { a: AnomalyDoc; ctx: Ctx; no?: string
       <div className="flag-text">
         <header className="flag-head">
           {no && <span className="no" title="Reference number for this flag">{no}</span>}
-          <h3>{itemLabel(a.item)}</h3>
+          <h3>{itemLabel(a.item, ctx.names)}</h3>
           <span className={`pill ${sev.cls}`}><Icon name={a.severity === 'low' ? 'info' : 'alert'} size={14} />{sev.label}</span>
           <span className="when">for {monthLabel(a.month)}</span>
         </header>
@@ -115,12 +118,12 @@ export function TypingCard({ g, ctx, no }: { g: TypingGroup; ctx: Ctx; no?: stri
           The same number, <b>{num(g.value)}</b>, was entered for <b>{g.items.length} different items</b>. For each one it is far more than usual, so it may have been typed into every box by mistake.
         </p>
         <ul className="chips" aria-label="Items with the same number">
-          {g.items.map((a) => <li key={a.key}><b>{itemLabel(a.item)}</b><span>{a.method === 'peers' ? 'similar hostels ask' : 'usually'} {num(a.expected)}</span></li>)}
+          {g.items.map((a) => <li key={a.key}><b>{itemLabel(a.item, ctx.names)}</b><span>{a.method === 'peers' ? 'similar hostels ask' : 'usually'} {num(a.expected)}</span></li>)}
         </ul>
         {ctx.showActions !== false && <FlagActions keys={g.items.map((a) => a.key)} mode={mode(ctx.view)} issueId={ctx.issues?.[g.items[0]!.key]} />}
       </div>
       <figure className="flag-chart">
-        <figcaption>{itemLabel(first!.item)}, month by month</figcaption>
+        <figcaption>{itemLabel(first!.item, ctx.names)}, month by month</figcaption>
         {ch.node}
         <Key peer={!!(first!.peer || first!.method === 'peers')} />
         {ch.note && <p className="chart-note"><Icon name="info" size={14} />{ch.note}</p>}
@@ -130,7 +133,7 @@ export function TypingCard({ g, ctx, no }: { g: TypingGroup; ctx: Ctx; no?: stri
           <summary><Icon name="chevron" size={18} />Show month-by-month charts for {rest.length > 8 ? 'the biggest 8 of the other' : 'the other'} {rest.length} item{rest.length > 1 ? 's' : ''}</summary>
           <div className="mini-grid">
             {rest.slice(0, 8).map((a) => (
-              <figure key={a.key} className="mini"><figcaption>{itemLabel(a.item)}</figcaption>{chartFor(a, ctx).node}<Key peer={!!(a.peer || a.method === 'peers')} /></figure>
+              <figure key={a.key} className="mini"><figcaption>{itemLabel(a.item, ctx.names)}</figcaption>{chartFor(a, ctx).node}<Key peer={!!(a.peer || a.method === 'peers')} /></figure>
             ))}
           </div>
         </details>

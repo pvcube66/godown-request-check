@@ -1,14 +1,23 @@
 import { scoped, type Collections } from '@anomaly/core';
 
 export const SEARCH_LIMIT = 20;
-export const searchQuery = (value = '') => value.trim().slice(0, 60);
+export const searchQuery = (value = '') => value.trim().slice(0, 100);
 
-/** User input is a literal substring, never a Mongo regular-expression program. */
-export function searchFilter(value: string) {
-  const q = searchQuery(value);
-  if (!q) return null;
-  const literal = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
-  return { $or: [{ hostelName: literal }, { hostelCode: literal }, { requestId: literal }] };
+const NOISE = new Set(['id', 'hostel', 'hostels', 'request', 'order', 'code', 'no', 'the']);
+
+/** The words of a search, whatever the format: "TGSWREIS (Boys) Kalwakurthy (36280901931)", "36280901931 kalwakurthy", "jc  kalwakurthy" ... */
+export function searchTokens(value: string): string[] {
+  return [...new Set(searchQuery(value).normalize('NFKC').toLowerCase().split(/[^a-z0-9]+/).filter((t) => t && !NOISE.has(t)).map((t) => t.slice(0, 30)))].slice(0, 8);
+}
+
+/** A token matches a field when it appears in it as typed, or with any punctuation or spaces in between its letters ("kalwakurthygirls" finds "Kalwakurthy(girls)"). */
+const tokenRegex = (t: string) => ({ $regex: t.length >= 4 && /[a-z]/.test(t) ? t.split('').join('[^A-Za-z0-9]*') : t, $options: 'i' });
+
+/** Every word must be found in at least one of the fields; the order of the words does not matter. Never a user-written pattern: only letters and digits reach the database. */
+export function searchFilter(value: string, fields: readonly string[] = ['hostelName', 'hostelCode', 'requestId', 'districtName']) {
+  const tokens = searchTokens(value);
+  if (!tokens.length) return null;
+  return { $and: tokens.map((t) => ({ $or: fields.map((f) => ({ [f]: tokenRegex(t) })) })) };
 }
 
 export interface HostelResult {

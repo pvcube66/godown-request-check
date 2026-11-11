@@ -2,14 +2,14 @@ import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, num } from '@/lib/format';
-import { daysSincePlaced, fmtDay, hostelIssueTypes, loadOrders, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
+import { daysSincePlaced, fmtDay, hostelIssueTypes, loadOrders, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
 import { godownLabels } from '@/lib/dashboard';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
 
-type SP = { stage?: string; q?: string; month?: string; p?: string; district?: string; account?: string; stuck?: string };
+type SP = { stage?: string; q?: string; month?: string; p?: string; district?: string; account?: string; stuck?: string; ids?: string; hostel?: string };
 const PAGE_SIZE = 25;
 const URGENCY_TEXT: Record<Urgency, string> = { late: 'Waiting a long time', watch: 'Waiting a while', ok: '' };
 const qs = (cur: SP, patch: Partial<SP>) => {
@@ -23,7 +23,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const c = await getDb();
   const { names } = await scopeFor(c);
   const now = new Date();
-  const [all, counts, months] = await Promise.all([loadOrders(c, sp, names, 0, now), stageCounts(c, names, { district: sp.district, account: sp.account }), orderMonths(c, names)]);
+  const [all, counts, months] = await Promise.all([loadOrders(c, sp, names, 0, now), stageCounts(c, names, { district: sp.district, account: sp.account, q: sp.q, month: sp.month, ids: sp.ids, hostel: sp.hostel }), orderMonths(c, names)]);
   const tab = TABS.find((t) => t.key === sp.stage)?.key ?? 'all';
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
   const pageNo = Math.min(Math.max(1, Number(sp.p) || 1), pages);
@@ -31,8 +31,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const shown = all.slice(offset, offset + PAGE_SIZE);
   const base = Object.fromEntries(Object.entries(sp).filter(([k, v]) => v && k !== 'p')) as Record<string, string>;
   const late = all.filter((o) => urgency(o, now) === 'late').length;
-  const shownCodes = shown.map((o) => o.hostelCode);
-  const [issueTypes, label] = await Promise.all([hostelIssueTypes(c, names, shownCodes), godownLabels(c)]);
+  const [issueTypes, label] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn) }))), godownLabels(c)]);
   const stuckDays = (STUCK_DAYS as readonly number[]).includes(Number(sp.stuck)) ? Number(sp.stuck) : 0;
   const lastSeen = all.reduce<Date | null>((m, o) => (!m || o.lastSeenAt > m ? o.lastSeenAt : m), null);
 
@@ -56,8 +55,8 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
         </nav>
       </div>
 
-      {(sp.district || sp.account || stuckDays > 0) && (
-        <p className="status" role="status">Showing{sp.district && <> district <b>{sp.district}</b></>}{sp.account && <> godown <b>{label(sp.account)}</b></>}{stuckDays > 0 && <> orders that have been at the same open stage for <b>{stuckDays}+ days</b></>}. <Link href={qs({ stage: sp.stage ?? '', q: sp.q ?? '', month: sp.month ?? '' }, {})} className="link-arrow">Show everything</Link></p>
+      {(sp.district || sp.account || sp.ids || sp.hostel || stuckDays > 0) && (
+        <p className="status" role="status">Showing{sp.district && <> district <b>{sp.district}</b></>}{sp.account && <> godown <b>{label(sp.account)}</b></>}{sp.ids && <> the orders counted on the supplier card</>}{sp.hostel && <> hostel <b>{sp.hostel}</b></>}{stuckDays > 0 && <> orders that have been at the same open stage for <b>{stuckDays}+ days</b></>}. <Link href={qs({ stage: sp.stage ?? '', q: sp.q ?? '', month: sp.month ?? '' }, {})} className="link-arrow">Show everything</Link></p>
       )}
 
       <form className="filters" method="get" action="/orders">
@@ -65,6 +64,8 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
         {sp.district && <input type="hidden" name="district" value={sp.district} />}
         {sp.account && <input type="hidden" name="account" value={sp.account} />}
         {sp.stuck && <input type="hidden" name="stuck" value={sp.stuck} />}
+        {sp.ids && <input type="hidden" name="ids" value={sp.ids} />}
+        {sp.hostel && <input type="hidden" name="hostel" value={sp.hostel} />}
         <label className="select"><span>Placed in</span>
           <select name="month" defaultValue={sp.month ?? ''}>
             <option value="">Any month</option>
@@ -99,7 +100,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                   const u = urgency(o, now);
                   const placed = daysSincePlaced(o, now);
                   const cells = stageCells(o, now);
-                  const issue = issueTypes.get(o.hostelCode)?.[0];
+                  const issue = issueTypes.get(`${o.hostelCode}|${orderMonth(o.placedOn)}`)?.[0];
                   return (
                     <tr key={o.requestId}>
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>

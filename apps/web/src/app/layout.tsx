@@ -10,5 +10,13 @@ export const metadata = {
 export const viewport = { themeColor: '#0a0a0a' };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  return (<html lang="en"><body>{children}</body></html>);
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Sets light or dark before anything is painted, so there is no flash: the saved choice, otherwise the device setting. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
 }

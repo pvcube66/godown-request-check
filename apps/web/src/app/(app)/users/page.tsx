@@ -1,4 +1,5 @@
 import { masterAdminAccess } from '@/lib/master-auth';
+import { ensureDistricts } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { ago, when } from '@/lib/format';
 import ActionForm from '../master/ActionForm';
@@ -12,6 +13,7 @@ const ROLE_TEXT = { admin: 'Administrator: sees every district and can change an
 export default async function Users() {
   if (!(await masterAdminAccess()).authorized) return <div className="master-page"><header className="master-header"><h1>Users</h1></header><section className="master-section master-gate"><h2>Administrators only</h2><p>Logins are created and changed by an administrator.</p></section></div>;
   const c = await getDb();
+  await ensureDistricts(c).catch(() => undefined);      // any district the godown logins have shown is saved and listed here, no bootstrap needed
   const [users, districts, audit] = await Promise.all([
     c.users.find({}, { projection: { passwordHash: 0 } }).sort({ name: 1 }).toArray(),
     c.districts.find({}).sort({ name: 1 }).toArray(),
@@ -22,7 +24,7 @@ export default async function Users() {
   const picker = (selected: string[] = []) => (
     <fieldset className="master-field master-span"><legend>Districts (operators and viewers)</legend>
       <div className="district-picks">{districts.map((d) => <label key={d.code}><input type="checkbox" name="districts" value={d.code} defaultChecked={selected.includes(d.code)} /> {d.name}</label>)}</div>
-      {districts.length === 0 && <span className="master-note">No districts yet. An administrator can bootstrap them under Master data.</span>}
+      {districts.length === 0 && <span className="master-note">No districts yet. They appear here by themselves after the first check of the portal.</span>}
     </fieldset>
   );
   const roleSelect = (value = 'operator') => (

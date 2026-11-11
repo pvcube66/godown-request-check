@@ -12,7 +12,10 @@ export const TABS = [
   { key: 'cancelled', label: 'Cancelled' },
 ] as const;
 
-export interface OrderParams { stage?: string; q?: string; month?: string; district?: string; account?: string; stuck?: string }
+export interface OrderParams { stage?: string; q?: string; month?: string; district?: string; account?: string; stuck?: string; ids?: string; hostel?: string }
+
+/** Request IDs sent by a card (comma separated, letters, digits, dash and underscore only, at most 60), so the list shows exactly the orders the card counted. */
+export const parseIds = (v?: string): string[] => (v ?? '').split(',').map((x) => x.trim()).filter((x) => /^[A-Za-z0-9_-]{1,40}$/.test(x)).slice(0, 60);
 
 /** "Stuck" thresholds, in whole days at the same open stage. They match the amber (7) and red (15) shading. */
 export const STUCK_DAYS = [7, 15] as const;
@@ -24,7 +27,10 @@ export function orderFilter(p: OrderParams, now = new Date()) {
   const tab = TABS.find((t) => t.key === p.stage)?.key ?? 'all';
   if (tab !== 'all') f.stage = tab;
   const search = searchFilter(p.q ?? '');
-  if (search) f.$or = search.$or;
+  if (search) f.$and = search.$and;
+  const ids = parseIds(p.ids);
+  if (ids.length) f.requestId = { $in: ids };
+  if (p.hostel && /^[A-Za-z0-9_-]{1,40}$/.test(p.hostel)) f.hostelCode = p.hostel;
   const m = /^(\d{4})-(\d{2})$/.exec(p.month ?? '');
   if (m) {
     const start = new Date(`${m[1]}-${m[2]}-01T00:00:00+05:30`);
@@ -54,8 +60,8 @@ export async function loadOrders(c: Collections, p: OrderParams, names: string[]
 }
 
 /** How many orders are in each stage (all months), for the tab counts. */
-export async function stageCounts(c: Collections, names: string[] | null, only: { district?: string; account?: string } = {}): Promise<Record<string, number>> {
-  const base = orderFilter({ district: only.district, account: only.account });
+export async function stageCounts(c: Collections, names: string[] | null, only: Omit<OrderParams, 'stage' | 'stuck'> = {}): Promise<Record<string, number>> {
+  const base = orderFilter({ district: only.district, account: only.account, q: only.q, month: only.month, ids: only.ids, hostel: only.hostel });
   const rows = await c.orders.aggregate<{ _id: Stage; n: number }>([{ $match: scoped(base, names) }, { $group: { _id: '$stage', n: { $sum: 1 } } }]).toArray();
   const by = Object.fromEntries(rows.map((r) => [r._id, r.n]));
   const open = OPEN_STAGES.reduce((s, k) => s + (by[k] ?? 0), 0);
@@ -139,19 +145,24 @@ export function stageCells(o: Pick<OrderDoc, 'stage' | 'stages' | 'reached'>, no
   return out;
 }
 
-const FLAG_TEXT: Record<string, string> = { spike: 'Item too high', typing: 'Same number typed for many items', order: 'Whole order too big', duplicate: 'Possible duplicate' };
+const FLAG_TEXT: Record<string, string> = { spike: 'Unusual quantity', typing: 'Same number typed for many items', order: 'Whole order too big', duplicate: 'Possible duplicate' };
 
-/** For the hostels on screen: open issues and open unusual-request flags, in words ("issue type" column). District limits apply. */
-export async function hostelIssueTypes(c: Collections, names: string[] | null, hostelCodes: string[]): Promise<Map<string, string[]>> {
+/** The month an order belongs to, as the unusual-request flags and issues name it (yyyy-mm, India time). */
+export const orderMonth = (placedOn: Date | null | undefined): string => (placedOn ? placedOn.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 7) : '');
+
+/** For the orders on screen: open issues and open unusual-request flags for THAT order's hostel AND month, in words. Keyed "hostelCode|yyyy-mm".
+ *  (A flag for another month of the same hostel says nothing about this order.) District limits apply. */
+export async function hostelIssueTypes(c: Collections, names: string[] | null, pairs: { hostelCode: string; month: string }[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
-  const codes = [...new Set(hostelCodes)];
+  const codes = [...new Set(pairs.map((p) => p.hostelCode))];
   if (!codes.length) return out;
-  const add = (code: string, text: string) => { const l = out.get(code) ?? out.set(code, []).get(code)!; if (!l.includes(text)) l.push(text); };
+  const wanted = new Set(pairs.map((p) => `${p.hostelCode}|${p.month}`));
+  const add = (code: string, month: string, text: string) => { const k = `${code}|${month}`; if (!wanted.has(k)) return; const l = out.get(k) ?? out.set(k, []).get(k)!; if (!l.includes(text)) l.push(text); };
   const [issues, flags] = await Promise.all([
-    c.issues.find(scoped({ hostelCode: { $in: codes }, state: { $in: ACTIVE_STATES } }, names), { projection: { hostelCode: 1, state: 1 } }).toArray(),
-    c.anomalies.find(scoped({ hostelCode: { $in: codes }, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, kind: 1 } }).toArray(),
+    c.issues.find(scoped({ hostelCode: { $in: codes }, state: { $in: ACTIVE_STATES } }, names), { projection: { hostelCode: 1, state: 1, month: 1 } }).toArray(),
+    c.anomalies.find(scoped({ hostelCode: { $in: codes }, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, kind: 1, month: 1 } }).toArray(),
   ]);
-  for (const i of issues) add(i.hostelCode, i.state === 'rejected_on_portal' ? 'Waiting for new indent' : 'Issue raised');
-  for (const f of flags) add(f.hostelCode, FLAG_TEXT[f.kind] ?? f.kind);
+  for (const i of issues) add(i.hostelCode, i.month, i.state === 'rejected_on_portal' ? 'Waiting for new indent' : 'Issue raised');
+  for (const f of flags) add(f.hostelCode, f.month, FLAG_TEXT[f.kind] ?? f.kind);
   return out;
 }

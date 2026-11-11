@@ -11,10 +11,15 @@ export function hostelLabel(name: string): string {
 }
 
 /** "IddliRavva" -> "Iddli Ravva" */
-export const itemLabel = (s: string) => s.replace(/([a-z])([A-Z])/g, '$1 $2').trim();
+export type ItemNames = Record<string, string>;
+/** A readable item name. Strips the "[unit: ...]" part of an item key, and uses the item master's name when it is known. */
+export const itemLabel = (s: string, names?: ItemNames): string => {
+  const base = s.includes(' [unit:') ? s.split(' [unit:')[0]! : s;
+  return names?.[s] ?? names?.[base] ?? base.replace(/([a-z])([A-Z])/g, '$1 $2').trim();
+};
 
 export function num(n: number): string {
-  if (n > 0 && n < 1) return n < 0.1 ? 'less than 0.1' : n.toFixed(1);
+  if (n > 0 && n < 1) return n < 0.01 ? '<0.01' : n.toFixed(2).replace(/0$/, '');     // 0.04 stays 0.04; it is never rounded to a vague "less than 0.1"
   const d = n >= 10 || Number.isInteger(n) ? 0 : 1;
   return n.toLocaleString('en-IN', { maximumFractionDigits: d });
 }

@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import { runBench } from './bench.js';
 import { runSweep } from './sweep.js';
-import { addAccount, closeDb, connectDb, reviewStats, runCycle, runDetection, syncAll } from '@anomaly/core';
+import { addAccount, closeDb, connectDb, fetchAttendanceRows, fetchRequestItems, getToken, reviewStats, runCycle, runDetection, syncAll } from '@anomaly/core';
 
 // Load the repo-root .env regardless of where the command is run from.
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../.env') });
@@ -58,6 +58,28 @@ async function main() {
         console.log(by.map((b) => `${b._id.m} ${b._id.s} ${b._id.x}: ${b.n}`).join('\n'));
         break;
       }
+      case 'check-students': {             // read-only: what does the portal's attendance report say for one hostel, day by day?
+        const code = args[0];
+        if (!code) throw new Error('Usage: cli check-students <hostelCode>');
+        const acct = await c.accounts.findOne({ status: { $ne: 'disabled' } });
+        if (!acct) throw new Error('No portal login is saved.');
+        const token = await getToken(c, acct);
+        for (let back = 0; back < 7; back++) {
+          const date = new Date(Date.now() - back * 86_400_000).toISOString().slice(0, 10);
+          const rows = (await fetchAttendanceRows(token, code, date)) ?? [];
+          console.log(`${date}: ${rows.length} classes, ${rows.reduce((n, r) => n + (Number(r.total_students) || 0), 0)} students  ${JSON.stringify(rows.map((r) => r.total_students))}`);
+        }
+        break;
+      }
+      case 'check-order': {                // read-only: asked-for and supplied quantity per item for one order, as the portal gives them
+        const id = args[0];
+        if (!id) throw new Error('Usage: cli check-order <requestId>');
+        const acct = await c.accounts.findOne({ status: { $ne: 'disabled' } });
+        if (!acct) throw new Error('No portal login is saved.');
+        const rows = await fetchRequestItems(await getToken(c, acct), id);
+        for (const r of rows) console.log(`${r.name.padEnd(40)} ${String(r.unit ?? '').padEnd(8)} asked=${r.requestedQuantity} supplied=${r.suppliedQuantity ?? '-'} received=${r.receivedQuantity ?? '-'}`);
+        break;
+      }
       case 'bench': { await runBench(c); break; }
       case 'bench-quick': { await runBench(c, undefined, { blind: false }); break; }
       case 'review-stats': {
@@ -74,7 +96,7 @@ async function main() {
         break;
       }
       default:
-        console.log('Commands: add-account <username> | backfill | sync | cycle | serve | detect | status');
+        console.log('Commands: add-account <username> | backfill | sync | cycle | serve | detect | check-students <hostelCode> | check-order <requestId> | status');
     }
   } finally {
     await closeDb();

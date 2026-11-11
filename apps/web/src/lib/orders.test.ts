@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { orderFilter } from './orders';
+import { orderFilter, orderMonth, parseIds } from './orders';
 import { searchFilter } from './search';
 
 describe('order search compatibility', () => {
   it.each(['261101', 'kgbv', 'REQ-42', 'A.*(girls)'])('preserves global search matches for %j', (q) => {
-    expect(orderFilter({ q }).$or).toEqual(searchFilter(q)!.$or);
+    expect(orderFilter({ q }).$and).toEqual(searchFilter(q)!.$and);
   });
 
   it('keeps the stage filter while searching', () => {
@@ -91,5 +91,21 @@ describe('stuck, district and godown filters', () => {
     expect(f.districtName.test(' JOGULAMBA GADWAL ')).toBe(true);
     expect(f.districtName.test('Nalgonda')).toBe(false);
     expect(f.account).toBe('GDN-JGL');
+  });
+});
+
+describe('orders opened from a supplier card', () => {
+  it('lists exactly the card\'s own request IDs and drops anything that is not an ID', () => {
+    expect(orderFilter({ ids: 'IR1, IR2,bad id,$ne,IR3' }).requestId).toEqual({ $in: ['IR1', 'IR2', 'IR3'] });
+    expect(orderFilter({ ids: '' }).requestId).toBeUndefined();
+    expect(parseIds(Array.from({ length: 100 }, (_, i) => `R${i}`).join(','))).toHaveLength(60);
+  });
+  it('filters by hostel code exactly, and refuses odd codes', () => {
+    expect(orderFilter({ hostel: '36280901931' }).hostelCode).toBe('36280901931');
+    expect(orderFilter({ hostel: '{"$ne":""}' }).hostelCode).toBeUndefined();
+  });
+  it('names the month of an order the way the flags do', () => {
+    expect(orderMonth(new Date('2026-09-30T20:00:00Z'))).toBe('2026-10');      // 1 Oct in India
+    expect(orderMonth(null)).toBe('');
   });
 });

@@ -46,3 +46,28 @@ export async function loadOrderItems(c: Collections, orders: { godownId: number;
   for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}|${r.month}`; (map.get(k) ?? map.set(k, []).get(k)!).push(r); }
   return map;
 }
+
+/** The request IDs behind each flagged hostel-month (rejected requests are not counted), so a card can say which indent it is about. */
+export async function loadFlagRequestIds(c: Collections, flags: { godownId: number; hostelCode: string; month: string }[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!flags.length) return out;
+  const rows = await c.requests.find(
+    { hostelCode: { $in: [...new Set(flags.map((f) => f.hostelCode))] }, month: { $in: [...new Set(flags.map((f) => f.month))] } },
+    { projection: { godownId: 1, hostelCode: 1, month: 1, requestId: 1, status: 1, requestDate: 1 } },
+  ).sort({ requestDate: 1, requestId: 1 }).toArray();
+  for (const r of rows) {
+    if (/^reject/i.test(r.status)) continue;
+    const k = `${r.godownId}|${r.hostelCode}|${r.month}`;
+    (out.get(k) ?? out.set(k, []).get(k)!).push(r.requestId);
+  }
+  return out;
+}
+
+/** Hostel in-charge phone numbers for the hostels on screen, keyed "godownId|hostelCode". */
+export async function loadHostelPhones(c: Collections, pairs: { godownId: number; hostelCode: string }[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!pairs.length) return out;
+  const rows = await c.hostelsMaster.find({ hostelCode: { $in: [...new Set(pairs.map((p) => p.hostelCode))] } }, { projection: { godownId: 1, hostelCode: 1, hostelPhone: 1 } }).toArray();
+  for (const r of rows) if (r.hostelPhone) out.set(`${r.godownId}|${r.hostelCode}`, r.hostelPhone);
+  return out;
+}

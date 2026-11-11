@@ -1,4 +1,4 @@
-import { daysBetween, istDay, normalizedDistrictCode, scoped, type Collections, type MappingDoc, type OrderDoc, type Stage } from '@anomaly/core';
+import { DISPATCHED_STAGES, daysBetween, istDay, normalizedDistrictCode, scoped, type Collections, type MappingDoc, type OrderDoc, type Stage } from '@anomaly/core';
 import { orderFilter } from './orders';
 
 export type By = 'supplier' | 'godown' | 'district' | 'hostel';
@@ -12,7 +12,7 @@ export const BYS: { key: By; label: string }[] = [
 /** The numbers behind "is this supplier meeting demand?". Shown on the page so nobody has to guess. */
 export const MEETING = { fill: 0.9, notFill: 0.75, lateShare: 0.1, notLateShare: 0.25 } as const;
 
-export type PerfOrder = Pick<OrderDoc, 'supplier' | 'account' | 'districtName' | 'hostelCode' | 'hostelName' | 'stage' | 'stageSince' | 'reached' | 'placedOn'> & {
+export type PerfOrder = Pick<OrderDoc, 'requestId' | 'supplier' | 'account' | 'districtName' | 'hostelCode' | 'hostelName' | 'stage' | 'stageSince' | 'reached' | 'placedOn'> & {
   fulfilment?: Pick<NonNullable<OrderDoc['fulfilment']>, 'lineFill' | 'receivedFill' | 'lines' | 'linesWithSupply' | 'fullLines' | 'variationLines'>;
 };
 
@@ -33,10 +33,12 @@ export interface PerfRow {
   variationShare: number | null;  // orders with a variation, of orders already received
   vsAverage: number | null;       // fill minus the average of everyone in view, in percentage points
   verdict: Verdict;
+  orderIds: string[];             // the request IDs behind this row (up to ORDER_ID_LIMIT), so a card can open exactly its own orders
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const MOVING: Stage[] = ['pending', 'dc', 'transit'];
+export const ORDER_ID_LIMIT = 40;
 
 /** Which supplier served an order: the one the portal names on its delivery note; otherwise the supplier mapped to its district on the day it was placed (history is kept). */
 export function supplierResolver(mappings: readonly Pick<MappingDoc, 'districtCode' | 'supplierCode' | 'from' | 'to'>[], supplierName: (code: string) => string) {
@@ -58,7 +60,7 @@ export function verdictFor(fill: number | null, lateShare: number, read: number)
 
 function rowOf(key: string, label: string, filter: PerfRow['filter'], orders: readonly PerfOrder[], now: Date): Omit<PerfRow, 'vsAverage'> {
   const active = orders.filter((o) => o.stage !== 'rejected' && o.stage !== 'cancelled');
-  const read = active.filter((o) => o.fulfilment?.lineFill != null);
+  const read = active.filter((o) => DISPATCHED_STAGES.includes(o.stage) && o.fulfilment?.lineFill != null);     // before dispatch, supplied quantities are not final
   const moving = active.filter((o) => MOVING.includes(o.stage));
   const age = (o: PerfOrder) => daysBetween(o.stageSince, now);
   const diff = (a: Date | null | undefined, b: Date | null | undefined) => (a && b ? daysBetween(a, b) : null);
@@ -67,7 +69,7 @@ function rowOf(key: string, label: string, filter: PerfRow['filter'], orders: re
   const backlog15 = moving.filter((o) => age(o) >= 15).length;
   const fill = mean(read.map((o) => o.fulfilment!.lineFill!));
   return {
-    key, label, filter, orders: orders.length, active: active.length, read: read.length, fill,
+    key, label, filter, orderIds: orders.slice(0, ORDER_ID_LIMIT).map((o) => o.requestId), orders: orders.length, active: active.length, read: read.length, fill,
     fullOrders: read.filter((o) => o.fulfilment!.fullLines === o.fulfilment!.linesWithSupply && o.fulfilment!.linesWithSupply > 0).length,
     receivedFill: mean(active.map((o) => o.fulfilment?.receivedFill).filter((n): n is number => n != null)),
     daysToDc: nums((o) => diff(o.reached?.pending, o.reached?.dc)),
@@ -138,7 +140,7 @@ export function hostelService(orders: readonly PerfOrder[]): HostelService {
 
 export async function loadPerfOrders(c: Collections, names: string[] | null, month?: string): Promise<PerfOrder[]> {
   return c.orders.find(scoped(orderFilter({ month }), names) as never, { projection: {
-    supplier: 1, account: 1, districtName: 1, hostelCode: 1, hostelName: 1, stage: 1, stageSince: 1, reached: 1, placedOn: 1,
+    requestId: 1, supplier: 1, account: 1, districtName: 1, hostelCode: 1, hostelName: 1, stage: 1, stageSince: 1, reached: 1, placedOn: 1,
     'fulfilment.lineFill': 1, 'fulfilment.receivedFill': 1, 'fulfilment.lines': 1, 'fulfilment.linesWithSupply': 1, 'fulfilment.fullLines': 1, 'fulfilment.variationLines': 1,
   } }).toArray() as unknown as Promise<PerfOrder[]>;
 }

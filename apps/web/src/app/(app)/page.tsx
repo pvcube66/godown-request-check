@@ -8,7 +8,9 @@ import { loadUnits, unitFor, withUnit } from '@/lib/units';
 import { loadHealth, STALE_MINUTES } from '@/lib/health';
 import { ago, hostelLabel, itemLabel, monthLabel, num, SEVERITY, timesMore } from '@/lib/format';
 import { groupFlags } from '@/lib/group';
-import { loadHistory, loadOrderItems, loadRequestsById } from '@/lib/history';
+import { loadFlagRequestIds, loadHistory, loadHostelPhones, loadOrderItems, loadRequestsById } from '@/lib/history';
+import { loadItemNames } from '@/lib/item-names';
+import { searchFilter, searchQuery } from '@/lib/search';
 import { DuplicateCard, OrderCard, SpikeCard, TypingCard } from '@/components/FlagCards';
 import { Icon } from '@/components/Icons';
 import FilterSelect from './FilterSelect';
@@ -25,7 +27,6 @@ const KIND_TABS = [
   { key: 'duplicate', label: 'Possible duplicate' },
 ] as const;
 const PAGE_SIZE = 12, CARDS_SHOWN = 3;
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const qs = (cur: SP, patch: Partial<SP>) => {
   const p = new URLSearchParams(Object.entries({ ...cur, ...patch }).filter(([, v]) => v) as [string, string][]);
   return `/?${p}`;
@@ -54,8 +55,9 @@ async function HomeContent({ sp }: { sp: SP }) {
   const base0: Record<string, unknown> = { partOfOrder: { $ne: true } };
   if (sp.month) base0.month = sp.month;
   if (sp.district) base0.districtName = sp.district;
-  const q = (sp.q ?? '').trim().slice(0, 60);
-  if (q) base0.hostelName = { $regex: escapeRe(q), $options: 'i' };
+  const q = searchQuery(sp.q);
+  const sf = searchFilter(q, ['hostelName', 'hostelCode', 'districtName']);
+  if (sf) base0.$and = sf.$and;
   const kind = KIND_TABS.find((k) => k.key && k.key === sp.kind)?.key ?? '';
   const scopeAnyKind = scoped({ ...base0 }, names);                 // every type: used for the numbers on the type chips
   if (kind) base0.kind = kind;
@@ -93,10 +95,15 @@ async function HomeContent({ sp }: { sp: SP }) {
   const issues: Record<string, string> = {};
   for (const i of issueRows) for (const k of i.anomalyKeys) issues[k] = i.issueId;
   const units = await loadUnits(c);
+  const itemNames = await loadItemNames(c);
+  const [flagRequests, phones] = await Promise.all([
+    loadFlagRequestIds(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode, month: g[0]!.month }))),
+    loadHostelPhones(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode }))),
+  ]);
   const waitDays = await getWaitDays(c);
   const health = await loadHealth(c);
   const overdue = await overdueCount(c, names, waitDays);
-  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues, units };
+  const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues, units, names: itemNames };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
   const reportQuery = new URLSearchParams(Object.entries({ month: sp.month ?? '', district: sp.district ?? '', q }).filter(([, v]) => v) as [string, string][]).toString();
@@ -181,7 +188,8 @@ async function HomeContent({ sp }: { sp: SP }) {
                 <span className="hc-no" aria-label={`Number ${sn}`}>{sn}</span>
                 <span className="hc-title">
                   <span className="hc-name">{hostelLabel(top1.hostelName)}</span>
-                  <span className="hc-meta">{top1.districtName} · ID {top1.hostelCode}</span>
+                  <span className="hc-meta">{top1.districtName} · Hostel ID {top1.hostelCode}</span>
+                  {(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).length > 0 && <span className="hc-meta">Request {(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).slice(0, 2).join(', ')}{(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).length > 2 ? ` +${(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).length - 2} more` : ''}</span>}
                 </span>
                 <Icon name="chevron" size={16} />
               </span>
@@ -201,9 +209,9 @@ async function HomeContent({ sp }: { sp: SP }) {
                       <small>{top1.kind === 'order' || top1.expected <= 0 ? 'bigger than similar hostels' : 'the usual amount'}</small>
                     </span>
                     <span className="hc-detail">
-                      <span className="hc-line">{top1.kind === 'order' ? 'Whole order' : itemLabel(top1.item.split(' [unit:')[0]!)}</span>
+                      <span className="hc-line">{top1.kind === 'order' ? 'Whole order' : itemLabel(top1.item, itemNames)}</span>
                       {top1.kind !== 'order' && top1.expected > 0 && (
-                        <span className="hc-sub">Usually {withUnit(top1.expected < 0.1 ? '<0.1' : num(top1.expected), unitFor(top1.item, units))} · asked <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b></span>
+                        <span className="hc-sub">Usually {withUnit(num(top1.expected), unitFor(top1.item, units))} · asked <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b></span>
                       )}
                       {top1.kind === 'order' && <span className="hc-sub">Asked <b>{withUnit(num(top1.requested), unitFor(top1.item, units))}</b> in total</span>}
                     </span>
@@ -218,7 +226,11 @@ async function HomeContent({ sp }: { sp: SP }) {
                 {cards.length > 1 && <span className="hc-count">{cards.length} issues</span>}
               </span>
             </summary>
-            <p className="tile-profile"><Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link></p>
+            <p className="tile-profile">
+              <Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link>
+              {(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).map((id) => <Link key={id} href={`/orders/${encodeURIComponent(id)}`} className="link-arrow">Order {id}<Icon name="arrow" size={15} /></Link>)}
+              {phones.get(`${top1.godownId}|${top1.hostelCode}`) && <span className="tile-phone">Hostel phone: <a href={`tel:${phones.get(`${top1.godownId}|${top1.hostelCode}`)!.replace(/[^+0-9]/g, '')}`}>{phones.get(`${top1.godownId}|${top1.hostelCode}`)}</a></span>}
+            </p>
             {numbered.slice(0, CARDS_SHOWN).map((x) => x.node)}
             {cards.length > CARDS_SHOWN && (
               <details className="more">
