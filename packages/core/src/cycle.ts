@@ -6,6 +6,7 @@ import { syncIssues } from './issues.js';
 import { runReminders } from './reminders.js';
 import { runCampaigns } from './whatsappCampaigns.js';
 import { ensureDistricts } from './seedMasterData.js';
+import { setDeadline } from './deadline.js';
 
 let running = false;
 
@@ -28,7 +29,9 @@ export async function runCycle(c: Collections, trigger: string, mode: 'recent' |
   running = true;
   if (!(await acquireCycleLock(c))) { running = false; return null; }
   try {
-    const run = await syncAll(c, mode, trigger, opts.budgetMs ? Date.now() + opts.budgetMs : undefined);
+    setDeadline(opts.budgetMs ? Date.now() + opts.budgetMs : undefined);      // only the optional catch-up steps honour this
+    let run: RunDoc;
+    try { run = await syncAll(c, mode, trigger); } finally { setDeadline(undefined); }
     await ensureDistricts(c).catch(() => undefined);      // new districts appear on the Users page by themselves
     try {
       run.newAnomalies = (await runDetection(c)).created;

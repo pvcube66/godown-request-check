@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getToken } from './accounts.js';
+import { outOfTime } from './deadline.js';
 import { requestItemSnapshots, snapshotsComplete, syncItemMasters } from './itemMaster.js';
 import type { ParsedRequest } from './types.js';
 import type { MasterDataCollections } from './masterData.js';
@@ -23,7 +24,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** `deadline` (a time in ms) lets a short-lived host stop the optional catch-up steps early; they are all resumable and simply continue next hour. */
 export async function syncAccount(c: Collections, acct: AccountDoc, months: string[], deadline?: number): Promise<number> {
-  const time = () => deadline === undefined || Date.now() < deadline;
+  const time = () => (deadline === undefined || Date.now() < deadline) && !outOfTime();
   let token = await getToken(c, acct);
   let total = 0;
   for (const gd of acct.godowns) {
@@ -158,6 +159,7 @@ export async function syncRequestItems(c: Collections, acct: AccountDoc, token: 
   }).sort({ firstSeenAt: 1 }).limit(limit).toArray();
   let done = 0;
   for (const r of todo) {
+    if (outOfTime()) break;
     try {
       const rows = await fetchRequestItems(token, r.requestId);
       // Strip remark fields: snapshots contain item metadata and quantities only.
@@ -199,6 +201,7 @@ export async function syncHostelSizes(c: Collections, acct: AccountDoc, token: s
       return age > (h.students ? SIZE_FRESH_DAYS : SIZE_RETRY_DAYS);
     }).slice(0, SIZE_PER_RUN);
     for (const code of due) {
+      if (outOfTime()) break;
       let students: number | null;
       try { students = await fetchHostelStudents(token, code); }
       catch (e) { if (e instanceof PortalAuthError) throw e; continue; }       // skip this one, try next time
@@ -215,6 +218,7 @@ export async function syncCancelReasons(c: Collections, acct: AccountDoc, token:
   const todo = await c.requests.find({ godownId: { $in: acct.godowns.map((g) => g.id) }, status: /^reject/i, cancelReason: { $exists: false } }).limit(40).toArray();
   let n = 0;
   for (const r of todo) {
+    if (outOfTime()) break;
     const reason = await fetchRequestRemark(token, r.requestId);
     await c.requests.updateOne({ godownId: r.godownId, requestId: r.requestId }, { $set: { cancelReason: reason } });
     n++; await sleep(200);

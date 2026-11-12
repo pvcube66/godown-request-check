@@ -4,8 +4,8 @@ import { authorised } from '@/lib/cron-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;                 // the longest a free Vercel plan allows; the work stops its optional steps before this
-const BUDGET_MS = 40_000;
+export const maxDuration = 300;                // the longest Vercel allows with its newer function settings; the catch-up steps stop well before this
+const BUDGET_MS = 120_000;
 
 /** Same check as `npm run worker -- cycle`, started over the web so the website can do the job itself wherever it is hosted.
  *  This address has no sign-in, so it needs the secret (CRON_SECRET) as a bearer token; without it, or with a wrong one, nothing runs. */
