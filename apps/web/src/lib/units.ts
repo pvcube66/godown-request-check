@@ -1,10 +1,11 @@
+import { getItemMasters } from './item-master-cache';
 import { effectiveItemMetadata, normalizedItemName, type Collections } from '@anomaly/core';
 
 /** item name (normalised) -> its unit, from the item master. Only when every variant of the item agrees on one unit. */
 export type UnitMap = Record<string, string>;
 
 export async function loadUnits(c: Collections): Promise<UnitMap> {
-  const masters = await c.itemsMaster.find({}).toArray();
+  const masters = await getItemMasters(c);
   const seen = new Map<string, Set<string>>();
   for (const m of masters) {
     const unit = (effectiveItemMetadata(m).unit ?? '').trim();

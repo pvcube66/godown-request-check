@@ -5,10 +5,12 @@ import { importMappings, reassignDistrict, seedMasterData, updateItemMaster, Map
 import { getDb } from '@/lib/db';
 import { requireMasterAdmin } from '@/lib/master-auth';
 import type { MasterActionState } from './action-state';
+import { clearItemMasterCache } from '@/lib/item-master-cache';
 import { parseMappingUpload } from './import-file';
 import { godownIdField, MasterInputError, phoneField, textField } from './validation';
 
 function refreshMasterPages() {
+  clearItemMasterCache();
   for (const path of ['/master', '/', '/orders', '/search', '/accounts']) revalidatePath(path);
   revalidatePath('/hostel/[code]', 'page');
 }
