@@ -1,4 +1,4 @@
-import { runCycle } from '@anomaly/core';
+import { ensureIndexes, runCycle } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { authorised } from '@/lib/cron-auth';
 
@@ -11,7 +11,9 @@ const BUDGET_MS = 120_000;
  *  This address has no sign-in, so it needs the secret (CRON_SECRET) as a bearer token; without it, or with a wrong one, nothing runs. */
 async function handle(req: Request) {
   if (!authorised(req.headers.get('authorization'))) return new Response('Unauthorized', { status: 401 });
-  const run = await runCycle(await getDb(), 'scheduler', 'recent', { budgetMs: BUDGET_MS });
+  const c = await getDb();
+  await ensureIndexes(c).catch(() => { /* an index problem must never stop the hourly check */ });
+  const run = await runCycle(c, 'scheduler', 'recent', { budgetMs: BUDGET_MS });
   if (!run) return Response.json({ ok: true, skipped: 'Another check is already running.' });
   return Response.json({ ok: run.ok, newAnomalies: run.newAnomalies ?? 0, accounts: run.accounts.map((a) => ({ username: a.username, ok: a.ok, ...(a.ok ? { rows: a.rows } : { error: a.error }) })) }, { status: run.ok ? 200 : 207 });
 }

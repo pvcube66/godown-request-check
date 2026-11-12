@@ -100,7 +100,9 @@ export interface Collections extends MasterDataCollections {
 let client: MongoClient | null = null;
 let db: Db | null = null;
 
-export async function connectDb(uri = process.env.MONGODB_URI, name = process.env.MONGODB_DB ?? 'anomaly_detection') {
+/** `indexes: false` skips the index check (about 50 network round trips). The website uses it so a cold start is fast;
+ *  the hourly check and the worker still make sure every index exists. */
+export async function connectDb(uri = process.env.MONGODB_URI, name = process.env.MONGODB_DB ?? 'anomaly_detection', opts: { indexes?: boolean } = {}) {
   if (!uri) throw new Error('MONGODB_URI is not set');
   if (!client) {
     client = new MongoClient(uri, { serverSelectionTimeoutMS: 15_000 });
@@ -108,7 +110,7 @@ export async function connectDb(uri = process.env.MONGODB_URI, name = process.en
     db = client.db(name);
   }
   const c = collections(db!);
-  await ensureIndexes(c);
+  if (opts.indexes !== false) await ensureIndexes(c);
   return c;
 }
 
@@ -193,6 +195,16 @@ export async function ensureIndexes(c: Collections) {
   await c.waCampaignRecipients.createIndex({ campaignId: 1, status: 1 });
   await c.whatsappMessages.createIndex({ campaignId: 1, status: 1 }, { sparse: true });
   await c.whatsappMessages.createIndex({ phone: 1, createdAt: 1 });
+  // Speed: lookups the pages make by hostel, request number, district or placed date (they scanned the whole collection before)
+  await c.requests.createIndex({ hostelCode: 1, month: 1 });
+  await c.requests.createIndex({ requestId: 1 });
+  await c.orders.createIndex({ requestId: 1 });
+  await c.orders.createIndex({ hostelCode: 1, stage: 1 });
+  await c.orders.createIndex({ placedOn: -1 });
+  await c.orders.createIndex({ districtName: 1 });
+  await c.anomalies.createIndex({ godownId: 1, hostelCode: 1, month: 1, status: 1 });
+  await c.anomalies.createIndex({ hostelCode: 1, status: 1 });
+  await c.hostelsMaster.createIndex({ hostelCode: 1 });
 }
 
 export async function closeDb() { await client?.close(); client = null; db = null; }
