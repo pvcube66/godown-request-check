@@ -2,6 +2,15 @@ import { getDb } from '@/lib/db';
 import { requireViewer } from '@/lib/viewer';
 import { ago, when } from '@/lib/format';
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Past checks' };
+
+/** A short, plain reason for a failed check. The technical text is kept out of the screen. */
+function plainError(e?: string): string {
+  const t = e ?? '';
+  if (/401|unauthori[sz]ed|token|password|login/i.test(t)) return 'The portal did not accept this godown login. Check the login under Godowns.';
+  if (/timeout|timed out|ECONN|ENOTFOUND|fetch failed|network|HTTP 5\d\d/i.test(t)) return 'The portal could not be reached. The check will try again next hour.';
+  return 'Something went wrong during this check. It will try again next hour.';
+}
 
 export default async function Runs() {
   const viewer = await requireViewer();
@@ -21,8 +30,8 @@ export default async function Runs() {
               <div>
                 <h3>{when(r.startedAt)}</h3>
                 <p className="meta">{ago(r.startedAt)}.{' '}
-                  {r.ok ? `Looked at ${rows.toLocaleString('en-IN')} requests and found ${r.newAnomalies ?? 0} new unusual ${r.newAnomalies === 1 ? 'one' : 'ones'}.` : 'This check had a problem.'}</p>
-                {errs.map((e) => <p key={e.username} className="bad-text">{e.username}: {e.error}</p>)}
+                  {r.ok ? `Refreshed ${rows.toLocaleString('en-IN')} recent requests from the portal and added ${r.newAnomalies ?? 0} new unusual-request ${r.newAnomalies === 1 ? 'flag' : 'flags'}.` : 'This check had a problem.'}</p>
+                {errs.map((e) => <p key={e.username} className="bad-text">{e.username}: {plainError(e.error)}</p>)}
               </div>
               <span className={`state ${r.ok ? 'ok' : 'bad'}`}>{r.ok ? 'Worked' : 'Problem'}</span>
             </div>

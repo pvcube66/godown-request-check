@@ -7,6 +7,7 @@ import ImportForm from './ImportForm';
 import { bootstrapAction, godownContactAction, hostelContactAction, itemCorrectionAction, reassignAction } from './actions';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Master data' };
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 const PAGE_SIZE = 30;
@@ -137,8 +138,7 @@ export default async function MasterPage({ searchParams }: { searchParams: Promi
         const metadata = effectiveItemMetadata(item);
         return <details className="master-record" key={item.key}>
           <summary><span><strong>{item.name}</strong><span className="master-meta">{item.itemId ? `ID ${item.itemId} · ` : ''}{metadata.unit || 'Unit unknown'} / {metadata.packSize || 'Pack unknown'}{metadata.brand ? ` · ${metadata.brand}` : ''}{metadata.category ? ` · ${metadata.category}` : ''}</span></span><span className="master-edit-label">Correct details</span></summary>
-          <div className="master-record-body"><p className="master-meta master-break">Variant key: {item.key}</p>
-            <p className="master-note">{item.overrideAt ? `Last corrected by ${item.overrideBy ?? 'admin'} on ${timestamp(item.overrideAt)} IST.` : 'No manual correction yet.'} Last observed {timestamp(item.lastSeenAt)} IST.</p>
+          <div className="master-record-body">            <p className="master-note">{item.overrideAt ? `Last corrected by ${item.overrideBy ?? 'admin'} on ${timestamp(item.overrideAt)} IST.` : 'No manual correction yet.'} Last observed {timestamp(item.lastSeenAt)} IST.</p>
             <ActionForm action={itemCorrectionAction} submitLabel="Save item correction">
               <input name="key" type="hidden" value={item.key} />
               <div className="master-fields">{(['unit', 'packSize', 'brand', 'category'] as const).map((field) => <label className="master-field" key={field}>{({ unit: 'Unit', packSize: 'Pack size', brand: 'Brand', category: 'Category' })[field]}<input name={field} defaultValue={metadata[field] ?? ''} maxLength={100} /></label>)}</div>

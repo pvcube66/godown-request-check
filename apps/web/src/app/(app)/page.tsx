@@ -66,14 +66,15 @@ async function HomeContent({ sp }: { sp: SP }) {
   const attention = { ...scope, status: 'open', severity: { $in: ['high', 'medium'] } };
   const showSummary = view === 'open';
 
-  const [kindCounts, rows, counts, months, districts, lastRun, requestMonths] = await Promise.all([
-    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: '$kind', n: { $sum: 1 } } }]).toArray(),
+  const [kindCounts, rows, counts, months, districts, lastRun, requestMonths, allTypesRows] = await Promise.all([
+    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: { k: '$kind', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.k', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
     c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
-    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: '$severity', n: { $sum: 1 } } }]).toArray(),
+    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: { s: '$severity', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.s', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
     c.anomalies.distinct('month', scoped({}, names)),
     c.anomalies.distinct('districtName', scoped({}, names)),
     c.runs.find().sort({ startedAt: -1 }).limit(1).next(),
     c.requests.distinct('month', scoped({}, names)),
+    c.anomalies.aggregate<{ n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: { g: '$godownId', h: '$hostelCode' } } }, { $count: 'n' }]).toArray(),
   ]);
   const count = (s: string) => counts.find((x) => x._id === s)?.n ?? 0;
 
@@ -121,7 +122,7 @@ async function HomeContent({ sp }: { sp: SP }) {
         <h1>{headline}</h1>
         <p className={`status ${checkedOk === false ? 'bad' : ''}`}>
           <span className="live" aria-hidden="true" />
-          {lastRun ? <>Last checked {ago(lastRun.startedAt)}. Next check at {nextCheck().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })}.</> : 'No check has run yet.'}
+          {lastRun ? <>Last checked {ago(lastRun.startedAt)}.{health.ok ? <> Next check at {nextCheck().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: IST })}.</> : <> Automatic checking is not running right now.</>}</> : 'No check has run yet.'}
           {checkedOk === false && <b> The last check had a problem.</b>}
         </p>
       </section>
@@ -151,7 +152,7 @@ async function HomeContent({ sp }: { sp: SP }) {
 
       <nav className="type-chips" aria-label="Type of unusual request">
         {KIND_TABS.map((k) => {
-          const n = k.key ? (kindCounts.find((x) => x._id === k.key)?.n ?? 0) : kindCounts.reduce((t, x) => t + x.n, 0);
+          const n = k.key ? (kindCounts.find((x) => x._id === k.key)?.n ?? 0) : allTypesRows[0]?.n ?? 0;
           return (
             <Link key={k.key || 'all'} href={qs(sp, { kind: k.key, p: '' })} className={`type-chip ${kind === k.key ? 'on' : ''} ${k.key ? `k-${k.key}` : ''}`} aria-current={kind === k.key ? 'page' : undefined}>
               <i className="dot" aria-hidden="true" />{k.label}<span className="type-n">{n}</span>

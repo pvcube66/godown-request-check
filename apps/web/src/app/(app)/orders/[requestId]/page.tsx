@@ -16,6 +16,8 @@ import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata({ params }: { params: Promise<{ requestId: string }> }) { return { title: `Order ${decodeURIComponent((await params).requestId)}` }; }
+
 export default async function OrderPage({ params }: { params: Promise<{ requestId: string }> }) {
   const { requestId } = await params;
   const c = await getDb();
