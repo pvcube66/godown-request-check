@@ -111,7 +111,7 @@ export const STAGE_COLUMNS = [
 /** counted = days are counted (Pending, DC Generated, In-Transit, Variation); ack = Acknowledge, the clock stops and the date is shown;
  *  final = Rejected / Cancelled, a final action with a date (or "first seen") and no day count. */
 export type CellKind = 'counted' | 'ack' | 'final';
-export interface StageCell { since: Date; days: number | null; current: boolean; source: 'portal' | 'observed'; kind: CellKind }
+export interface StageCell { since: Date; days: number | null; current: boolean; source: 'portal' | 'observed'; kind: CellKind; outOfOrder?: boolean }
 
 const MAIN_LINE = ['pending', 'dc', 'transit', 'received'] as const;
 const SIDE_STAGES = ['variation', 'rejected', 'cancelled'] as const;
@@ -132,7 +132,10 @@ export function stageCells(o: Pick<OrderDoc, 'stage' | 'stages' | 'reached'>, no
     const laterMain = MAIN_LINE.slice(i + 1).map((n) => r[n]).find((d): d is Date => !!d);
     const sideAfter = sideEntries.filter((s) => s.since > since).map((s) => s.since).sort((a, b) => a.getTime() - b.getTime())[0];
     const end = laterMain ?? sideAfter ?? now;
-    out[k] = { since, days: daysBetween(since, end), current: !laterMain && !sideAfter && open.includes(k), source: 'portal', kind: 'counted' };
+    // The portal's dates do not always follow the stage order (e.g. dispatch dated before the delivery note). A negative length is not shown;
+    // the step is marked instead, so the page can say the dates are out of order rather than printing "lasted -7 days".
+    const outOfOrder = end.getTime() < since.getTime();
+    out[k] = { since, days: outOfOrder ? null : daysBetween(since, end), current: !laterMain && !sideAfter && open.includes(k), source: 'portal', kind: 'counted', ...(outOfOrder ? { outOfOrder: true } : {}) };
   });
   SIDE_STAGES.forEach((k) => {
     const idx = o.stages.findIndex((s) => s.stage === k);

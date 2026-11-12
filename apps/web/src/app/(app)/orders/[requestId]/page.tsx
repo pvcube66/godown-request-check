@@ -57,7 +57,7 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
           {steps.map((s) => (
             <li key={s.key} className={s.current ? 'now' : ''}>
               <b>{s.label}</b>
-              {s.kind === 'counted' && <div>{fmtDay(s.since)} · {s.current ? `${num(s.days ?? 0)} ${s.days === 1 ? 'day' : 'days'} so far` : `lasted ${num(s.days ?? 0)} ${s.days === 1 ? 'day' : 'days'}`}</div>}
+              {s.kind === 'counted' && <div>{fmtDay(s.since)} · {s.outOfOrder ? <span className="mut">the portal's dates for this step are out of order, so its length is not shown</span> : s.current ? `${num(s.days ?? 0)} ${s.days === 1 ? 'day' : 'days'} so far` : `lasted ${num(s.days ?? 0)} ${s.days === 1 ? 'day' : 'days'}`}</div>}
               {s.kind === 'ack' && <div className="ack-date">{fmtDay(s.since)} · received. The count stops here.</div>}
               {s.kind === 'final' && <div>{fmtDay(s.since)} · final action, no day count</div>}
               <div className="mut small">{sourceNote(s.source)}</div>
