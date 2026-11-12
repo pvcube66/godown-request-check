@@ -181,6 +181,8 @@ async function HomeContent({ sp }: { sp: SP }) {
           ...spikes.map((a) => ({ key: a.key, node: <SpikeCard key={a.key} a={a} ctx={ctx} /> })),
         ];
         const numbered = cards.map((x, ci) => ({ ...x, node: cloneElement(x.node, { no: `${sn}.${ci + 1}` }) }));
+        const reqIds = flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? [];
+        const phone = phones.get(`${top1.godownId}|${top1.hostelCode}`);
         return (
           <details className={`hostel hostel-tile tile hc sev-${top1.severity}`} key={`${top1.godownId}|${top1.hostelCode}`}>
             <summary className="hc-head">
@@ -188,8 +190,12 @@ async function HomeContent({ sp }: { sp: SP }) {
                 <span className="hc-no" aria-label={`Number ${sn}`}>{sn}</span>
                 <span className="hc-title">
                   <span className="hc-name">{hostelLabel(top1.hostelName)}</span>
-                  <span className="hc-meta">{top1.districtName} · Hostel ID {top1.hostelCode}</span>
-                  {(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).length > 0 && <span className="hc-meta">Request {(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).slice(0, 2).join(', ')}{(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).length > 2 ? ` +${(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).length - 2} more` : ''}</span>}
+                  <span className="hc-meta">{top1.districtName}</span>
+                  <span className="hc-chips">
+                    <span className="hc-chip" title="Hostel ID"><Icon name="id" size={14} /><span className="hc-chip-label">Hostel ID</span><b>{top1.hostelCode}</b></span>
+                    {reqIds.length > 0 && <span className="hc-chip" title="Request ID"><Icon name="file" size={14} /><span className="hc-chip-label">Request</span><b>{reqIds.slice(0, 2).join(', ')}</b>{reqIds.length > 2 && <span className="hc-chip-more">+{reqIds.length - 2} more</span>}</span>}
+                    {phone && <a className="hc-chip hc-call" href={`tel:${phone.replace(/[^+0-9]/g, '')}`} title="Call the hostel"><Icon name="phone" size={14} /><span className="hc-chip-label">Call</span><b>{phone}</b></a>}
+                  </span>
                 </span>
                 <Icon name="chevron" size={16} />
               </span>
@@ -228,8 +234,7 @@ async function HomeContent({ sp }: { sp: SP }) {
             </summary>
             <p className="tile-profile">
               <Link href={`/hostel/${top1.hostelCode}?g=${top1.godownId}`} className="link-arrow">See all months<Icon name="arrow" size={15} /></Link>
-              {(flagRequests.get(`${top1.godownId}|${top1.hostelCode}|${top1.month}`) ?? []).map((id) => <Link key={id} href={`/orders/${encodeURIComponent(id)}`} className="link-arrow">Order {id}<Icon name="arrow" size={15} /></Link>)}
-              {phones.get(`${top1.godownId}|${top1.hostelCode}`) && <span className="tile-phone">Hostel phone: <a href={`tel:${phones.get(`${top1.godownId}|${top1.hostelCode}`)!.replace(/[^+0-9]/g, '')}`}>{phones.get(`${top1.godownId}|${top1.hostelCode}`)}</a></span>}
+              {reqIds.map((id) => <Link key={id} href={`/orders/${encodeURIComponent(id)}`} className="link-arrow">Order {id}<Icon name="arrow" size={15} /></Link>)}
             </p>
             {numbered.slice(0, CARDS_SHOWN).map((x) => x.node)}
             {cards.length > CARDS_SHOWN && (
