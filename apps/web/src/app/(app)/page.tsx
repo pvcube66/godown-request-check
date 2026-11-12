@@ -1,4 +1,4 @@
-import { Suspense, cloneElement } from 'react';
+import { Fragment, Suspense, cloneElement } from 'react';
 import Link from 'next/link';
 import { PageLoader } from '@/components/Loader';
 import { getDb } from '@/lib/db';
@@ -193,7 +193,7 @@ async function HomeContent({ sp }: { sp: SP }) {
                   <span className="hc-meta">{top1.districtName}</span>
                   <span className="hc-chips">
                     <span className="hc-chip" title="Hostel ID"><Icon name="id" size={14} /><span className="hc-chip-label">Hostel ID</span><b>{top1.hostelCode}</b></span>
-                    {reqIds.length > 0 && <span className="hc-chip" title="Request ID"><Icon name="file" size={14} /><span className="hc-chip-label">Request</span><b>{reqIds.slice(0, 2).join(', ')}</b>{reqIds.length > 2 && <span className="hc-chip-more">+{reqIds.length - 2} more</span>}</span>}
+                    {reqIds.length > 0 && <span className="hc-chip" title="Request ID"><Icon name="file" size={14} /><span className="hc-chip-label">Request</span>{reqIds.slice(0, 2).map((id, i) => <Fragment key={id}>{i > 0 && ', '}<Link href={`/orders/${encodeURIComponent(id)}`} title={`Open request ${id}`}><b>{id}</b></Link></Fragment>)}{reqIds.length > 2 && <span className="hc-chip-more">+{reqIds.length - 2} more</span>}</span>}
                     {phone && <a className="hc-chip hc-call" href={`tel:${phone.replace(/[^+0-9]/g, '')}`} title="Call the hostel"><Icon name="phone" size={14} /><span className="hc-chip-label">Call</span><b>{phone}</b></a>}
                   </span>
                 </span>

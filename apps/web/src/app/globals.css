@@ -1317,4 +1317,7 @@ html[data-theme="dark"] .login-side .demo{background:#fff;color:#111}
 .hc-call{border-color:var(--brand);background:var(--brand-tint);color:var(--brand-2)}
 .hc-call svg,.hc-call .hc-chip-label{color:var(--brand-2)}
 .hc-call b{color:var(--brand-2);font-size:13.5px}
-.hc-call:hover{background:var(--brand);color:#fff}.hc-call:hover svg,.hc-call:hover b,.hc-call:hover .hc-chip-label{color:#fff}
+.hc-call:hover{background:var(--brand-tint);border-color:var(--brand-2);text-decoration:underline}
+.hc-chip a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.hc-chip a b{color:var(--brand-2)}
+.hc-chip a:hover b{text-decoration:none;background:var(--brand-tint);border-radius:4px}
