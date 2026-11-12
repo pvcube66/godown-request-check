@@ -59,7 +59,7 @@ export const when = (d?: Date | null) =>
 export const IMPORTANCE = { high: 'Check now', medium: 'Take a look', low: 'Minor' } as const;
 export const METHOD_TEXT = {
   'own-history': "Compared with this hostel's earlier months.",
-  peers: 'Compared with similar hostels (no earlier months to use).',
+  peers: 'Compared with similar hostels.',
   blend: 'Compared with earlier months and similar hostels.',
 } as const;
 

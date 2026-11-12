@@ -115,3 +115,17 @@ describe('one definition of an open flag', () => {
     expect(openFlagFilter('36280601213', '2026-11')).toEqual({ hostelCode: '36280601213', month: '2026-11', status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } });
   });
 });
+
+describe('timeline lengths', () => {
+  const at = (d: string) => new Date(`${d}T06:00:00+05:30`);
+  it('never shows a negative length when the portal dates are out of order (order IR202600006737: DC dated after dispatch)', () => {
+    const cells = stageCells({ stage: 'variation', stages: [], reached: { pending: at('2026-10-26'), dc: at('2026-11-05'), transit: at('2026-10-29'), received: at('2026-11-06') } } as never, at('2026-11-11'));
+    expect(cells.dc).toMatchObject({ outOfOrder: true, days: null });
+    expect(cells.pending!.days).toBeGreaterThanOrEqual(0);
+    expect(cells.transit).toMatchObject({ days: 8 });
+  });
+  it('keeps normal lengths when the dates are in order', () => {
+    const cells = stageCells({ stage: 'transit', stages: [], reached: { pending: at('2026-10-01'), dc: at('2026-10-03'), transit: at('2026-10-05'), received: null } } as never, at('2026-10-09'));
+    expect(cells.pending).toMatchObject({ days: 2 }); expect(cells.dc).toMatchObject({ days: 2 }); expect(cells.dc!.outOfOrder).toBeUndefined();
+  });
+});

@@ -3,6 +3,7 @@ import { ago } from '@/lib/format';
 import AddForm from './AddForm';
 import { masterAdminAccess } from '@/lib/master-auth';
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Godowns' };
 export const maxDuration = 60;     // adding a godown loads its whole history, which can take most of a minute
 
 export default async function Accounts() {

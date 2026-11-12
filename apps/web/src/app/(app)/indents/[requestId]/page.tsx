@@ -12,7 +12,7 @@ import { orderMonth } from '@/lib/orders';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Indent' };
+export async function generateMetadata({ params }: { params: Promise<{ requestId: string }> }) { return { title: `Indent ${decodeURIComponent((await params).requestId)}` }; }
 
 export default async function IndentView({ params }: { params: Promise<{ requestId: string }> }) {
   const id = decodeURIComponent((await params).requestId);
@@ -35,7 +35,7 @@ export default async function IndentView({ params }: { params: Promise<{ request
   const shownFlags = dead ? [] : flags;
   const flaggedItems = new Set(shownFlags.filter((f) => f.kind === 'spike' || f.kind === 'typing').map((f) => normalizedItemName(f.item.split(' [unit:')[0]!)));
   const phone = request ? phones.get(`${request.godownId}|${order.hostelCode}`) : undefined;
-  const hasSupplied = rows.some((r) => supplied.get(r.name) !== undefined);
+  const hasSupplied = ['transit', 'received', 'variation'].includes(order.stage) && rows.some((r) => supplied.get(r.name) !== undefined);      // before dispatch there is nothing supplied yet, so no column of zeros
 
   return (
     <>
