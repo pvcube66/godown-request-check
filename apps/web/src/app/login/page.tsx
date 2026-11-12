@@ -1,7 +1,7 @@
 import LoginForm from './LoginForm';
 import { Logo } from '@/components/Icons';
 
-export const metadata = { title: 'Sign in · Godown Request Check' };
+export const metadata = { title: 'Sign in' };
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ ended?: string }> }) {
   const ended = (await searchParams).ended === '1';

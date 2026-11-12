@@ -1293,3 +1293,13 @@ html[data-theme="dark"] .order-table tbody tr:hover{background:#1c1c1c}
 @keyframes loader-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.loader-ring{animation-duration:2.4s}}
 html[data-theme="dark"] .loader-ring{border-color:#3d3d3d;border-top-color:#ededed}
+
+/* Sign-in page: the left panel is black in BOTH light and dark mode, so its text and card use fixed colours
+   (they used the theme's paper/ink, which turn dark in dark mode and made the heading invisible). */
+.login-side,.login-side .brand,.login-side h1,.login-side>p{color:#fff}
+.login-side .demo{background:#fff;color:#111}
+.login-side .demo *{color:inherit}
+.login-side .demo .mut,.login-side .demo small{color:#555}
+html[data-theme="dark"] .login-side,html[data-theme="dark"] .login-side .brand,html[data-theme="dark"] .login-side h1,html[data-theme="dark"] .login-side>p{color:#fff}
+html[data-theme="dark"] .login-side .demo{background:#fff;color:#111}
+.login-side .demo .b-usual{background:#a8a8a8}.login-side .demo .b-high{background:#111}
