@@ -3,6 +3,7 @@ import { ensureDistricts } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { ago, when } from '@/lib/format';
 import ActionForm from '../master/ActionForm';
+import DistrictPicker from './DistrictPicker';
 import { createUserAction, resetPasswordAction, statusAction, updateUserAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -16,14 +17,14 @@ export default async function Users() {
   await ensureDistricts(c).catch(() => undefined);      // any district the godown logins have shown is saved and listed here, no bootstrap needed
   const [users, districts, audit] = await Promise.all([
     c.users.find({}, { projection: { passwordHash: 0 } }).sort({ name: 1 }).toArray(),
-    c.districts.find({}).sort({ name: 1 }).toArray(),
+    c.districts.find({}).toArray().then((ds) => ds.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))),
     c.auditLog.find({ action: { $regex: '^(login|logout|user\\.|export\\.|flag\\.)' } }).sort({ at: -1, _id: -1 }).limit(60).toArray(),
   ]);
   const nameOf = new Map(districts.map((d) => [d.code, d.name]));
   const who = new Map(users.map((u) => [`user:${u.userId}`, u.name]));
   const picker = (selected: string[] = []) => (
     <fieldset className="master-field master-span"><legend>Districts (operators and viewers)</legend>
-      <div className="district-picks">{districts.map((d) => <label key={d.code}><input type="checkbox" name="districts" value={d.code} defaultChecked={selected.includes(d.code)} /> {d.name}</label>)}</div>
+      <DistrictPicker districts={districts.map((d) => ({ code: d.code, name: d.name }))} selected={selected} />
       {districts.length === 0 && <span className="master-note">No districts yet. They appear here by themselves after the first check of the portal.</span>}
     </fieldset>
   );

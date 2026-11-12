@@ -423,6 +423,9 @@ body[data-loading] main{opacity:.55;pointer-events:none}.btn .spin,.primary .spi
 .sidebar-user span{color:#bdbdbd;font-size:11.5px}
 .sidebar.collapsed .sidebar-user{display:none}
 .district-picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;font-weight:400}
+.district-tools{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-bottom:8px}
+.district-tools input{min-width:220px;flex:1 1 220px;max-width:340px}
+.district-picks label[hidden]{display:none}
 .district-picks label{display:flex;gap:6px;align-items:center;font-weight:400;font-size:13px}
 .login-form input#email{width:100%}
 
