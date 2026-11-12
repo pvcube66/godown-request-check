@@ -14,5 +14,7 @@ export interface ParsedRequest {
   dcNumber: string | null;
   items: Record<string, number>;   // item name -> quantity (zeros kept)
   itemSnapshots?: RequestItemSnapshot[];
+  itemSnapshotsIncomplete?: boolean;   // some item still has no unit or pack size; it is read again
+  itemReadAttempts?: number;
   itemMetadataSyncedAt?: Date;
 }

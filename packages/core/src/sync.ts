@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getToken } from './accounts.js';
-import { requestItemSnapshots, syncItemMasters } from './itemMaster.js';
+import { requestItemSnapshots, snapshotsComplete, syncItemMasters } from './itemMaster.js';
 import type { ParsedRequest } from './types.js';
 import type { MasterDataCollections } from './masterData.js';
 import { AccountDoc, Collections, RunDoc } from './db.js';
@@ -143,11 +143,19 @@ export async function syncReportMasters(c: Pick<MasterDataCollections, 'hostelsM
 
 /** At most 40 attempts per account/run; successful empty reads are complete too.
  * Failures remain eligible next run. Authentication errors must reach the account/run status. */
-export async function syncRequestItems(c: Collections, acct: AccountDoc, token: string): Promise<number> {
+/** How many times a request whose item units are missing is read again before we stop trying (the portal may simply not have them). */
+export const ITEM_READ_ATTEMPTS = 5;
+
+export async function syncRequestItems(c: Collections, acct: AccountDoc, token: string, limit = 150): Promise<number> {
+  // New requests, plus earlier ones where some item still has no unit or pack size (they are read again, so the value is never left blank).
   const todo = await c.requests.find({
     godownId: { $in: acct.godowns.map((g) => g.id) },
-    itemSnapshots: { $exists: false }, itemMetadataSyncedAt: { $exists: false },
-  }).sort({ firstSeenAt: 1 }).limit(40).toArray();
+    $or: [
+      { itemSnapshots: { $exists: false }, itemMetadataSyncedAt: { $exists: false } },
+      // earlier requests too: any item with no unit and no pack size on record (up to ITEM_READ_ATTEMPTS tries)
+      { itemReadAttempts: { $lt: ITEM_READ_ATTEMPTS }, $or: [{ itemSnapshotsIncomplete: true }, { itemSnapshots: { $elemMatch: { unit: { $in: [null, ''] }, packSize: { $in: [null, ''] } } } }] },
+    ],
+  }).sort({ firstSeenAt: 1 }).limit(limit).toArray();
   let done = 0;
   for (const r of todo) {
     try {
@@ -158,9 +166,9 @@ export async function syncRequestItems(c: Collections, acct: AccountDoc, token: 
       // Catalog all observed variants, even when an aggregate report key cannot be mapped safely.
       await syncItemMasters(c, items);
       const reason = rows.flatMap((row) => [row.remarks, row.supplierRemarks, row.vendorRemarks]).find((s) => s?.trim());
-      await c.requests.updateOne({ godownId: r.godownId, requestId: r.requestId, itemMetadataSyncedAt: { $exists: false }, itemSnapshots: { $exists: false } }, {
+      await c.requests.updateOne({ godownId: r.godownId, requestId: r.requestId }, {
         $set: {
-          itemSnapshots: snapshots, itemMetadataSyncedAt: new Date(),
+          itemSnapshots: snapshots, itemMetadataSyncedAt: new Date(), itemSnapshotsIncomplete: items.length > 0 && !snapshotsComplete(snapshots), itemReadAttempts: (r.itemReadAttempts ?? 0) + 1,
           ...(/^reject/i.test(r.status) && r.cancelReason === undefined ? { cancelReason: reason?.trim().slice(0, 400) ?? null } : {}),
         },
       });

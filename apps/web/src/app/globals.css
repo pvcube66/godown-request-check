@@ -1276,3 +1276,30 @@ html[data-theme="dark"] .wa-bubble .mut,html[data-theme="dark"] .wa-bubble .wa-b
 .flagged-row{background:var(--alert-high-tint)}.tag-flag{font-size:12px;font-weight:650;color:var(--alert-high)}
 .filters .check{display:inline-flex;align-items:center;gap:6px;min-height:36px;color:var(--ink-2)}
 .filters .select .search-box{min-width:260px}
+
+/* Dark mode: table rows and cells on hover stayed light (the light hover colour was set on each cell). */
+html[data-theme="dark"] .order-table tbody tr:hover td,
+html[data-theme="dark"] .order-table tbody tr:hover th,
+html[data-theme="dark"] .order-table tbody tr:nth-child(even):hover td{background:#1c1c1c}
+html[data-theme="dark"] .order-table tbody tr:hover{background:#1c1c1c}
+
+/* ---- Loader: one circular spinner everywhere ---- */
+.loader{display:inline-flex;align-items:center;gap:10px;color:var(--ink-2)}
+.loader-ring{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--ink);animation:loader-spin .75s linear infinite;flex:none}
+.loader.sm .loader-ring{width:14px;height:14px;border-width:2px}
+.loader.lg .loader-ring{width:34px;height:34px;border-width:3px}
+.loader-label{font-size:13px;font-weight:550}
+.page-loader{display:grid;place-items:center;min-height:45vh}
+@keyframes loader-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.loader-ring{animation-duration:2.4s}}
+html[data-theme="dark"] .loader-ring{border-color:#3d3d3d;border-top-color:#ededed}
+
+/* Sign-in page: the left panel is black in BOTH light and dark mode, so its text and card use fixed colours
+   (they used the theme's paper/ink, which turn dark in dark mode and made the heading invisible). */
+.login-side,.login-side .brand,.login-side h1,.login-side>p{color:#fff}
+.login-side .demo{background:#fff;color:#111}
+.login-side .demo *{color:inherit}
+.login-side .demo .mut,.login-side .demo small{color:#555}
+html[data-theme="dark"] .login-side,html[data-theme="dark"] .login-side .brand,html[data-theme="dark"] .login-side h1,html[data-theme="dark"] .login-side>p{color:#fff}
+html[data-theme="dark"] .login-side .demo{background:#fff;color:#111}
+.login-side .demo .b-usual{background:#a8a8a8}.login-side .demo .b-high{background:#111}

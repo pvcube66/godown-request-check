@@ -68,7 +68,7 @@ export default function AppShell({ children, user, waConnected = false }: { chil
 
         <header className="workspace-header noprint">
           <form action="/search" className="global-search" role="search" aria-label="Search all hostels and orders">
-            <label htmlFor="global-query"><Icon name="search" size={18} /><span className="sr-only">Find a hostel or order</span></label>
+            <label htmlFor="global-query"><span className="sr-only">Find a hostel or order</span></label>
             <input id="global-query" name="q" type="search" maxLength={60} placeholder="Hostel name, code or request ID" autoComplete="off" />
             <button type="submit">Search</button>
           </form>

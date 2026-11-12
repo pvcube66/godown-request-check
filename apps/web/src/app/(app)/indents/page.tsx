@@ -22,7 +22,7 @@ export default async function Indents({ searchParams }: { searchParams: Promise<
   const base: Record<string, unknown> = orderFilter({ q, month: sp.month, district: sp.district, stage: sp.stage });
   const flagged = sp.flagged === '1';
   if (flagged) {
-    // indents whose hostel and month have an open unusual-request flag
+    // indents whose hostel and month have an open unusual-request flag (the same rule the indent page uses)
     const flags = await c.anomalies.find(scoped({ status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, month: 1 } }).limit(3000).toArray();
     const keys = new Set(flags.map((f) => `${f.hostelCode}|${f.month}`));
     const reqs = keys.size ? await c.requests.find(scoped({ hostelCode: { $in: [...new Set(flags.map((f) => f.hostelCode))] }, month: { $in: [...new Set(flags.map((f) => f.month))] } }, names), { projection: { requestId: 1, hostelCode: 1, month: 1 } }).limit(6000).toArray() : [];
@@ -40,7 +40,7 @@ export default async function Indents({ searchParams }: { searchParams: Promise<
     rows.length ? c.anomalies.find(scoped({ hostelCode: { $in: rows.map((r) => r.hostelCode) }, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, month: 1, item: 1 } }).toArray() : [],
   ]);
   const itemCount = new Map(reqs.map((r) => [r.requestId, Object.values(r.items ?? {}).filter((x) => x > 0).length]));
-  const flagCount = (code: string, month: string) => new Set(flagRows.filter((f) => f.hostelCode === code && f.month === month).map((f) => f.item)).size;
+  const flagCount = (code: string, month: string) => flagRows.filter((f) => f.hostelCode === code && f.month === month).length;
   const monthText = (ym: string) => monthLabel(ym);
 
   return (
@@ -63,7 +63,7 @@ export default async function Indents({ searchParams }: { searchParams: Promise<
         <div className="table-wrap"><table className="order-table">
           <thead><tr><th>Request</th><th>Hostel</th><th>Month</th><th>Stage</th><th className="num">Items</th><th className="num">Unusual</th></tr></thead>
           <tbody>{rows.map((r) => {
-            const month = orderMonth(r.placedOn), fc = flagCount(r.hostelCode, month);
+            const month = orderMonth(r.placedOn), fc = r.stage === 'rejected' || r.stage === 'cancelled' ? 0 : flagCount(r.hostelCode, month);
             return (
               <tr key={r.requestId}>
                 <td><Link href={`/indents/${encodeURIComponent(r.requestId)}`}><b>{r.requestId}</b></Link></td>

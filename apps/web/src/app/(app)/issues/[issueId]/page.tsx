@@ -29,7 +29,7 @@ export default async function IssuePage({ params }: { params: Promise<{ issueId:
   ]);
   const flagged = new Set(flags.map((a) => flaggedItemName(a.item)));
   const shownIds = [...new Set([...issue.targetRequestIds, ...(issue.newRequestId ? [issue.newRequestId] : [])])];
-  const indents = await Promise.all(shownIds.map(async (id) => ({ id, rows: await loadIndent(c, id), isNew: id === issue.newRequestId })));
+  const indents = await Promise.all(shownIds.map(async (id) => ({ id, rows: await loadIndent(c, id, { live: false }), isNew: id === issue.newRequestId })));
   const w = waitingDays(issue, now); const late = isOverdue(issue, waitDays, now);
   const open = ACTIVE_STATES.includes(issue.state);
 
@@ -73,8 +73,8 @@ export default async function IssuePage({ params }: { params: Promise<{ issueId:
           <h2 id={`indent-${ind.id}`} className="sub">{ind.isNew ? 'New indent' : 'Indent'} {ind.id} <Link className="link-arrow small" href={`/orders/${encodeURIComponent(ind.id)}`}>open order</Link></h2>
           {ind.rows.length === 0 ? <p className="mut">The item list is not available yet.</p> : (
             <div className="table-wrap"><table className="order-table">
-              <thead><tr><th>Item</th><th>Quantity</th><th>Unit</th><th>Pack size</th></tr></thead>
-              <tbody>{ind.rows.map((r) => <tr key={r.name} className={!ind.isNew && isFlaggedRow(r, flagged) ? 'flagged-row' : ''}><td>{itemLabel(r.name)}{!ind.isNew && isFlaggedRow(r, flagged) && <b className="tag-flag"> ◀ flagged</b>}</td><td>{num(r.quantity)}</td><td>{r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
+              <thead><tr><th>Item</th><th>Quantity</th><th>Pack size</th></tr></thead>
+              <tbody>{ind.rows.map((r) => <tr key={r.name} className={!ind.isNew && isFlaggedRow(r, flagged) ? 'flagged-row' : ''}><td>{itemLabel(r.name)}{!ind.isNew && isFlaggedRow(r, flagged) && <b className="tag-flag"> ◀ flagged</b>}</td><td>{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
             </table></div>
           )}
         </section>
