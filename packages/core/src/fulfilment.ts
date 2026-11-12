@@ -1,4 +1,5 @@
 import type { AccountDoc, Collections } from './db.js';
+import { outOfTime } from './deadline.js';
 import type { Stage } from './orders.js';
 import { fetchOrderSupplier, fetchRequestItems, PortalAuthError, type OrderSupplier, type PortalRequestItem } from './portalClient.js';
 
@@ -63,6 +64,7 @@ export async function syncFulfilment(
   }, { projection: { requestId: 1, stage: 1 } }).sort({ placedOn: -1 }).limit(limit).toArray();
   let done = 0;
   for (const o of todo) {
+    if (outOfTime()) break;
     try {
       const f = summarizeFulfilment(await read(token, o.requestId), o.stage);
       await c.orders.updateOne({ account: acct.username, requestId: o.requestId, stage: o.stage }, { $set: { fulfilment: f } });
@@ -85,6 +87,7 @@ export async function syncOrderSuppliers(
     .sort({ placedOn: -1 }).limit(limit).toArray();
   let done = 0;
   for (const o of todo) {
+    if (outOfTime()) break;
     try {
       const sup = await read(token, o.requestId);
       await c.orders.updateOne({ account: acct.username, requestId: o.requestId }, { $set: sup ? { supplier: sup } : { supplierCheckedAt: new Date() } } as never);

@@ -1,3 +1,4 @@
+import { outOfTime } from './deadline.js';
 import type { AccountDoc, Collections } from './db.js';
 import { getToken } from './accounts.js';
 import { fetchGodownOrders, PortalAuthError } from './portalClient.js';
@@ -170,6 +171,7 @@ export async function syncOrders(c: Collections, acct: AccountDoc, token: string
   let current = token;
   let total = 0;
   for (const w of windows.values()) {
+    if (outOfTime()) break;
     let rows: Row[];
     try {
       rows = await fetchGodownOrders(current, acct.username, w.monthName, w.academicYear);

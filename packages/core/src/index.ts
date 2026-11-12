@@ -31,3 +31,4 @@ export * from './whatsappConversations.js';
 export * from './whatsappCampaigns.js';
 export * from './whatsappProfile.js';
 export * from './whatsappStats.js';
+export * from './deadline.js';
