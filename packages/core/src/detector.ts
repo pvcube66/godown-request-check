@@ -5,6 +5,7 @@ export interface DetectorConfig {
   ownRatio: number;        // flag if request >= this x the hostel's own usual quantity
   ownMinHistory: number;   // months of own (non-zero) history needed to trust it
   peerRatio: number;       // stricter ratio used against peers (history thin)
+  peerOnlyRatio: number;   // an item this hostel has no history for is judged only against peers, so it must be at least this many times typical
   minExcess: number;       // ignore if the extra quantity is smaller than this (avoids noise on tiny items)
   minPeers: number;        // need this many hostels ordering the item to compare with peers
   minItemsForScale: number;
@@ -36,7 +37,7 @@ export interface DetectorConfig {
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
-  ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, minExcess: 0.1, minPeers: 8,
+  ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, peerOnlyRatio: 10, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
   slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: false, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true,
 };
@@ -301,7 +302,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             const limit = volatile ? cfg.ownVolatile : peerZ >= 2.5 ? cfg.ownCorroborated : cfg.ownRatio;
             flagged = qty >= limit * expected && qty - expected >= minExcess && (!cfg.ownAbovePeers || !pInfo || qty > pInfo.high);
           } else {
-            flagged = qty >= cfg.peerRatio * expected && peerZ >= cfg.peerZ && qty - expected >= minExcess;
+            flagged = qty >= Math.max(cfg.peerRatio, cfg.peerOnlyRatio) * expected && peerZ >= cfg.peerZ && qty - expected >= minExcess;
           }
           // Own months say "normal" but similar hostels clearly disagree AND this is at least 1.5x anything this hostel has asked
           // before: trust both signals together (a hostel with only a couple of months of history can look more volatile than it is).
@@ -363,7 +364,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             if (names.length < cfg.slipMinGroup) continue;
             const over = names.filter((it) => {
               const x = expectation.get(it);
-              return x && value >= cfg.slipRatio * x.expected && value - x.expected >= floorOf(it);
+              return x && value >= cfg.slipRatio * x.expected && (x.method !== 'peers' || value >= cfg.peerOnlyRatio * x.expected) && value - x.expected >= floorOf(it);
             });
             const count = new Set(over.map(baseName)).size;
             if (count < cfg.slipMinGroup || count < cfg.slipFraction * new Set(names.map(baseName)).size) continue;

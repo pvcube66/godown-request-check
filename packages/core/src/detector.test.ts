@@ -280,9 +280,13 @@ describe('hostels with no student count are compared with the same kind of hoste
     ({ ...mk(hostel, '2026-11', {}), societyId: society, items: Object.fromEntries(items.map((it, k) => [it, k === 0 ? i0 : qty])) });
   const kind = Array.from({ length: 10 }, (_, i) => make(`K${i}`, 'KG', 20));          // this kind of hostel asks ~20
   const others = Array.from({ length: 10 }, (_, i) => make(`G${i}`, 'GEN', 100));      // other hostels ask ~100
-  it('flags an amount that is normal for other hostels but 5x what its own kind asks', () => {
-    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 100)], ['2026-11']);
+  it('flags an amount that is normal for other hostels but 12x what its own kind asks', () => {
+    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 240)], ['2026-11']);
     expect(res.find((a) => a.hostelCode === 'X' && a.item === 'I0')).toBeTruthy();
+  });
+  it('does not flag a first-time item that is only 5x what its own kind asks (peers alone are not enough)', () => {
+    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 100)], ['2026-11']);
+    expect(res.find((a) => a.hostelCode === 'X' && a.item === 'I0')).toBeFalsy();
   });
   it('does not flag a hostel that asks what its own kind normally asks', () => {
     const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20)], ['2026-11']);
@@ -331,7 +335,7 @@ describe('precision: real requests that must not be flagged (and the real mistak
   it('does not flag sunflower oil asked at 48 litre after 64 litre the month before (the hostel asked about the same)', () => {
     const rows = [...peerSet('2026-10', 'oil', 12), one('H', '2026-09', { oil: 64 }), one('H', '2026-10', { oil: 48 })];
     const sizes = new Map<string, number>(rows.map((r) => [`2|${r.hostelCode}`, 72] as [string, number]));
-    const old = { ...DEFAULT_CONFIG, ownConsistency: 0, minExcessUnits: {}, minExcessOther: 0, dropMinor: false };
+    const old = { ...DEFAULT_CONFIG, ownConsistency: 0, minExcessUnits: {}, minExcessOther: 0, dropMinor: false, peerOnlyRatio: 0 };
     expect(detectAnomalies(rows, ['2026-10'], old, sizes).some((a) => a.hostelCode === 'H')).toBe(true);       // it WAS flagged before
     expect(detectAnomalies(rows, ['2026-10'], DEFAULT_CONFIG, sizes).filter((a) => a.hostelCode === 'H')).toEqual([]);
   });
@@ -339,7 +343,7 @@ describe('precision: real requests that must not be flagged (and the real mistak
     const k = 'chilli [unit:kg; pack:kg]';
     const rows = [...peerSet('2026-09', k, 0.04, 40), one('H', '2026-09', { [k]: 0.2 })];
     const sizes = new Map<string, number>(rows.map((r) => [`2|${r.hostelCode}`, 100] as [string, number]));
-    const old = { ...DEFAULT_CONFIG, ownConsistency: 0, minExcessUnits: {}, minExcessOther: 0, dropMinor: false };
+    const old = { ...DEFAULT_CONFIG, ownConsistency: 0, minExcessUnits: {}, minExcessOther: 0, dropMinor: false, peerOnlyRatio: 0 };
     expect(detectAnomalies(rows, ['2026-09'], old, sizes).some((a) => a.hostelCode === 'H')).toBe(true);       // it WAS flagged before
     expect(detectAnomalies(rows, ['2026-09'], DEFAULT_CONFIG, sizes).filter((a) => a.hostelCode === 'H')).toEqual([]);
   });
