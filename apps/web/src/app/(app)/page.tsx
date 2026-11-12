@@ -66,6 +66,9 @@ async function HomeContent({ sp }: { sp: SP }) {
   const attention = { ...scope, status: 'open', severity: { $in: ['high', 'medium'] } };
   const showSummary = view === 'open';
 
+  // lookups that do not depend on the list start now and run alongside the main queries
+  const sideLookups = Promise.all([loadUnits(c), loadItemNames(c), getWaitDays(c).then(async (w) => [w, await overdueCount(c, names, w)] as const), loadHealth(c)]);
+  sideLookups.catch(() => { /* reported below, where it is awaited */ });
   const [kindCounts, rows, counts, months, districts, lastRun, requestMonths, allTypesRows] = await Promise.all([
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: { k: '$kind', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.k', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
     c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
@@ -95,15 +98,11 @@ async function HomeContent({ sp }: { sp: SP }) {
   const issueRows = view === 'confirmed' && flagKeys.length ? await c.issues.find(scoped({ anomalyKeys: { $in: flagKeys } }, names), { projection: { issueId: 1, anomalyKeys: 1 } }).toArray() : [];
   const issues: Record<string, string> = {};
   for (const i of issueRows) for (const k of i.anomalyKeys) issues[k] = i.issueId;
-  const units = await loadUnits(c);
-  const itemNames = await loadItemNames(c);
   const [flagRequests, phones] = await Promise.all([
     loadFlagRequestIds(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode, month: g[0]!.month }))),
     loadHostelPhones(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode }))),
   ]);
-  const waitDays = await getWaitDays(c);
-  const health = await loadHealth(c);
-  const overdue = await overdueCount(c, names, waitDays);
+  const [units, itemNames, [waitDays, overdue], health] = await sideLookups;
   const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues, units, names: itemNames };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;

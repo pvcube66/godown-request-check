@@ -17,12 +17,10 @@ export const dynamic = 'force-dynamic';
 export default async function IssuePage({ params }: { params: Promise<{ issueId: string }> }) {
   const { issueId } = await params;
   const c = await getDb();
-  const itemNames = await loadItemNames(c);
-  const { viewer, names } = await scopeFor(c);
+  const [itemNames, { viewer, names }, waitDays] = await Promise.all([loadItemNames(c), scopeFor(c), getWaitDays(c)]);
   const issue = await c.issues.findOne(scoped({ issueId }, names));
   if (!issue) notFound();
   const now = new Date();
-  const waitDays = await getWaitDays(c);
   const [remarks, flags] = await Promise.all([
     c.remarks.find({ targetType: 'issue', targetId: issue.issueId }).sort({ at: 1 }).toArray(),
     issue.anomalyKeys.length ? c.anomalies.find(scoped({ key: { $in: issue.anomalyKeys } }, names)).toArray() : [],

@@ -13,9 +13,7 @@ export const metadata = { title: 'Unusual goods report' };
 export default async function Report({ searchParams }: { searchParams: Promise<{ month?: string; district?: string; q?: string }> }) {
   const sp = await searchParams;
   const c = await getDb();
-  const itemNames = await loadItemNames(c);
-  const units = await loadUnits(c);
-  const { names } = await scopeFor(c);
+  const [itemNames, units, { names }] = await Promise.all([loadItemNames(c), loadUnits(c), scopeFor(c)]);
   const rows = await loadReport(c, sp, names);
   const byHostel = new Map<string, typeof rows>();
   for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}`; (byHostel.get(k) ?? byHostel.set(k, []).get(k)!).push(r); }

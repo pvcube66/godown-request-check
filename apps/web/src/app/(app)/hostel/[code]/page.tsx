@@ -37,11 +37,17 @@ export default async function Hostel({ params, searchParams }: { params: Promise
     <div className="empty"><h2>Hostel not found</h2><p>We could not find any requests for this hostel.</p><Link className="btn" href="/">Back to the list</Link></div>
   );
   const godownId = reqs[0]!.godownId;
-  const size = await c.hostels.findOne({ godownId, hostelCode: code });
-  const assignment = await resolveHostelMapping(c, { godownId, hostelCode: code }, istDay(new Date()));
   const phone = (value?: string) => value ? <a href={`tel:${value.replace(/[^+0-9]/g, '')}`}>{value}</a> : 'Not recorded';
-  const flagged = await c.anomalies.find(scoped({ ...filter, status: 'open' }, names)).sort({ ratio: -1 }).toArray();
-  const { history, months: allMonths } = await loadHistory(c, [{ godownId, hostelCode: code }]);
+  // these do not depend on each other, so they run together
+  const [assignment, flagged, { history, months: allMonths }, units, itemNames, whatsapp, hostelIssues] = await Promise.all([
+    resolveHostelMapping(c, { godownId, hostelCode: code }, istDay(new Date())),
+    c.anomalies.find(scoped({ ...filter, status: 'open' }, names)).sort({ ratio: -1 }).toArray(),
+    loadHistory(c, [{ godownId, hostelCode: code }]),
+    loadUnits(c),
+    loadItemNames(c),
+    c.whatsappMessages.find(scoped({ hostelCode: code }, names)).sort({ createdAt: -1 }).limit(20).toArray(),
+    c.issues.find(scoped({ godownId, hostelCode: code }, names)).sort({ raisedAt: -1 }).limit(20).toArray(),
+  ]);
   const h = history[hostelKey(godownId, code)] ?? {};
   const months = [...monthsWithRequests(h)].sort();
   // ---- month picker, indent history, stuck orders, remarks (all limited to this person's districts) ----
@@ -61,13 +67,15 @@ export default async function Hostel({ params, searchParams }: { params: Promise
   const comparison = monthComparison(h, months, selected);
   const { orders, duplicates, typing, spikes: spikesAll } = groupFlags(flagged);
   const spikes = spikesAll.filter((a) => !a.partOfOrder);
-  const orderItems = await loadOrderItems(c, orders);
-  const dupReqs = await loadRequestsById(c, duplicates.flatMap((a) => a.dup!.requestIds));
-  const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer), units: await loadUnits(c), names: await loadItemNames(c) };
-  const whatsapp = await c.whatsappMessages.find(scoped({ hostelCode: code }, names)).sort({ createdAt: -1 }).limit(20).toArray();
-  const hostelIssues = await c.issues.find(scoped({ godownId, hostelCode: code }, names)).sort({ raisedAt: -1 }).limit(20).toArray();
-  const remarkCounts = hostelIssues.length ? new Map((await c.remarks.aggregate<{ _id: string; n: number }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $group: { _id: '$targetId', n: { $sum: 1 } } }]).toArray()).map((r) => [r._id, r.n])) : new Map<string, number>();
-  const latestRows = hostelIssues.length ? await c.remarks.aggregate<{ _id: string; text: string }>([{ $match: { targetType: 'issue', targetId: { $in: hostelIssues.map((i) => i.issueId) } } }, { $sort: { at: 1 } }, { $group: { _id: '$targetId', text: { $last: '$text' } } }]).toArray() : [];
+  const issueIds = hostelIssues.map((i) => i.issueId);
+  const [orderItems, dupReqs, countRows, latestRows] = await Promise.all([
+    loadOrderItems(c, orders),
+    loadRequestsById(c, duplicates.flatMap((a) => a.dup!.requestIds)),
+    hostelIssues.length ? c.remarks.aggregate<{ _id: string; n: number }>([{ $match: { targetType: 'issue', targetId: { $in: issueIds } } }, { $group: { _id: '$targetId', n: { $sum: 1 } } }]).toArray() : [],
+    hostelIssues.length ? c.remarks.aggregate<{ _id: string; text: string }>([{ $match: { targetType: 'issue', targetId: { $in: issueIds } } }, { $sort: { at: 1 } }, { $group: { _id: '$targetId', text: { $last: '$text' } } }]).toArray() : [],
+  ]);
+  const ctx = { history, months: allMonths, view: 'open' as const, showActions: canEdit(viewer), units, names: itemNames };
+  const remarkCounts = new Map<string, number>(countRows.map((r) => [r._id, r.n]));
   const latestRemark = new Map(latestRows.map((r) => [r._id, r.text.length > 80 ? `${r.text.slice(0, 80)}…` : r.text]));
 
   const flaggedSet = new Map<string, number>();                       // item|month -> flagged requested

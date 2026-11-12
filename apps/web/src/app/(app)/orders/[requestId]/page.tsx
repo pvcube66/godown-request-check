@@ -25,13 +25,14 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const { viewer, names } = await scopeFor(c);
   const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
-  const rows = await loadIndent(c, o.requestId);
-  const hostelPhone = (await phonesByHostelCode(c, [o.hostelCode])).get(o.hostelCode);
-  const [remarks, issues, whatsapp] = await Promise.all([
+  const [rows, phoneMap, remarks, issues, whatsapp] = await Promise.all([
+    loadIndent(c, o.requestId),
+    phonesByHostelCode(c, [o.hostelCode]),
     c.remarks.find({ targetType: 'order', targetId: o.requestId }).sort({ at: 1 }).toArray(),
     c.issues.find(scoped({ $or: [{ targetRequestIds: o.requestId }, { requestIds: o.requestId }, { newRequestId: o.requestId }] }, names)).sort({ raisedAt: -1 }).limit(10).toArray(),
     c.whatsappMessages.find({ requestId: o.requestId }).sort({ createdAt: 1 }).limit(50).toArray(),
   ]);
+  const hostelPhone = phoneMap.get(o.hostelCode);
   const openIssue = issues.some((i) => ACTIVE_STATES.includes(i.state));
   const cells = stageCells(o, now);
   const steps = STAGE_COLUMNS.flatMap((c) => { const x = cells[c.key]; return x ? [{ key: c.key, label: c.label, ...x }] : []; });
