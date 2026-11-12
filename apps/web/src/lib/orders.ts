@@ -54,9 +54,22 @@ export function orderFilter(p: OrderParams, now = new Date()) {
 /** Oldest stage first, so the orders that have waited longest are at the top. */
 export async function loadOrders(c: Collections, p: OrderParams, names: string[] | null, limit = 0, now = new Date()) {
   const filter = scoped(orderFilter(p, now), names);
-  const cur = c.orders.find(filter as never).sort({ stageSince: 1 });
+  const cur = c.orders.find(filter as never).sort({ stageSince: 1, requestId: 1 });
   if (limit) cur.limit(limit);
   return cur.toArray();
+}
+
+/** One page of the same list, cut in the database (the whole list is never loaded). Same order as loadOrders, with the request number breaking ties so a page never repeats or skips an order. */
+export async function loadOrdersPage(c: Collections, p: OrderParams, names: string[] | null, pageNo: number, pageSize: number, total: number, now = new Date()) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, Math.floor(pageNo) || 1), pages);
+  const filter = scoped(orderFilter(p, now), names);
+  const rows = total ? await c.orders.find(filter as never).sort({ stageSince: 1, requestId: 1 }).skip((page - 1) * pageSize).limit(pageSize).toArray() : [];
+  return { rows, page, pages };
+}
+
+export async function countOrders(c: Collections, p: OrderParams, names: string[] | null, now = new Date()) {
+  return c.orders.countDocuments(scoped(orderFilter(p, now), names) as never);
 }
 
 /** How many orders are in each stage (all months), for the tab counts. */

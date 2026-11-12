@@ -3,7 +3,7 @@ import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
 import { hostelLabel, num } from '@/lib/format';
 import { phonesByHostelCode } from '@/lib/history';
-import { daysSincePlaced, fmtDay, FLAG_TEXT, hostelIssueTypes, loadOrders, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
+import { daysSincePlaced, fmtDay, FLAG_TEXT, countOrders, hostelIssueTypes, loadOrdersPage, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
 import { godownLabels } from '@/lib/dashboard';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
@@ -25,22 +25,18 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const c = await getDb();
   const { names } = await scopeFor(c);
   const now = new Date();
-  const [all, counts, months] = await Promise.all([loadOrders(c, sp, names, 0, now), stageCounts(c, names, { district: sp.district, account: sp.account, q: sp.q, month: sp.month, ids: sp.ids, hostel: sp.hostel }), orderMonths(c, names)]);
+  const [total, counts, months] = await Promise.all([countOrders(c, sp, names, now), stageCounts(c, names, { district: sp.district, account: sp.account, q: sp.q, month: sp.month, ids: sp.ids, hostel: sp.hostel }), orderMonths(c, names)]);
   const tab = TABS.find((t) => t.key === sp.stage)?.key ?? 'all';
-  const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
-  const pageNo = Math.min(Math.max(1, Number(sp.p) || 1), pages);
+  const { rows: shown, page: pageNo, pages } = await loadOrdersPage(c, sp, names, Number(sp.p), PAGE_SIZE, total, now);
   const offset = (pageNo - 1) * PAGE_SIZE;
-  const shown = all.slice(offset, offset + PAGE_SIZE);
   const base = Object.fromEntries(Object.entries(sp).filter(([k, v]) => v && k !== 'p')) as Record<string, string>;
-  const late = all.filter((o) => urgency(o, now) === 'late').length;
   const [issueTypes, label, phones] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn) }))), godownLabels(c), phonesByHostelCode(c, shown.map((o) => o.hostelCode))]);
   const stuckDays = (STUCK_DAYS as readonly number[]).includes(Number(sp.stuck)) ? Number(sp.stuck) : 0;
-  const lastSeen = all.reduce<Date | null>((m, o) => (!m || o.lastSeenAt > m ? o.lastSeenAt : m), null);
 
   return (
     <div className="orders-page">
       <section className="hero">
-        <h1>{num(all.length)} {tab === 'all' ? (all.length === 1 ? 'order' : 'orders') : `${TABS.find((t) => t.key === tab)?.label} ${all.length === 1 ? 'order' : 'orders'}`}</h1>
+        <h1>{num(total)} {tab === 'all' ? (total === 1 ? 'order' : 'orders') : `${TABS.find((t) => t.key === tab)?.label} ${total === 1 ? 'order' : 'orders'}`}</h1>
       </section>
 
       <div className="order-seg-wrap">
@@ -85,7 +81,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
         <a className="btn" href={`/orders/csv?${new URLSearchParams(base)}`}><Icon name="download" size={16} /> Download Excel</a>
       </form>
 
-      {all.length === 0 ? (
+      {total === 0 ? (
         <div className="empty">No orders match these choices.</div>
       ) : (
         <>
@@ -132,7 +128,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             </table>
           </div>
           <nav className="pager-bar" aria-label="Pages of orders">
-            <span className="mut">Showing {num(offset + 1)} to {num(Math.min(offset + PAGE_SIZE, all.length))} of {num(all.length)}</span>
+            <span className="mut">Showing {num(offset + 1)} to {num(Math.min(offset + PAGE_SIZE, total))} of {num(total)}</span>
             <div className="pager-ctrl">
               {pageNo > 1
                 ? <Link className="pager-btn" href={qs(base, { p: String(pageNo - 1) })} rel="prev"><Icon name="chevronLeft" size={16} /> Previous</Link>
