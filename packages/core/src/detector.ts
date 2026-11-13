@@ -34,12 +34,13 @@ export interface DetectorConfig {
   minExcessOther: number;  // ... for any other unit
   minStudents: number;     // student counts below this are not trusted (a partial attendance day); the size is then estimated instead
   dropMinor: boolean;      // do not store flags that would only be rated Minor
+  ownOrder: boolean;       // whole-order check for hostels with no trusted student count: is the order's overall level far above this hostel's own earlier months?
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, peerOnlyRatio: 10, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true, ownOrder: true,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -202,6 +203,24 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
 
   for (const gid of godowns) {
     const rowsOf = (month: string) => [...agg.entries()].filter(([k]) => k.startsWith(`${gid}|`) && k.endsWith(`|${month}`));
+    /** Each hostel's overall level in a month: the median of (its quantity / the typical quantity of that item across hostels).
+     *  It does not depend on which items were ordered, so months with different items can still be compared. */
+    const scaleCache = new Map<string, Map<string, number>>();
+    const scalesOf = (m: string): Map<string, number> => {
+      const cached = scaleCache.get(m);
+      if (cached) return cached;
+      const rows = rowsOf(m);
+      const vals = new Map<string, number[]>();
+      for (const [, e] of rows) for (const [it, q] of Object.entries(e.items)) if (q > 0) (vals.get(it) ?? vals.set(it, []).get(it)!).push(q);
+      const typical = new Map([...vals].filter(([, v]) => v.length >= cfg.minPeers).map(([it, v]) => [it, median(v)] as const));
+      const result = new Map<string, number>();
+      for (const [k, e] of rows) {
+        const ratios = Object.entries(e.items).filter(([it, q]) => q > 0 && (typical.get(it) ?? 0) > 0).map(([it, q]) => q / typical.get(it)!);
+        if (ratios.length >= cfg.minItemsForScale) result.set(k.split('|')[1]!, median(ratios));
+      }
+      scaleCache.set(m, result);
+      return result;
+    };
     for (const month of evalMonths) {
       const cur = rowsOf(month);
       if (!cur.length) continue;
@@ -419,6 +438,25 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
                 severity: r >= 6 ? 'high' : r >= 4 ? 'medium' : 'low', method: 'peers', kind: 'order',
                 order: { itemsCompared: ratiosOrder.length, history: orderHistory() }, students,
                 reason: `The typical item is ${round(r, 1)} times what hostels with a similar number of students ask per student (${ratiosOrder.length} items compared).`,
+              });
+            }
+          }
+        }
+        // For hostels with no trusted student count the size-based check above cannot run. Compare the order's overall level
+        // with this hostel's own earlier months instead (a hostel whose whole order jumps well above its usual level).
+        if (cfg.ownOrder && !students && !found.has('(whole order)')) {
+          const now = scalesOf(month).get(hostel);
+          const before = hist.map(([k]) => scalesOf(k.split('|')[2]!).get(hostel)).filter((x): x is number => x !== undefined && x > 0);
+          if (now !== undefined && before.length > 0) {
+            const r = now / median(before);
+            if (r >= cfg.orderRatio) {
+              found.set('(whole order)', {
+                key: `${gid}|${hostel}|${month}|(whole order)`, godownId: gid, hostelCode: hostel,
+                hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: '(whole order)',
+                requested: round(r, 1), expected: 1, ratio: round(r, 1), score: round(Math.log2(r), 2),
+                severity: r >= 6 ? 'high' : r >= 4 ? 'medium' : 'low', method: 'own-history', kind: 'order',
+                order: { itemsCompared: Object.values(e.items).filter((q) => q > 0).length, history: orderHistory() },
+                reason: `This hostel's overall order level is ${round(r, 1)} times what it was in earlier months (compared with what other hostels ask for the same items).`,
               });
             }
           }

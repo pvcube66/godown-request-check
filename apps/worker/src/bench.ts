@@ -12,7 +12,7 @@ function rng(seed: number) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(0)}%` : 'n/a').padStart(5);
 const clone = (r: RequestDoc): RequestDoc => ({ ...r, items: { ...r.items } });
 
-export interface BenchMetrics { recall: Record<number, number>; realRecall: Record<number, number>; medHigh: Record<number, number>; zero: number; typing: number; order: number; noiseNew: number; noiseNewMH: number; flags: number; lowFlags: number }
+export interface BenchMetrics { recall: Record<number, number>; realRecall: Record<number, number>; medHigh: Record<number, number>; zero: number; typing: number; order: number; orderNoSize: number; noiseNew: number; noiseNewMH: number; flags: number; lowFlags: number }
 
 export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CONFIG, opts: { quiet?: boolean; blind?: boolean } = {}): Promise<BenchMetrics> {
   const log = opts.quiet ? (..._a: unknown[]) => {} : console.log;
@@ -174,6 +174,18 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   log(`  same number typed for 5 items  ${pct(typeHit, typeN)}  (${typeHit}/${typeN})   identified as a typing mistake`);
   log(`  whole order x4               ${pct(orderHit, orderN)}  (${orderHit}/${orderN})   | of those truly far above normal for the hostel's size (>=3x over 8+ items): ${pct(orderRealHit, orderReal)} (${orderRealHit}/${orderReal})`);
 
+  // ---------- 2b. whole orders from hostels that have no trusted student count (the size-based whole-order check cannot run for them)
+  const noSize = nov.filter((r) => (sizes.get(`${r.godownId}|${r.hostelCode}`) ?? 0) < cfg.minStudents).filter((r, i, a) => a.findIndex((x) => x.hostelCode === r.hostelCode) === i).slice(0, 24);
+  const noSizeSets = noSize.map((r) => {
+    const t = all.map(clone);
+    const x = t.find((q) => q.requestId === r.requestId && q.godownId === r.godownId)!;
+    for (const i of Object.keys(x.items)) x.items[i] = x.items[i]! * 4;
+    return t;
+  });
+  const noSizeOut = await runMany(noSizeSets);
+  const noSizeHit = noSize.filter((r, i) => noSizeOut[i]!.some((a) => a.hostelCode === r.hostelCode && a.kind === 'order')).length;
+  log(`  whole order x4, hostels with no trusted student count  ${pct(noSizeHit, noSize.length)}  (${noSizeHit}/${noSize.length})`);
+
   // ---------- 3. false alarms from normal-sized noise (+-25%)
   const R2 = rng(99);
   const noisy = all.map(clone);
@@ -187,7 +199,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
     recall: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.hit / Math.max(1, spikeT[m]!.n)])) as Record<number, number>,
     realRecall: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.realHit / Math.max(1, spikeT[m]!.real)])) as Record<number, number>,
     medHigh: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.medHigh / Math.max(1, spikeT[m]!.n)])) as Record<number, number>,
-    zero: zeroT.hit / Math.max(1, zeroT.n), typing: typeHit / Math.max(1, typeN), order: orderHit / Math.max(1, orderN),
+    zero: zeroT.hit / Math.max(1, zeroT.n), typing: typeHit / Math.max(1, typeN), order: orderHit / Math.max(1, orderN), orderNoSize: noSizeHit / Math.max(1, noSize.length),
     noiseNew: fresh.length, noiseNewMH: fresh.filter((a) => a.severity !== 'low').length, flags: base.length, lowFlags: base.filter((a) => a.severity === 'low').length,
   };
 }
