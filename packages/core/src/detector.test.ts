@@ -284,9 +284,13 @@ describe('hostels with no student count are compared with the same kind of hoste
     const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 240)], ['2026-11']);
     expect(res.find((a) => a.hostelCode === 'X' && a.item === 'I0')).toBeTruthy();
   });
-  it('does not flag a first-time item that is only 5x what its own kind asks (peers alone are not enough)', () => {
-    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 100)], ['2026-11']);
+  it('does not flag a first-time item that is only 3x what its own kind asks (peers alone are not enough)', () => {
+    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 60)], ['2026-11']);
     expect(res.find((a) => a.hostelCode === 'X' && a.item === 'I0')).toBeFalsy();
+  });
+  it('flags a first-time item that is 6x what its own kind asks', () => {
+    const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20, 120)], ['2026-11']);
+    expect(res.find((a) => a.hostelCode === 'X' && a.item === 'I0')).toBeTruthy();
   });
   it('does not flag a hostel that asks what its own kind normally asks', () => {
     const res = detectAnomalies([...kind, ...others, make('X', 'KG', 20)], ['2026-11']);

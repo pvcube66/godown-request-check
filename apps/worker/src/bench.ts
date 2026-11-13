@@ -16,6 +16,7 @@ export interface BenchMetrics { recall: Record<number, number>; realRecall: Reco
 
 export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CONFIG, opts: { quiet?: boolean; blind?: boolean } = {}): Promise<BenchMetrics> {
   const log = opts.quiet ? (..._a: unknown[]) => {} : console.log;
+  if (process.env.BENCH_CFG) cfg = { ...cfg, ...JSON.parse(process.env.BENCH_CFG) };   // e.g. BENCH_CFG='{"estimatedOnlyRatio":6}' to try a setting
   const all = (await c.requests.find({}).toArray()).map(clone);
   const sizes = new Map((await c.hostels.find({ students: { $gt: 0 } }).toArray()).map((h) => [`${h.godownId}|${h.hostelCode}`, h.students!] as const));
   // BENCH_NOSIZES=1 pretends no hostel has a student count (the situation for the hostels the portal has no data for)

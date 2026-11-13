@@ -34,13 +34,14 @@ export interface DetectorConfig {
   minExcessOther: number;  // ... for any other unit
   minStudents: number;     // student counts below this are not trusted (a partial attendance day); the size is then estimated instead
   dropMinor: boolean;      // do not store flags that would only be rated Minor
+  estimatedOnlyRatio: number; // like peerOnlyRatio, but for hostels with no trusted student count (their expected amount is a rougher estimate)
   ownOrder: boolean;       // whole-order check for hostels with no trusted student count: is the order's overall level far above this hostel's own earlier months?
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, peerOnlyRatio: 10, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true, ownOrder: true,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true, estimatedOnlyRatio: 5, ownOrder: true,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -321,7 +322,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             const limit = volatile ? cfg.ownVolatile : peerZ >= 2.5 ? cfg.ownCorroborated : cfg.ownRatio;
             flagged = qty >= limit * expected && qty - expected >= minExcess && (!cfg.ownAbovePeers || !pInfo || qty > pInfo.high);
           } else {
-            flagged = qty >= Math.max(cfg.peerRatio, cfg.peerOnlyRatio) * expected && peerZ >= cfg.peerZ && qty - expected >= minExcess;
+            flagged = qty >= Math.max(cfg.peerRatio, pInfo?.basis === 'estimated' ? cfg.estimatedOnlyRatio : cfg.peerOnlyRatio) * expected && peerZ >= cfg.peerZ && qty - expected >= minExcess;
           }
           // Own months say "normal" but similar hostels clearly disagree AND this is at least 1.5x anything this hostel has asked
           // before: trust both signals together (a hostel with only a couple of months of history can look more volatile than it is).
