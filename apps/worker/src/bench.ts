@@ -186,6 +186,24 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   const noSizeHit = noSize.filter((r, i) => noSizeOut[i]!.some((a) => a.hostelCode === r.hostelCode && a.kind === 'order')).length;
   log(`  whole order x4, hostels with no trusted student count  ${pct(noSizeHit, noSize.length)}  (${noSizeHit}/${noSize.length})`);
 
+  // ---------- 2d. one inflated item: hostels WITH a trusted student count versus hostels WITHOUT one (BENCH_SPLIT=1; adds about a minute)
+  if (process.env.BENCH_SPLIT) {
+    const R3 = rng(7);
+    const firstPerHostel = nov.filter((r, i, a) => a.findIndex((x) => x.hostelCode === r.hostelCode) === i);
+    const sizeOf = (r: RequestDoc) => sizes.get(`${r.godownId}|${r.hostelCode}`) ?? 0;
+    const groups: [string, RequestDoc[]][] = [
+      ['with student count   ', firstPerHostel.filter((r) => sizeOf(r) >= cfg.minStudents).slice(0, 30)],
+      ['without student count', firstPerHostel.filter((r) => sizeOf(r) < cfg.minStudents).slice(0, 30)],
+    ];
+    for (const mag of [5, 10]) for (const [label, group] of groups) {
+      const planted = group.map((r) => { const items = Object.keys(r.items).filter((i) => r.items[i]! > 0); return { r, item: items[Math.floor(R3() * items.length)]! }; }).filter((p) => p.item);
+      const sets = planted.map(({ r, item }) => { const t = all.map(clone); const x = t.find((q) => q.requestId === r.requestId && q.godownId === r.godownId)!; x.items[item] = x.items[item]! * mag; return t; });
+      const outs = await runMany(sets);
+      const hit = planted.filter(({ r, item }, i) => outs[i]!.some((a) => a.hostelCode === r.hostelCode && a.kind === 'spike' && stableItemName(a.item) === stableItemName(item))).length;
+      log(`  one item x${String(mag).padEnd(2)}, hostels ${label}  ${pct(hit, planted.length)}  (${hit}/${planted.length})`);
+    }
+  }
+
   // ---------- 2c. real mistakes: requests the portal itself rejected (duplicates, quantity mistakes ...). Judged as they looked when raised.
   const rejected = all.filter((r) => /^reject/i.test(r.status));
   const asRaised = all.map((r) => (/^reject/i.test(r.status) ? { ...clone(r), status: 'Pending' } : clone(r)));
