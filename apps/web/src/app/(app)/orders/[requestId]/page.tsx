@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@/lib/db';
 import { scopeFor } from '@/lib/viewer';
-import { DISPATCHED_STAGES } from '@anomaly/core';
-import { hostelLabel, itemLabel, num } from '@/lib/format';
+import { DISPATCHED_STAGES, stableItemName } from '@anomaly/core';
+import { hostelLabel, itemLabel, num, SEVERITY } from '@/lib/format';
 import { daysSincePlaced, fmtDay, sourceNote, STAGE_COLUMNS, stageCells, urgency } from '@/lib/orders';
 import { daysInStage, OPEN_STAGES, STAGE_LABEL, ACTIVE_STATES, STATE_TEXT, canEdit, scoped } from '@anomaly/core';
 import { loadIndent } from '@/lib/indent';
@@ -25,13 +25,29 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const { viewer, names } = await scopeFor(c);
   const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
-  const [rows, phoneMap, remarks, issues, whatsapp] = await Promise.all([
+  const [rows, phoneMap, remarks, issues, whatsapp, flags] = await Promise.all([
     loadIndent(c, o.requestId),
     phonesByHostelCode(c, [o.hostelCode]),
     c.remarks.find({ targetType: 'order', targetId: o.requestId }).sort({ at: 1 }).toArray(),
     c.issues.find(scoped({ $or: [{ targetRequestIds: o.requestId }, { requestIds: o.requestId }, { newRequestId: o.requestId }] }, names)).sort({ raisedAt: -1 }).limit(10).toArray(),
     c.whatsappMessages.find({ requestId: o.requestId }).sort({ createdAt: 1 }).limit(50).toArray(),
+    // what the system flagged for this hostel and month (still waiting for a decision), so the order shows exactly which items are unusual
+    c.requests.findOne({ requestId: o.requestId }, { projection: { month: 1, godownId: 1 } })
+      .then((rq) => rq ? c.anomalies.find(scoped({ godownId: rq.godownId, hostelCode: o.hostelCode, month: rq.month, status: 'open' }, names)).sort({ ratio: -1 }).toArray() : []),
   ]);
+  // match flags to item rows by item name (the system stores names in a normalised form)
+  const rankOf = { high: 0, medium: 1, low: 2 } as const;
+  const itemFlags = new Map<string, (typeof flags)[number]>();
+  for (const f of flags) {
+    if (f.kind === 'duplicate' || f.item.startsWith('(')) continue;
+    const same = rows.filter((r) => stableItemName(r.name) === stableItemName(f.item));
+    const hit = same.length > 1 ? same.filter((r) => Number(r.quantity) === f.requested) : same;
+    for (const r of (hit.length ? hit : same)) {
+      const have = itemFlags.get(r.name);
+      if (!have || rankOf[f.severity] < rankOf[have.severity]) itemFlags.set(r.name, f);
+    }
+  }
+  const orderFlags = flags.filter((f) => f.item.startsWith('(whole order)') || (f.kind === 'duplicate' && f.dup?.requestIds.includes(o.requestId)));
   const hostelPhone = phoneMap.get(o.hostelCode);
   const openIssue = issues.some((i) => ACTIVE_STATES.includes(i.state));
   const cells = stageCells(o, now);
@@ -104,13 +120,24 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
 
       <section aria-labelledby="items">
         <h2 id="items">Items requested</h2>
+        {(itemFlags.size > 0 || orderFlags.length > 0) && (
+          <div className="flag-note" role="note">
+            <b>Flagged by the system</b>
+            <ul>
+              {orderFlags.map((f) => <li key={f.key}>{f.kind === 'duplicate' ? 'Possible duplicate of another request from this hostel.' : `The whole order looks too big (${f.ratio}× what similar hostels ask).`}</li>)}
+              {rows.filter((r) => itemFlags.has(r.name)).map((r) => { const f = itemFlags.get(r.name)!; return (
+                <li key={r.name}><b>{itemLabel(r.name)}</b>: asked {num(f.requested)}, usually about {num(f.expected)} ({f.ratio}× more)</li>
+              ); })}
+            </ul>
+          </div>
+        )}
         {rows.length === 0 ? (
           <p className="mut">The item list for this order is not available yet. It appears after the next full check.</p>
         ) : (
           <div className="table-wrap">
             <table className="order-table">
               <thead><tr><th>Item</th><th>Quantity requested</th><th>Pack size</th></tr></thead>
-              <tbody>{rows.map((r) => <tr key={r.name}><td>{itemLabel(r.name)}</td><td>{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td></tr>)}</tbody>
+              <tbody>{rows.map((r) => { const f = itemFlags.get(r.name); return <tr key={r.name} className={f ? `row-flag ${f.severity}` : undefined}><td>{itemLabel(r.name)}{f && <span className={`pill ${f.severity}`}>{SEVERITY[f.severity].label}</span>}</td><td>{num(r.quantity)} {r.unit}</td><td>{r.packSize}</td></tr>; })}</tbody>
             </table>
           </div>
         )}
