@@ -1,11 +1,40 @@
 'use client';
 
 /** Light/dark switch. The page already has data-theme set (see the script in layout.tsx); this flips it and remembers the choice. */
+type ViewTransitionDocument = Document & { startViewTransition?: (update: () => void) => { ready: Promise<void>; finished: Promise<void> } };
+
 export default function ThemeToggle() {
-  const flip = () => {
-    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('theme', next); } catch { /* private mode: the choice just is not remembered */ }
+  const flip = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const root = document.documentElement;
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    const apply = () => {
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('theme', next); } catch { /* private mode: the choice just is not remembered */ }
+    };
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (still) { apply(); return; }
+    // the sun / moon icons spin as they swap
+    root.classList.add('theme-switching');
+    window.setTimeout(() => root.classList.remove('theme-switching'), 900);
+    const doc = document as ViewTransitionDocument;
+    if (!doc.startViewTransition) {
+      // older browsers: fade the colours smoothly instead
+      root.classList.add('theme-fade');
+      apply();
+      window.setTimeout(() => root.classList.remove('theme-fade'), 450);
+      return;
+    }
+    // the new theme spreads out like a circle from the button
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = box.left + box.width / 2, y = box.top + box.height / 2;
+    const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+    const transition = doc.startViewTransition(apply);
+    transition.ready.then(() => {
+      root.animate(
+        { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+        { duration: 650, easing: 'cubic-bezier(.22,.61,.36,1)', pseudoElement: '::view-transition-new(root)' },
+      );
+    }).catch(() => { /* the theme is already applied; only the animation was skipped */ });
   };
   return (
     <button type="button" className="theme-toggle" onClick={flip} aria-label="Switch between light and dark mode" title="Light / dark">
