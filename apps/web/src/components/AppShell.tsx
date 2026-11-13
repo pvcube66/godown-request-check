@@ -72,7 +72,7 @@ export default function AppShell({ children, user, waConnected = false }: { chil
             <input id="global-query" name="q" type="search" maxLength={60} placeholder="Hostel name, code or request ID" autoComplete="off" />
             <button type="submit">Search</button>
           </form>
-          <ThemeToggle />
+          <span className="desktop-only"><ThemeToggle /></span>   {/* phones already have one in the top bar */}
         </header>
 
         <main id="main">{children}</main>
