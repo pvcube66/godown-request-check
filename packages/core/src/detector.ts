@@ -35,13 +35,14 @@ export interface DetectorConfig {
   minStudents: number;     // student counts below this are not trusted (a partial attendance day); the size is then estimated instead
   dropMinor: boolean;      // do not store flags that would only be rated Minor
   estimatedOnlyRatio: number; // like peerOnlyRatio, but for hostels with no trusted student count (their expected amount is a rougher estimate)
+  perOrder: boolean;       // judge every order (request) on its own, instead of adding up all of a hostel's requests in a month
   ownOrder: boolean;       // whole-order check for hostels with no trusted student count: is the order's overall level far above this hostel's own earlier months?
 }
 
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, peerOnlyRatio: 10, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true, estimatedOnlyRatio: 5, ownOrder: true,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true, estimatedOnlyRatio: 5, perOrder: true, ownOrder: true,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
@@ -148,7 +149,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
   const perRequest = new Map<string, Record<string, number>[]>();
   for (const r of reqs) {
     if (/^reject/i.test(r.status)) continue;
-    const k = `${r.godownId}|${r.hostelCode}|${r.month}`;
+    const k = cfg.perOrder && r.requestId ? `${r.godownId}|${r.hostelCode}|${r.month}|${r.requestId}` : `${r.godownId}|${r.hostelCode}|${r.month}`;   // one entry per order (or per hostel and month when switched off)
     const e = agg.get(k) ?? { meta: r, items: {} };
     for (const [it, q] of Object.entries(r.items)) e.items[it] = (e.items[it] ?? 0) + q;
     agg.set(k, e);
@@ -203,7 +204,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
   const godowns = [...new Set(reqs.map((r) => r.godownId))];
 
   for (const gid of godowns) {
-    const rowsOf = (month: string) => [...agg.entries()].filter(([k]) => k.startsWith(`${gid}|`) && k.endsWith(`|${month}`));
+    const rowsOf = (month: string) => [...agg.entries()].filter(([k]) => { const parts = k.split('|'); return parts[0] === String(gid) && parts[2] === month; });
     /** Each hostel's overall level in a month: the median of (its quantity / the typical quantity of that item across hostels).
      *  It does not depend on which items were ordered, so months with different items can still be compared. */
     const scaleCache = new Map<string, Map<string, number>>();
@@ -217,7 +218,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
       const result = new Map<string, number>();
       for (const [k, e] of rows) {
         const ratios = Object.entries(e.items).filter(([it, q]) => q > 0 && (typical.get(it) ?? 0) > 0).map(([it, q]) => q / typical.get(it)!);
-        if (ratios.length >= cfg.minItemsForScale) result.set(k.split('|')[1]!, median(ratios));
+        if (ratios.length >= cfg.minItemsForScale) result.set(k, median(ratios));       // by order (or by hostel and month when orders are not told apart)
       }
       scaleCache.set(m, result);
       return result;
@@ -261,6 +262,8 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           .sort((a, b) => b[0].split('|')[2]!.localeCompare(a[0].split('|')[2]!)).slice(0, cfg.expectedLimit);
 
         const students = sizes.get(`${gid}|${hostel}`);
+        const rid = cfg.perOrder ? e.meta.requestId : undefined;     // the order this entry is
+        const fkey = (suffix: string) => `${gid}|${hostel}|${month}|${suffix}${rid ? `|${rid}` : ''}`;
         /** What hostels like this one ask for an item. Per student, against hostels of a similar size, when the
          *  student count is known; otherwise an estimate based on the size of the order itself. */
         const peerInfo = (item: string) => {
@@ -361,7 +364,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           const rated = severity(ratio, method, zUsed, !!pInfo && qty <= pInfo.high);
           if (cfg.dropMinor && rated === 'low' && method !== 'own-history') continue;     // a jump over the hostel's own history is solid evidence; a weak peer-only note is not
           found.set(item, {
-            key: `${gid}|${hostel}|${month}|${stableItemName(item)}`, godownId: gid, hostelCode: hostel,
+            key: fkey(stableItemName(item)), godownId: gid, hostelCode: hostel,
             hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item,
             requested: round(qty), expected: round(expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
             severity: rated, method, kind: 'spike', partOfOrder: false, looksLikeExtraZero: false, peer: peerStat(item), ...(students ? { students } : {}), reason,
@@ -395,7 +398,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
               const base = found.get(it);
               found.set(it, {
                 ...(base ?? {
-                  key: `${gid}|${hostel}|${month}|${stableItemName(it)}`, godownId: gid, hostelCode: hostel,
+                  key: fkey(stableItemName(it)), godownId: gid, hostelCode: hostel,
                   hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: it,
                   requested: round(qty), expected: round(x.expected), ratio: round(ratio, 1), score: round(Math.log2(ratio), 2),
                   method: x.method, peer: peerStat(it), ...(students ? { students } : {}), reason: '',
@@ -433,7 +436,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
             const r = median(ratiosOrder);
             if (r >= cfg.orderRatio) {
               found.set('(whole order)', {
-                key: `${gid}|${hostel}|${month}|(whole order)`, godownId: gid, hostelCode: hostel,
+                key: fkey('(whole order)'), godownId: gid, hostelCode: hostel,
                 hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: '(whole order)',
                 requested: round(r, 1), expected: 1, ratio: round(r, 1), score: round(Math.log2(r), 2),
                 severity: r >= 6 ? 'high' : r >= 4 ? 'medium' : 'low', method: 'peers', kind: 'order',
@@ -446,13 +449,13 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
         // For hostels with no trusted student count the size-based check above cannot run. Compare the order's overall level
         // with this hostel's own earlier months instead (a hostel whose whole order jumps well above its usual level).
         if (cfg.ownOrder && !students && !found.has('(whole order)')) {
-          const now = scalesOf(month).get(hostel);
-          const before = hist.map(([k]) => scalesOf(k.split('|')[2]!).get(hostel)).filter((x): x is number => x !== undefined && x > 0);
+          const now = scalesOf(month).get(key);
+          const before = hist.map(([k]) => scalesOf(k.split('|')[2]!).get(k)).filter((x): x is number => x !== undefined && x > 0);
           if (now !== undefined && before.length > 0) {
             const r = now / median(before);
             if (r >= cfg.orderRatio) {
               found.set('(whole order)', {
-                key: `${gid}|${hostel}|${month}|(whole order)`, godownId: gid, hostelCode: hostel,
+                key: fkey('(whole order)'), godownId: gid, hostelCode: hostel,
                 hostelName: e.meta.hostelName, districtName: e.meta.districtName, month, item: '(whole order)',
                 requested: round(r, 1), expected: 1, ratio: round(r, 1), score: round(Math.log2(r), 2),
                 severity: r >= 6 ? 'high' : r >= 4 ? 'medium' : 'low', method: 'own-history', kind: 'order',
@@ -463,6 +466,7 @@ export function detectAnomalies(reqs: Req[], evalMonths: string[], cfg: Detector
           }
         }
         if (found.has('(whole order)')) for (const f of found.values()) if (f.kind === 'spike') f.partOfOrder = true;
+        if (rid) for (const f of found.values()) f.requestId = rid;
         out.push(...found.values());
       }
     }

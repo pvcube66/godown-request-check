@@ -168,21 +168,30 @@ export const orderMonth = (placedOn: Date | null | undefined): string => (placed
 
 /** For the orders on screen: open issues and open unusual-request flags for THAT order's hostel AND month, in words. Keyed "hostelCode|yyyy-mm".
  *  (A flag for another month of the same hostel says nothing about this order.) District limits apply. */
-export async function hostelIssueTypes(c: Collections, names: string[] | null, pairs: { hostelCode: string; month: string }[]): Promise<Map<string, string[]>> {
+export async function hostelIssueTypes(c: Collections, names: string[] | null, pairs: { hostelCode: string; month: string; requestId?: string }[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   const codes = [...new Set(pairs.map((p) => p.hostelCode))];
   if (!codes.length) return out;
   const wanted = new Set(pairs.map((p) => `${p.hostelCode}|${p.month}`));
-  const add = (code: string, month: string, text: string) => { const k = `${code}|${month}`; if (!wanted.has(k)) return; const l = out.get(k) ?? out.set(k, []).get(k)!; if (!l.includes(text)) l.push(text); };
+  const wantedOrders = new Set(pairs.flatMap((p) => (p.requestId ? [p.requestId] : [])));
+  const put = (k: string, text: string) => { const l = out.get(k) ?? out.set(k, []).get(k)!; if (!l.includes(text)) l.push(text); };
+  const add = (code: string, month: string, text: string) => { const k = `${code}|${month}`; if (wanted.has(k)) put(k, text); };
+  const addOrder = (requestId: string, text: string) => { if (wantedOrders.has(requestId)) put(`order|${requestId}`, text); };
   const [issues, flags] = await Promise.all([
     c.issues.find(scoped({ hostelCode: { $in: codes }, state: { $in: ACTIVE_STATES } }, names), { projection: { hostelCode: 1, state: 1, month: 1 } }).toArray(),
-    c.anomalies.find(scoped({ hostelCode: { $in: codes }, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, kind: 1, month: 1 } }).toArray(),
+    c.anomalies.find(scoped({ hostelCode: { $in: codes }, status: 'open', severity: { $in: ['high', 'medium'] }, partOfOrder: { $ne: true } }, names), { projection: { hostelCode: 1, kind: 1, month: 1, requestId: 1, dup: 1 } }).toArray(),
   ]);
   for (const i of issues) add(i.hostelCode, i.month, i.state === 'rejected_on_portal' ? 'Waiting for new indent' : 'Issue raised');
-  for (const f of flags) add(f.hostelCode, f.month, FLAG_TEXT[f.kind] ?? f.kind);
+  // every order is judged on its own: a flag belongs to the order it names (a duplicate to both of its requests); only flags that name no order stay with the hostel and month
+  for (const f of flags) {
+    const text = FLAG_TEXT[f.kind] ?? f.kind;
+    if (f.kind === 'duplicate' && f.dup) for (const id of f.dup.requestIds) addOrder(id, text);
+    else if (f.requestId) addOrder(f.requestId, text);
+    else add(f.hostelCode, f.month, text);
+  }
   return out;
 }
 
 /** The open unusual-request flags for one hostel and month: the ONE definition used by every screen that counts them
  *  (high and medium only; not the items grouped under a whole-order flag). Keep the list and the detail page on this. */
-export const openFlagFilter = (hostelCode: string, month: string) => ({ hostelCode, month, status: 'open' as const, severity: { $in: ['high', 'medium'] as ('high' | 'medium')[] }, partOfOrder: { $ne: true } });
+export const openFlagFilter = (hostelCode: string, month: string, requestId?: string) => ({ hostelCode, month, status: 'open' as const, severity: { $in: ['high', 'medium'] as ('high' | 'medium')[] }, ...(requestId ? { $or: [{ requestId }, { requestId: { $exists: false } }] } : {}), partOfOrder: { $ne: true } });

@@ -74,7 +74,7 @@ describe('unit-aware detection', () => {
     const rows = [order('2026-09', 10, '1'), order('2026-10', 10, '2'), order('2026-11', 100, '3'), order('2026-11', 100, '4')];
     const flags = detectAnomalies(rows, ['2026-11']);
     expect(flags.some((f) => f.kind === 'typing' || f.kind === 'duplicate')).toBe(false);
-    expect(flags.filter((f) => f.kind === 'spike')).toHaveLength(4);
+    expect(flags.filter((f) => f.kind === 'spike')).toHaveLength(8);      // 4 items in each of the two November orders, each judged on its own
   });
 });
 
@@ -123,12 +123,14 @@ describe('detector', () => {
     expect(find(res, 'R')).toBeUndefined();
   });
 
-  it('adds up several different requests from the same hostel in one month', () => {
+  it('judges every order on its own, not added up over the month, and says which order each flag is about', () => {
     const part = (id: string, q: number) => ({ ...mk('H', '2026-11', {}), requestId: id, requestDate: '2026-11-03', items: { IddliRavva: q } });   // one item each: not duplicates
     const res = detectAnomalies(world([
       mk('H', '2026-09', {}), mk('H', '2026-10', {}), part('IR1', 150), part('IR2', 150),
-    ]), ['2026-11']);
-    expect(find(res, 'H')?.requested).toBe(300);
+    ]), ['2026-11']).filter((a) => a.hostelCode === 'H' && a.kind === 'spike');
+    expect(res.map((a) => a.requested)).toEqual([150, 150]);                       // 150 each, never 300
+    expect(res.map((a) => a.requestId).sort()).toEqual(['IR1', 'IR2']);
+    expect(new Set(res.map((a) => a.key)).size).toBe(2);                           // two separate flags
   });
 
   it('does not treat an item a hostel never ordered before as a spike against zero', () => {
@@ -312,13 +314,13 @@ describe('duplicate requests', () => {
     expect(d[0]!.dup!.requestIds).toEqual(['IR1', 'IR2']);
     expect(d[0]!.dup!.similarity).toBeGreaterThanOrEqual(0.98);
   });
-  it('still counts every copy in the totals, so a tripled order is caught as the too-big amounts it really is', () => {
+  it('flags the copies as duplicates; each copy on its own looks like a normal order', () => {
     const usual = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`D${i}`, 100 + i]));
     const past = (m: string) => ({ ...mk('DUP', m, {}), requestId: `P${m}`, requestDate: `${m}-05`, items: usual });
     const copy = (id: string) => ({ ...mk('DUP', '2026-11', {}), requestId: id, requestDate: '2026-11-03', items: usual });
     const res = detectAnomalies([...world([]), past('2026-09'), past('2026-10'), copy('IR1'), copy('IR2'), copy('IR3')], ['2026-11']).filter((a) => a.hostelCode === 'DUP');
     expect(res.some((a) => a.kind === 'duplicate')).toBe(true);
-    expect(res.some((a) => a.kind === 'spike' || a.kind === 'order')).toBe(true);      // 3x the usual amounts are no longer hidden
+    expect(res.some((a) => a.kind === 'spike' || a.kind === 'order')).toBe(false);     // every order is judged on its own
   });
   it('does not call two different requests duplicates', () => {
     const other = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`E${i}`, 20 + i]));

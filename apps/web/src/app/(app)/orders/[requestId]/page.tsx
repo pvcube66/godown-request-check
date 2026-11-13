@@ -25,26 +25,15 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
   const { viewer, names } = await scopeFor(c);
   const o = await c.orders.findOne(scoped({ requestId: decodeURIComponent(requestId) }, names));
   if (!o) notFound();
-  const [rows, phoneMap, remarks, issues, whatsapp, flagData] = await Promise.all([
+  const [rows, phoneMap, remarks, issues, whatsapp, flags] = await Promise.all([
     loadIndent(c, o.requestId),
     phonesByHostelCode(c, [o.hostelCode]),
     c.remarks.find({ targetType: 'order', targetId: o.requestId }).sort({ at: 1 }).toArray(),
     c.issues.find(scoped({ $or: [{ targetRequestIds: o.requestId }, { requestIds: o.requestId }, { newRequestId: o.requestId }] }, names)).sort({ raisedAt: -1 }).limit(10).toArray(),
     c.whatsappMessages.find({ requestId: o.requestId }).sort({ createdAt: 1 }).limit(50).toArray(),
-    // what the system flagged for this hostel and month (still waiting for a decision), so the order shows exactly which items are unusual
-    c.requests.findOne({ requestId: o.requestId }, { projection: { month: 1, godownId: 1 } })
-      .then(async (rq) => {
-        if (!rq) return { flags: [], others: [] as string[] };
-        // the system adds up ALL of a hostel's requests in a month, so also find the hostel's other requests of this month
-        const [found, same] = await Promise.all([
-          c.anomalies.find(scoped({ godownId: rq.godownId, hostelCode: o.hostelCode, month: rq.month, status: 'open' }, names)).sort({ ratio: -1 }).toArray(),
-          c.requests.find({ godownId: rq.godownId, hostelCode: o.hostelCode, month: rq.month }, { projection: { requestId: 1, status: 1 } }).toArray(),
-        ]);
-        return { flags: found, others: same.filter((r) => r.requestId !== o.requestId && !/^reject/i.test(r.status)).map((r) => r.requestId) };
-      }),
+    // what the system flagged for THIS order (every order is judged on its own) and is still waiting for a decision
+    c.anomalies.find(scoped({ hostelCode: o.hostelCode, status: 'open', $or: [{ requestId: o.requestId }, { 'dup.requestIds': o.requestId }] }, names)).sort({ ratio: -1 }).toArray(),
   ]);
-  const flags = flagData.flags;
-  const otherIds = flagData.others;
   // match flags to item rows by item name (the system stores names in a normalised form)
   const rankOf = { high: 0, medium: 1, low: 2 } as const;
   const itemFlags = new Map<string, (typeof flags)[number]>();
@@ -136,14 +125,9 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
             <ul>
               {orderFlags.map((f) => <li key={f.key}>{f.kind === 'duplicate' ? 'Possible duplicate of another request from this hostel.' : `The whole order looks too big (${f.ratio}× what similar hostels ask).`}</li>)}
               {rows.filter((r) => itemFlags.has(r.name)).map((r) => { const f = itemFlags.get(r.name)!; return (
-                <li key={r.name}><b>{itemLabel(r.name)}</b>: {otherIds.length > 0
-                  ? <>{num(f.requested)} asked in total this month ({num(r.quantity)} in this order, the rest in the hostel&apos;s other {otherIds.length === 1 ? 'request' : 'requests'}), usually about {num(f.expected)} ({f.ratio}× more)</>
-                  : <>asked {num(f.requested)}, usually about {num(f.expected)} ({f.ratio}× more)</>}</li>
+                <li key={r.name}><b>{itemLabel(r.name)}</b>: asked {num(f.requested)}, usually about {num(f.expected)} ({f.ratio}× more)</li>
               ); })}
             </ul>
-            {otherIds.length > 0 && itemFlags.size > 0 && (
-              <p className="mut small">The system adds up everything a hostel asks for in a month. Other {otherIds.length === 1 ? 'request' : 'requests'} from this hostel this month: {otherIds.map((id, i) => <span key={id}>{i > 0 && ', '}<Link href={`/orders/${encodeURIComponent(id)}`}>{id}</Link></span>)}.</p>
-            )}
           </div>
         )}
         {rows.length === 0 ? (

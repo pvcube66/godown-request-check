@@ -25,7 +25,7 @@ export default async function IndentView({ params }: { params: Promise<{ request
   const [rows, itemNames, flags, phones] = await Promise.all([
     loadIndent(c, id),
     loadItemNames(c),
-    c.anomalies.find(scoped(openFlagFilter(order.hostelCode, month), names), { projection: { item: 1, kind: 1, severity: 1, requested: 1, expected: 1 } }).toArray(),
+    c.anomalies.find(scoped(openFlagFilter(order.hostelCode, month, id), names), { projection: { item: 1, kind: 1, severity: 1, requested: 1, expected: 1 } }).toArray(),
     loadHostelPhones(c, request ? [{ godownId: request.godownId, hostelCode: order.hostelCode }] : []),
   ]);
   const dead = order.stage === 'rejected' || order.stage === 'cancelled';

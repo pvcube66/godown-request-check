@@ -30,7 +30,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const { rows: shown, page: pageNo, pages } = await loadOrdersPage(c, sp, names, Number(sp.p), PAGE_SIZE, total, now);
   const offset = (pageNo - 1) * PAGE_SIZE;
   const base = Object.fromEntries(Object.entries(sp).filter(([k, v]) => v && k !== 'p')) as Record<string, string>;
-  const [issueTypes, label, phones] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn) }))), godownLabels(c), phonesByHostelCode(c, shown.map((o) => o.hostelCode))]);
+  const [issueTypes, label, phones] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn), requestId: o.requestId }))), godownLabels(c), phonesByHostelCode(c, shown.map((o) => o.hostelCode))]);
   const stuckDays = (STUCK_DAYS as readonly number[]).includes(Number(sp.stuck)) ? Number(sp.stuck) : 0;
 
   return (
@@ -99,7 +99,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
                   const placed = daysSincePlaced(o, now);
                   const cells = stageCells(o, now);
                   const flagTexts = Object.values(FLAG_TEXT);
-                  const issue = issueTypes.get(`${o.hostelCode}|${orderMonth(o.placedOn)}`)?.find((t) => !(o.stage === 'rejected' || o.stage === 'cancelled') || !flagTexts.includes(t));     // a rejected order is not checked for unusual quantities
+                  const issue = [...(issueTypes.get(`order|${o.requestId}`) ?? []), ...(issueTypes.get(`${o.hostelCode}|${orderMonth(o.placedOn)}`) ?? [])].find((t) => !(o.stage === 'rejected' || o.stage === 'cancelled') || !flagTexts.includes(t));     // a rejected order is not checked for unusual quantities
                   return (
                     <tr key={o.requestId}>
                       <td><Link href={`/orders/${encodeURIComponent(o.requestId)}`}>{o.requestId}</Link></td>

@@ -29,7 +29,9 @@ export interface AccountDoc {
 export type RequestDoc = ParsedRequest & { firstSeenAt: Date; updatedAt: Date; cancelReason?: string | null };
 
 export interface AnomalyDoc {
-  key: string;                      // godownId|hostelCode|month|item (unique)
+  key: string;                      // godownId|hostelCode|month|item|requestId (unique; no requestId for flags judged over a whole month)
+  /** The order this flag is about (every order is judged on its own). Absent for flags from before that, and for duplicates (see dup.requestIds). */
+  requestId?: string;
   godownId: number; hostelCode: string; hostelName: string; districtName: string;
   month: string; item: string;
   requested: number; expected: number; ratio: number; score: number;
