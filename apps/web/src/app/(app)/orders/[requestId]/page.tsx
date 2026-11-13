@@ -121,7 +121,7 @@ export default async function OrderPage({ params }: { params: Promise<{ requestI
       <section aria-labelledby="items">
         <h2 id="items">Items requested</h2>
         {(itemFlags.size > 0 || orderFlags.length > 0) && (
-          <div className="flag-note" role="note">
+          <div className="order-flag-note" role="note">
             <b>Flagged by the system</b>
             <ul>
               {orderFlags.map((f) => <li key={f.key}>{f.kind === 'duplicate' ? 'Possible duplicate of another request from this hostel.' : `The whole order looks too big (${f.ratio}× what similar hostels ask).`}</li>)}
