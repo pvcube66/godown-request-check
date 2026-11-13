@@ -874,7 +874,7 @@ main{max-width:none;padding:18px 22px 24px}
 .sev-seg{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
 .sev-opt{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink-2);font-weight:650;font-size:13.5px;text-decoration:none;box-shadow:var(--sh1)}
 .sev-opt .dot{width:10px;height:10px;border-radius:50%;background:var(--sev-low)}
-.sev-opt.high .dot{background:var(--sev-high)}.sev-opt.medium .dot{background:var(--sev-medium)}
+.sev-opt.high .dot{background:var(--sev-high)}.sev-opt.medium .dot{background:var(--sev-medium)}.sev-opt.all .dot{background:var(--ink-2)}
 .sev-opt b{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
 .sev-opt:hover{border-color:var(--brand)}
 .sev-opt.on{background:var(--ink);border-color:var(--ink);color:#fff}.sev-opt.on b{color:#fff}

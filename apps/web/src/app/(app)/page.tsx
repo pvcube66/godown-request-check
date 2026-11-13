@@ -31,7 +31,7 @@ const qs = (cur: SP, patch: Partial<SP>) => {
   const p = new URLSearchParams(Object.entries({ ...cur, ...patch }).filter(([, v]) => v) as [string, string][]);
   return `/?${p}`;
 };
-const HEADLINE: Record<string, string> = { high: 'asked for far more than usual', medium: 'asked for noticeably more than usual', low: 'asked for a bit more than usual' };
+const HEADLINE: Record<string, string> = { all: 'with unusual requests', high: 'asked for far more than usual', medium: 'asked for noticeably more than usual', low: 'asked for a bit more than usual' };
 const IST = 'Asia/Kolkata';
 const SEV_ICON = { high: 'alert', medium: 'eye', low: 'info' } as const;
 
@@ -47,7 +47,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<SP>
 }
 
 async function HomeContent({ sp }: { sp: SP }) {
-  const sev = (['high', 'medium', 'low'] as const).includes(sp.sev as 'high') ? (sp.sev as 'high' | 'medium' | 'low') : 'high';
+  const sev = (['all', 'high', 'medium', 'low'] as const).includes(sp.sev as 'high') ? (sp.sev as 'all' | 'high' | 'medium' | 'low') : 'high';
+  const sevMatch = sev === 'all' ? { $in: ['high', 'medium', 'low'] } : sev;      // "All" shows every importance level together
   const view = (['open', 'confirmed', 'fine'].includes(sp.view ?? '') ? sp.view! : 'open') as 'open' | 'confirmed' | 'fine';
   const c = await getDb();
   const { viewer, names } = await scopeFor(c);
@@ -69,21 +70,25 @@ async function HomeContent({ sp }: { sp: SP }) {
   // lookups that do not depend on the list start now and run alongside the main queries
   const sideLookups = Promise.all([loadUnits(c), loadItemNames(c), getWaitDays(c).then(async (w) => [w, await overdueCount(c, names, w)] as const), loadHealth(c)]);
   sideLookups.catch(() => { /* reported below, where it is awaited */ });
-  const [kindCounts, rows, counts, months, districts, lastRun, requestMonths, allTypesRows] = await Promise.all([
-    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: { k: '$kind', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.k', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
-    c.anomalies.find({ ...scope, status: statusFilter, severity: sev } as never).sort({ ratio: -1 }).limit(3000).toArray(),
+  const [kindCounts, fetched, counts, months, districts, lastRun, requestMonths, allTypesRows, allSeverities] = await Promise.all([
+    c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sevMatch } }, { $group: { _id: { k: '$kind', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.k', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
+    c.anomalies.find({ ...scope, status: statusFilter, severity: sevMatch } as never).sort({ ratio: -1 }).limit(3000).toArray(),
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: { s: '$severity', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.s', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
     c.anomalies.distinct('month', scoped({}, names)),
     c.anomalies.distinct('districtName', scoped({}, names)),
     c.runs.find().sort({ startedAt: -1 }).limit(1).next(),
     c.requests.distinct('month', scoped({}, names)),
-    c.anomalies.aggregate<{ n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sev } }, { $group: { _id: { g: '$godownId', h: '$hostelCode' } } }, { $count: 'n' }]).toArray(),
+    c.anomalies.aggregate<{ n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sevMatch } }, { $group: { _id: { g: '$godownId', h: '$hostelCode' } } }, { $count: 'n' }]).toArray(),
+    c.anomalies.aggregate<{ n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: { g: '$godownId', h: '$hostelCode' } } }, { $count: 'n' }]).toArray(),   // hostels with any flag, for the "All" tab
   ]);
+  // "All": most serious first, then biggest difference; a single level stays ordered by difference alone
+  const SEV_RANK = { high: 0, medium: 1, low: 2 } as const;
+  const rows = sev === 'all' ? [...fetched].sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || b.ratio - a.ratio) : fetched;
   const count = (s: string) => counts.find((x) => x._id === s)?.n ?? 0;
 
   const byHostel = new Map<string, AnomalyDoc[]>();
   for (const r of rows) { const k = `${r.godownId}|${r.hostelCode}`; (byHostel.get(k) ?? byHostel.set(k, []).get(k)!).push(r); }
-  const groups = [...byHostel.values()].sort((a, b) => b[0]!.ratio - a[0]!.ratio);
+  const groups = [...byHostel.values()].sort((a, b) => (sev === 'all' ? SEV_RANK[a[0]!.severity] - SEV_RANK[b[0]!.severity] : 0) || b[0]!.ratio - a[0]!.ratio);
   const pages = Math.max(1, Math.ceil(groups.length / PAGE_SIZE));
   const pageNo = Math.min(pages, Math.max(1, Math.floor(Number(sp.p)) || 1));
   const offset = (pageNo - 1) * PAGE_SIZE;
@@ -131,6 +136,9 @@ async function HomeContent({ sp }: { sp: SP }) {
       {overdue > 0 && <p className="alert-bar" role="status">{overdue} {overdue === 1 ? 'hostel has' : 'hostels have'} not sent a new indent {waitDays}+ {waitDays === 1 ? 'day' : 'days'} after a rejection. <Link href="/issues">See the list</Link></p>}
 
       <nav className="sev-seg" aria-label="How big is the difference">
+        <Link href={qs(sp, { sev: 'all', p: '' })} className={`sev-opt all ${sev === 'all' ? 'on' : ''}`} aria-current={sev === 'all' ? 'page' : undefined}>
+          <i className="dot" aria-hidden="true" />All<b>{allSeverities[0]?.n ?? 0}</b>
+        </Link>
         {(['high', 'medium', 'low'] as const).map((s) => (
           <Link key={s} href={qs(sp, { sev: s, p: '' })} className={`sev-opt ${s} ${sev === s ? 'on' : ''}`} aria-current={sev === s ? 'page' : undefined}>
             <i className="dot" aria-hidden="true" />{SEVERITY[s].label}<b>{count(s)}</b>
