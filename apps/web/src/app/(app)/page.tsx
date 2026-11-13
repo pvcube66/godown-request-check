@@ -135,6 +135,9 @@ async function HomeContent({ sp }: { sp: SP }) {
       {viewer.role === 'admin' && health.needAttention > 0 && <p className="alert-bar" role="alert">{health.needAttention} godown {health.needAttention === 1 ? 'login needs' : 'logins need'} attention (portal sign-in failing). <Link href="/accounts">See Godowns</Link></p>}
       {overdue > 0 && <p className="alert-bar" role="status">{overdue} {overdue === 1 ? 'hostel has' : 'hostels have'} not sent a new indent {waitDays}+ {waitDays === 1 ? 'day' : 'days'} after a rejection. <Link href="/issues">See the list</Link></p>}
 
+      <section className="filter-bar" aria-label="Filters">
+      <div className="fb-row">
+        <span className="fb-label">Importance</span>
       <nav className="sev-seg" aria-label="How big is the difference">
         <Link href={qs(sp, { sev: 'all', p: '' })} className={`sev-opt all ${sev === 'all' ? 'on' : ''}`} aria-current={sev === 'all' ? 'page' : undefined}>
           <i className="dot" aria-hidden="true" />All<b>{allSeverities[0]?.n ?? 0}</b>
@@ -145,7 +148,10 @@ async function HomeContent({ sp }: { sp: SP }) {
           </Link>
         ))}
       </nav>
+      </div>
 
+      <div className="fb-row">
+        <span className="fb-label">Filter</span>
       <div className="filters">
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
@@ -156,7 +162,10 @@ async function HomeContent({ sp }: { sp: SP }) {
           ))}
         </div>
       </div>
+      </div>
 
+      <div className="fb-row fb-type">
+        <span className="fb-label">Type</span>
       <nav className="type-chips" aria-label="Type of unusual request">
         {KIND_TABS.map((k) => {
           const n = k.key ? (kindCounts.find((x) => x._id === k.key)?.n ?? 0) : allTypesRows[0]?.n ?? 0;
@@ -167,6 +176,8 @@ async function HomeContent({ sp }: { sp: SP }) {
           );
         })}
       </nav>
+      </div>
+      </section>
 
 
       {groups.length === 0 && (
