@@ -150,7 +150,7 @@ async function HomeContent({ sp }: { sp: SP }) {
       </nav>
       </div>
 
-      <div className="fb-row">
+      <div className="fb-row fb-controls">
         <span className="fb-label">Filter</span>
       <div className="filters">
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />

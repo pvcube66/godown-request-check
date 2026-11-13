@@ -1400,3 +1400,42 @@ html.theme-fade,html.theme-fade *,html.theme-fade *::before,html.theme-fade *::a
 @keyframes theme-icon-pop{0%{transform:rotate(-110deg) scale(.3);opacity:0}60%{opacity:1}100%{transform:rotate(0) scale(1);opacity:1}}
 html.theme-switching .theme-toggle svg{animation:theme-icon-pop .6s cubic-bezier(.34,1.56,.64,1)}
 @media (prefers-reduced-motion:reduce){::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none!important}}
+
+/* Filter bar layout. Wide screens: month, district, status and export on one tidy line, label level with the controls */
+.filter-bar .filters{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 14px}
+.filter-bar .filters .seg{order:2}
+.filter-bar .filters .dl-link{order:3;margin-left:auto}
+.fb-row.fb-controls .fb-label{align-self:flex-end;padding-bottom:11px}
+
+/* Phones: two-by-two importance buttons, side-by-side dropdowns, a full-width status switch, and type chips that scroll sideways */
+@media (max-width:700px){
+  .filter-bar{padding:14px 12px 12px;gap:12px;border-radius:var(--r3)}
+  .fb-row,.fb-row.fb-controls{align-items:stretch}
+  .fb-row.fb-controls .fb-label{align-self:auto;padding-bottom:0}
+  .filter-bar .sev-seg{display:grid;grid-template-columns:1fr 1fr;width:100%;border-radius:var(--r3);gap:4px}
+  .filter-bar .sev-opt{justify-content:space-between;padding:9px 12px;border-radius:calc(var(--r3) - 3px);font-size:13.5px}
+  .filter-bar .filters{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%}
+  .filter-bar .filters .select{min-width:0}
+  .filter-bar .filters .select select{width:100%;min-height:42px}
+  .filter-bar .filters .seg{grid-column:1/-1;order:2;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r2)}
+  .filter-bar .filters .seg a{justify-content:center;text-align:center;white-space:nowrap;padding:8px 2px;min-height:38px;font-size:13px;border:0;border-radius:var(--r1)}
+  .filter-bar .filters .seg a.on{box-shadow:var(--sh1)}
+  .filter-bar .filters .dl-link{grid-column:1/-1;order:3;justify-content:center;margin-left:0;min-height:42px;border:1px solid var(--line);border-radius:var(--r2);background:var(--paper)}
+  .filter-bar .type-chips{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -12px;padding:2px 12px 6px;scroll-snap-type:x proximity}
+  .filter-bar .type-chips::-webkit-scrollbar{display:none}
+  .filter-bar .type-chip{flex:none;white-space:nowrap;scroll-snap-align:start}
+}
+
+/* Filter bar fixes: the card may never grow wider than the screen (the sideways-scrolling chips must scroll inside it) */
+.filter-bar{grid-template-columns:minmax(0,1fr)}
+.filter-bar .fb-row,.filter-bar .filters,.filter-bar .type-chips,.filter-bar .sev-seg{min-width:0}
+.fb-row.fb-controls{align-items:flex-start}
+.fb-row.fb-controls .fb-label{align-self:flex-start;padding-bottom:0;margin-top:29px}
+@media (max-width:700px){.fb-row.fb-controls .fb-label{margin-top:0}}
+@media (max-width:700px){
+  .filter-bar{overflow:hidden}
+  .filter-bar .sev-opt{gap:6px;padding:9px 10px;font-size:13px;white-space:nowrap}
+  .filter-bar .sev-opt b{min-width:0;padding:1px 7px;font-size:12px}
+  .filter-bar .sev-opt .dot{flex:none}
+}
+@media (max-width:700px){.filter-bar .sev-opt{justify-content:flex-start}.filter-bar .sev-opt b{margin-left:auto}}
