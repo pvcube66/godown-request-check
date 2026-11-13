@@ -3,7 +3,7 @@
  * how many false alarms normal-sized noise causes, and how many requests cannot be judged at all.
  * Usage: npm run worker -- bench
  */
-import { detectAnomalies, DEFAULT_CONFIG, type Collections, type DetectorConfig, type RequestDoc } from '@anomaly/core';
+import { detectAnomalies, DEFAULT_CONFIG, stableItemName, type Collections, type DetectorConfig, type RequestDoc } from '@anomaly/core';
 
 const MONTH = '2026-11';
 function rng(seed: number) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -24,7 +24,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   const run = (reqs: RequestDoc[]) => detectAnomalies(reqs, [MONTH], cfg, detectSizes);
   const live = (r: RequestDoc) => !/^reject/i.test(r.status);
   const nov = all.filter((r) => r.month === MONTH && live(r));
-  const key = (a: { hostelCode: string; item: string }) => `${a.hostelCode}|${a.item}`;
+  const key = (a: { hostelCode: string; item: string }) => `${a.hostelCode}|${stableItemName(a.item)}`;
 
   // ---------- 0. baseline on the real data
   const base = run(all);
@@ -51,16 +51,16 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
       const test = all.map(clone);
       for (const p of batch) { const t = test.find((x) => x.requestId === p.r.requestId && x.godownId === p.r.godownId)!; t.items[p.item] = Math.max(t.items[p.item]! * 1000, 1000); }
       const got = new Set(run(test).filter((a) => a.requested >= 1000 || a.kind !== 'spike').map(key));
-      for (const p of batch) if (got.has(`${p.r.hostelCode}|${p.item}`)) judged.add(`${p.r.hostelCode}|${p.item}`);
+      for (const p of batch) if (got.has(`${p.r.hostelCode}|${stableItemName(p.item)}`)) judged.add(`${p.r.hostelCode}|${stableItemName(p.item)}`);
     }
-    const uniq = new Set(picked.map((p) => `${p.r.hostelCode}|${p.item}`));
+    const uniq = new Set(picked.map((p) => `${p.r.hostelCode}|${stableItemName(p.item)}`));
     log(`\nBLIND SPOTS: hostel+item combinations the detector can judge: ${judged.size}/${uniq.size} (${pct(judged.size, uniq.size)}); cannot judge: ${uniq.size - judged.size}`);
     // why can't they be judged?
     const hostelsPerItem = new Map<string, Set<string>>();
     for (const p of picked) (hostelsPerItem.get(p.item) ?? hostelsPerItem.set(p.item, new Set()).get(p.item)!).add(p.r.hostelCode);
     const why: Record<string, number> = {};
-    for (const p of [...new Map(picked.map((q) => [`${q.r.hostelCode}|${q.item}`, q])).values()]) {
-      if (judged.has(`${p.r.hostelCode}|${p.item}`)) continue;
+    for (const p of [...new Map(picked.map((q) => [`${q.r.hostelCode}|${stableItemName(q.item)}`, q])).values()]) {
+      if (judged.has(`${p.r.hostelCode}|${stableItemName(p.item)}`)) continue;
       const hasSize = sizes.has(`${p.r.godownId}|${p.r.hostelCode}`);
       const n = hostelsPerItem.get(p.item)!.size;
       const k = `${hasSize ? 'has student count' : 'NO student count'}, item ordered by ${n >= 30 ? '30+' : n >= 12 ? '12-29' : n >= 6 ? '6-11' : '<6'} hostels`;
@@ -106,7 +106,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
 
     const found = run(test); const fk = new Map(found.map((a) => [key(a), a]));
     for (const p of planted) {
-      const t = p.kind === 'zero' ? zeroT : spikeT[p.mag]!; const f = fk.get(`${p.h}|${p.item}`);
+      const t = p.kind === 'zero' ? zeroT : spikeT[p.mag]!; const f = fk.get(`${p.h}|${stableItemName(p.item)}`);
       t.n++; p.hist ? t.hist++ : t.noHist++;
       const nf = normalFor(p.h, p.item); const trulyAbnormal = nf > 0 && p.orig * p.mag >= 3 * nf;
       if (trulyAbnormal) { t.real++; if (f) t.realHit++; }
@@ -121,7 +121,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
       }
       if (f) { t.hit++; p.hist ? t.histHit++ : t.noHistHit++; if (f.severity !== 'low') t.medHigh++; if (f.looksLikeExtraZero) t.tagged++; if (p.kind === 'zero' && f.zeroFix && Math.abs(f.zeroFix.value - p.orig) / p.orig < 0.6) zeroFixOk++; }
     }
-    typeN += typed.length; typeHit += typed.filter((t) => t.items.filter((i) => fk.get(`${t.h}|${i}`)?.kind === 'typing').length >= 3).length;
+    typeN += typed.length; typeHit += typed.filter((t) => t.items.filter((i) => fk.get(`${t.h}|${stableItemName(i)}`)?.kind === 'typing').length >= 3).length;
     // a whole-order plant only counts when the planted order really is far above normal for the hostel's size
     const orderOracle = (h: string) => { const r = all.find((x) => x.month === MONTH && x.hostelCode === h && live(x))!; const ratios = Object.entries(r.items).filter(([, v]) => v > 0).map(([it, v]) => { const nf = normalFor(h, it); return nf > 0 ? (v * 4) / nf : 0; }).filter((x) => x > 0); return { median: medianOf(ratios), n: ratios.length }; };
     const real = orders.filter((h) => { const o = orderOracle(h); return o.n >= 8 && o.median >= 3; });
