@@ -12,7 +12,7 @@ function rng(seed: number) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(0)}%` : 'n/a').padStart(5);
 const clone = (r: RequestDoc): RequestDoc => ({ ...r, items: { ...r.items } });
 
-export interface BenchMetrics { recall: Record<number, number>; realRecall: Record<number, number>; medHigh: Record<number, number>; zero: number; typing: number; order: number; orderNoSize: number; noiseNew: number; noiseNewMH: number; flags: number; lowFlags: number }
+export interface BenchMetrics { recall: Record<number, number>; realRecall: Record<number, number>; medHigh: Record<number, number>; zero: number; typing: number; order: number; orderNoSize: number; rejectedCaught: number; noiseNew: number; noiseNewMH: number; flags: number; lowFlags: number }
 
 export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CONFIG, opts: { quiet?: boolean; blind?: boolean } = {}): Promise<BenchMetrics> {
   const log = opts.quiet ? (..._a: unknown[]) => {} : console.log;
@@ -186,6 +186,13 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   const noSizeHit = noSize.filter((r, i) => noSizeOut[i]!.some((a) => a.hostelCode === r.hostelCode && a.kind === 'order')).length;
   log(`  whole order x4, hostels with no trusted student count  ${pct(noSizeHit, noSize.length)}  (${noSizeHit}/${noSize.length})`);
 
+  // ---------- 2c. real mistakes: requests the portal itself rejected (duplicates, quantity mistakes ...). Judged as they looked when raised.
+  const rejected = all.filter((r) => /^reject/i.test(r.status));
+  const asRaised = all.map((r) => (/^reject/i.test(r.status) ? { ...clone(r), status: 'Pending' } : clone(r)));
+  const rejOut = detectAnomalies(asRaised, [...new Set(rejected.map((r) => r.month))], cfg, detectSizes);
+  const rejCaught = rejected.filter((r) => rejOut.some((a) => a.hostelCode === r.hostelCode && a.month === r.month)).length;
+  log(`  real mistakes the portal rejected   ${pct(rejCaught, rejected.length)}  (${rejCaught}/${rejected.length})   (hostel and month had at least one flag; a small sample that grows every month)`);
+
   // ---------- 3. false alarms from normal-sized noise (+-25%)
   const R2 = rng(99);
   const noisy = all.map(clone);
@@ -199,7 +206,7 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
     recall: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.hit / Math.max(1, spikeT[m]!.n)])) as Record<number, number>,
     realRecall: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.realHit / Math.max(1, spikeT[m]!.real)])) as Record<number, number>,
     medHigh: Object.fromEntries([2, 3, 5, 10, 30].map((m) => [m, spikeT[m]!.medHigh / Math.max(1, spikeT[m]!.n)])) as Record<number, number>,
-    zero: zeroT.hit / Math.max(1, zeroT.n), typing: typeHit / Math.max(1, typeN), order: orderHit / Math.max(1, orderN), orderNoSize: noSizeHit / Math.max(1, noSize.length),
+    zero: zeroT.hit / Math.max(1, zeroT.n), typing: typeHit / Math.max(1, typeN), order: orderHit / Math.max(1, orderN), orderNoSize: noSizeHit / Math.max(1, noSize.length), rejectedCaught: rejCaught / Math.max(1, rejected.length),
     noiseNew: fresh.length, noiseNewMH: fresh.filter((a) => a.severity !== 'low').length, flags: base.length, lowFlags: base.filter((a) => a.severity === 'low').length,
   };
 }
