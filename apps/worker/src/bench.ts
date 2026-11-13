@@ -3,6 +3,8 @@
  * how many false alarms normal-sized noise causes, and how many requests cannot be judged at all.
  * Usage: npm run worker -- bench
  */
+import os from 'node:os';
+import { Worker } from 'node:worker_threads';
 import { detectAnomalies, DEFAULT_CONFIG, stableItemName, type Collections, type DetectorConfig, type RequestDoc } from '@anomaly/core';
 
 const MONTH = '2026-11';
@@ -22,6 +24,25 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
   if (process.env.BENCH_HE === '1') cfg = { ...cfg, hostelEffect: true };
   if (process.env.BENCH_HE === 'rate') cfg = { ...cfg, hostelEffectRating: true };
   const run = (reqs: RequestDoc[]) => detectAnomalies(reqs, [MONTH], cfg, detectSizes);
+  /** Runs many independent detections at once on every CPU core (BENCH_THREADS=1 turns this off). */
+  const runMany = async (sets: RequestDoc[][]): Promise<ReturnType<typeof run>[]> => {
+    const n = Math.min(Number(process.env.BENCH_THREADS ?? os.availableParallelism()), sets.length);
+    if (n <= 1) return sets.map(run);
+    const workers = Array.from({ length: n }, () => new Worker(new URL('./benchWorker.ts', import.meta.url), { workerData: { cfg, sizes: [...detectSizes], month: MONTH }, execArgv: process.execArgv }));
+    const results: ReturnType<typeof run>[] = new Array(sets.length);
+    let next = 0, done = 0;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const feed = (w: Worker) => { if (next < sets.length) { const id = next++; w.postMessage({ id, reqs: sets[id] }); } };
+        for (const w of workers) {
+          w.on('message', ({ id, out }: { id: number; out: ReturnType<typeof run> }) => { results[id] = out; if (++done === sets.length) resolve(); else feed(w); });
+          w.on('error', reject);
+          feed(w);
+        }
+      });
+    } finally { await Promise.all(workers.map((w) => w.terminate())); }
+    return results;
+  };
   const live = (r: RequestDoc) => !/^reject/i.test(r.status);
   const nov = all.filter((r) => r.month === MONTH && live(r));
   const key = (a: { hostelCode: string; item: string }) => `${a.hostelCode}|${stableItemName(a.item)}`;
@@ -42,17 +63,27 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
     const probe = all.map(clone);
     const picked: { r: RequestDoc; item: string }[] = [];
     for (const r of probe.filter((x) => x.month === MONTH && live(x))) for (const it of Object.keys(r.items)) if (r.items[it]! > 0) picked.push({ r, item: it });
-    // plant in batches on distinct hostels so the planted values do not disturb each other
-    const byHostel = new Map<string, typeof picked>();
-    for (const p of picked) (byHostel.get(p.r.hostelCode) ?? byHostel.set(p.r.hostelCode, []).get(p.r.hostelCode)!).push(p);
-    const maxLen = Math.max(...[...byHostel.values()].map((v) => v.length));
-    for (let i = 0; i < maxLen; i++) {
-      const batch = [...byHostel.values()].map((v) => v[i]).filter(Boolean) as typeof picked;
+    // plant in batches: one item per hostel, and each item in at most 3 hostels at once, so the planted values
+    // do not disturb each other or the "normal" the detector learns for that item from its peers
+    const batches: typeof picked[] = [];
+    const usedH: Set<string>[] = [], itemN: Map<string, number>[] = [];
+    for (const p of picked) {
+      const name = stableItemName(p.item);
+      let i = 0;
+      while (i < batches.length && (usedH[i]!.has(p.r.hostelCode) || (itemN[i]!.get(name) ?? 0) >= 3)) i++;
+      if (i === batches.length) { batches.push([]); usedH.push(new Set()); itemN.push(new Map()); }
+      batches[i]!.push(p); usedH[i]!.add(p.r.hostelCode); itemN[i]!.set(name, (itemN[i]!.get(name) ?? 0) + 1);
+    }
+    const tests = batches.map((batch) => {
       const test = all.map(clone);
       for (const p of batch) { const t = test.find((x) => x.requestId === p.r.requestId && x.godownId === p.r.godownId)!; t.items[p.item] = Math.max(t.items[p.item]! * 1000, 1000); }
-      const got = new Set(run(test).filter((a) => a.requested >= 1000 || a.kind !== 'spike').map(key));
+      return test;
+    });
+    const outs = await runMany(tests);
+    batches.forEach((batch, i) => {
+      const got = new Set(outs[i]!.filter((a) => a.requested >= 1000 || a.kind !== 'spike').map(key));
       for (const p of batch) if (got.has(`${p.r.hostelCode}|${stableItemName(p.item)}`)) judged.add(`${p.r.hostelCode}|${stableItemName(p.item)}`);
-    }
+    });
     const uniq = new Set(picked.map((p) => `${p.r.hostelCode}|${stableItemName(p.item)}`));
     log(`\nBLIND SPOTS: hostel+item combinations the detector can judge: ${judged.size}/${uniq.size} (${pct(judged.size, uniq.size)}); cannot judge: ${uniq.size - judged.size}`);
     // why can't they be judged?
@@ -67,6 +98,13 @@ export async function runBench(c: Collections, cfg: DetectorConfig = DEFAULT_CON
       why[k] = (why[k] ?? 0) + 1;
     }
     for (const [k, v] of Object.entries(why).sort((a, b) => b[1] - a[1])) log(`    cannot judge: ${String(v).padStart(4)}  ${k}`);
+    // BENCH_DUMP=<file> saves the list of items that cannot be judged, so the reasons can be studied
+    if (process.env.BENCH_DUMP) {
+      const rows = [...new Map(picked.map((q) => [`${q.r.hostelCode}|${stableItemName(q.item)}`, q])).values()]
+        .filter((p) => !judged.has(`${p.r.hostelCode}|${stableItemName(p.item)}`))
+        .map((p) => ({ hostel: p.r.hostelCode, item: p.item, qty: p.r.items[p.item], students: sizes.get(`${p.r.godownId}|${p.r.hostelCode}`) ?? null, hostelsOrderingItem: hostelsPerItem.get(p.item)!.size }));
+      (await import('node:fs')).writeFileSync(process.env.BENCH_DUMP, JSON.stringify(rows, null, 1));
+    }
   }
 
   // ---------- 2. recall on planted mistakes (3 random plantings, results added together)
