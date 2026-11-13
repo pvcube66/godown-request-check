@@ -39,7 +39,7 @@ export interface DetectorConfig {
 export const DEFAULT_CONFIG: DetectorConfig = {
   ownRatio: 3, ownMinHistory: 2, peerRatio: 2.5, peerOnlyRatio: 10, minExcess: 0.1, minPeers: 8,
   minItemsForScale: 5, itemMinExcess: {}, expectedLimit: 6,
-  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 40, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true,
+  slipMinGroup: 3, slipRatio: 3, slipFraction: 0.6, sizeBand: 2, peerK: 20, peerZ: 1, madFloor: 0.3, floorFrac: 0.15, ownCorroborated: 2.2, ownVolatile: 4, ownAbovePeers: false, peersByKind: true, hostelEffect: true, hostelEffectRating: false, dupSimilarity: 0.9, dupMinItems: 4, orderMinItems: 8, orderRatio: 2.5, ownConsistency: 1.5, minExcessUnits: { kg: 1, litre: 1, ltr: 1, l: 1, liter: 1, litres: 1 }, minExcessOther: 3, minStudents: 30, dropMinor: true,
 };
 
 export type Candidate = Omit<AnomalyDoc, 'detectedAt' | 'updatedAt' | 'lastSeenAt' | 'status'>;
