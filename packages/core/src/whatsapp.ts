@@ -50,14 +50,29 @@ export const DEFAULT_SETTINGS = (): WhatsAppSettings => ({
 export class WhatsAppInputError extends Error {}
 
 type SettingsC = Pick<Collections, 'settings' | 'auditLog'>;
-export async function getWhatsAppSettings(c: Pick<Collections, 'settings'>): Promise<WhatsAppSettings> {
+async function getStoredSettings(c: Pick<Collections, 'settings'>): Promise<WhatsAppSettings> {
   const saved = (await c.settings.findOne({ _id: 'whatsapp' }))?.value as Partial<WhatsAppSettings> | undefined;
   return { ...DEFAULT_SETTINGS(), ...(saved ?? {}) };
 }
 
+/** The software owner's Meta app (App ID, App secret, Embedded Signup configuration ID), set ONCE on the server with
+ *  WHATSAPP_META_APP_ID, WHATSAPP_META_APP_SECRET and WHATSAPP_EMBEDDED_CONFIG_ID. When all three are set, customers only press
+ *  "Continue with Facebook" and never see or type these. */
+export function platformMetaApp(env: Record<string, string | undefined> = process.env): { appId: string; appSecret: string; configId: string } | null {
+  const appId = env.WHATSAPP_META_APP_ID?.trim(), appSecret = env.WHATSAPP_META_APP_SECRET?.trim(), configId = env.WHATSAPP_EMBEDDED_CONFIG_ID?.trim();
+  return appId && appSecret && configId ? { appId, appSecret, configId } : null;
+}
+
+export async function getWhatsAppSettings(c: Pick<Collections, 'settings'>): Promise<WhatsAppSettings> {
+  const s = await getStoredSettings(c);
+  const app = platformMetaApp();
+  // the server's Meta app always wins and is never copied into the database
+  return app ? { ...s, appId: app.appId, configId: app.configId, appSecretEnc: sealSecret(app.appSecret) } : s;
+}
+
 /** The verify token is created once and then kept, so Meta's saved copy keeps matching. */
 export async function ensureWhatsAppSettings(c: Pick<Collections, 'settings'>): Promise<WhatsAppSettings> {
-  const s = await getWhatsAppSettings(c);
+  const s = await getStoredSettings(c);
   await c.settings.updateOne({ _id: 'whatsapp' }, { $setOnInsert: { value: s } }, { upsert: true });
   return (await getWhatsAppSettings(c));
 }

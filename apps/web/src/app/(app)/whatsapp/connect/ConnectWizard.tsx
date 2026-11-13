@@ -17,6 +17,7 @@ const FEATURES = [
 ] as const;
 
 export interface WizardProps {
+  appManaged: boolean;       // the Meta app is set once on the server: customers only press the button
   appId: string; configId: string; hasSecret: boolean;
   connected: boolean; webhookUrl: string; verifyToken: string; initialDisplay: string;
 }
@@ -124,7 +125,7 @@ export default function ConnectWizard(p: WizardProps) {
       {step === 2 && (
         <section className="wiz-card">
           <h3><Icon name="plug" size={18} /> Connect</h3>
-          <details className="quiet" open={!savedApp.appId || !hasSecret}>
+          {!p.appManaged && <details className="quiet" open={!savedApp.appId || !hasSecret}>
             <summary>Your Meta app {savedApp.appId && hasSecret ? '(saved)' : '(needed first)'}</summary>
             <div className="master-fields">
               <label className="master-field">App ID<input value={app.appId} onChange={(e) => setApp({ ...app, appId: e.target.value })} inputMode="numeric" maxLength={30} /></label>
@@ -132,7 +133,7 @@ export default function ConnectWizard(p: WizardProps) {
               <label className="master-field">Embedded Signup configuration ID <span className="mut">(only for one-click signup)</span><input value={app.configId} onChange={(e) => setApp({ ...app, configId: e.target.value })} inputMode="numeric" maxLength={30} /></label>
             </div>
             <button className="btn" disabled={busy === 'app'} onClick={saveApp}>{busy === 'app' ? <Loader size="sm" label="" /> : null}Save Meta app</button>
-          </details>
+          </details>}
 
           <div className="seg wiz-tabs" role="tablist">
             <a role="tab" aria-selected={tab === 'signup'} className={tab === 'signup' ? 'on' : ''} onClick={() => setTab('signup')}>One-click signup (recommended)</a>
@@ -144,7 +145,7 @@ export default function ConnectWizard(p: WizardProps) {
               <h4>Connect with Facebook</h4>
               <p className="mut">A secure Meta window creates or links your WhatsApp Business account for you.</p>
               <button className="btn primary-ish" disabled={!sdk || !hasSecret || !savedApp.configId || busy === 'signup'} onClick={launchSignup}>{busy === 'signup' ? <Loader size="sm" label="" /> : <Icon name="chat" size={16} />}Continue with Facebook</button>
-              {(!hasSecret || !savedApp.appId || !savedApp.configId) && <p className="mut small">Save the App ID, App secret and configuration ID above first.</p>}
+              {!p.appManaged && (!hasSecret || !savedApp.appId || !savedApp.configId) && <p className="mut small">Save the App ID, App secret and configuration ID above first.</p>}
               {savedApp.appId && savedApp.configId && !sdk && <p className="mut small">Loading Facebook…</p>}
             </div>
           ) : (

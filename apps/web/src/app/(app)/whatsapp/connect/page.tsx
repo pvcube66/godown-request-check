@@ -1,5 +1,5 @@
 import { headers } from 'next/headers';
-import { ensureWhatsAppSettings, isConnected } from '@anomaly/core';
+import { ensureWhatsAppSettings, isConnected, platformMetaApp } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { masterAdminAccess } from '@/lib/master-auth';
 import WaSettingsTabs from '@/components/WaSettingsTabs';
@@ -17,7 +17,7 @@ export default async function ConnectWhatsApp() {
     <>
       <section className="hero"><h1>Connect WhatsApp</h1></section>
       {isConnected(s) && <WaSettingsTabs active="connection" />}
-      <ConnectWizard appId={s.appId} configId={s.configId} hasSecret={!!s.appSecretEnc} connected={isConnected(s)} webhookUrl={`https://${host}/api/whatsapp/webhook`} verifyToken={s.verifyToken} initialDisplay={s.displayPhone ?? ''} />
+      <ConnectWizard appManaged={!!platformMetaApp()} appId={s.appId} configId={s.configId} hasSecret={!!s.appSecretEnc} connected={isConnected(s)} webhookUrl={`https://${host}/api/whatsapp/webhook`} verifyToken={s.verifyToken} initialDisplay={s.displayPhone ?? ''} />
     </>
   );
 }

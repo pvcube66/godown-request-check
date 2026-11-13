@@ -1,7 +1,7 @@
 import type { Collections } from './db.js';
 import { openSecret, sealSecret } from './secretBox.js';
 import { GRAPH_URL, WhatsAppApiError, type Fetcher } from './whatsappApi.js';
-import { ensureWhatsAppSettings, WhatsAppInputError, type WhatsAppSettings } from './whatsapp.js';
+import { ensureWhatsAppSettings, platformMetaApp, WhatsAppInputError, type WhatsAppSettings } from './whatsapp.js';
 
 /** "Connect WhatsApp": the setup flow of the team's TeleCRM (`whatsappOnboardingController.js`), rewritten for one business account.
  *  Two ways in: Meta's one-click Embedded Signup (a code, exchanged here) or an existing permanent access token + phone number ID.
@@ -159,6 +159,7 @@ export async function disconnect(c: ConnectC, actor: string): Promise<void> {
 
 /** Saves the Meta app the connection goes through (App ID, App secret, and the Embedded Signup configuration ID if used). */
 export async function saveMetaApp(c: ConnectC, input: { appId?: string; appSecret?: string; configId?: string }, actor: string): Promise<void> {
+  if (platformMetaApp()) throw new WhatsAppInputError('The Meta app is already set up on the server, so there is nothing to enter here.');
   await ensureWhatsAppSettings(c);
   const set: Record<string, unknown> = { 'value.updatedAt': new Date() };
   if (input.appId !== undefined) { const v = input.appId.trim(); if (v && !/^\d{5,25}$/.test(v)) throw new WhatsAppInputError('The Meta App ID is digits only.'); set['value.appId'] = v; }
