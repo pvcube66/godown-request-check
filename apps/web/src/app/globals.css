@@ -1439,3 +1439,29 @@ html.theme-switching .theme-toggle svg{animation:theme-icon-pop .6s cubic-bezier
   .filter-bar .sev-opt .dot{flex:none}
 }
 @media (max-width:700px){.filter-bar .sev-opt{justify-content:flex-start}.filter-bar .sev-opt b{margin-left:auto}}
+
+/* ===== Loading animation: glass card, glowing ring around rising bars, shimmering label, glowing progress line ===== */
+@keyframes loader-fade{from{opacity:0}to{opacity:1}}
+@keyframes loader-pop{from{opacity:0;transform:translateY(10px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes loader-bar{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+@keyframes loader-glow{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes loader-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+
+.busy{background:color-mix(in srgb,var(--page) 55%,transparent);backdrop-filter:blur(5px) saturate(1.1);-webkit-backdrop-filter:blur(5px) saturate(1.1);animation:loader-fade .22s ease both}
+.busy .loader.lg{padding:26px 40px 22px;border-radius:22px;border:1px solid color-mix(in srgb,var(--line) 70%,transparent);background:color-mix(in srgb,var(--paper) 86%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 24px 60px -18px rgba(16,24,40,.45),0 0 0 1px rgba(255,255,255,.04) inset;animation:loader-pop .3s cubic-bezier(.22,.9,.3,1) both}
+.loader.lg{flex-direction:column;gap:14px}
+.loader-orbit{position:relative;width:64px;height:64px;display:grid;place-items:center}
+.loader-orbit::before{content:"";position:absolute;inset:-6px;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 42%,transparent),transparent);animation:loader-glow 1.6s ease-in-out infinite}
+.loader.lg .loader-orbit .loader-ring{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 8%,color-mix(in srgb,var(--accent) 35%,transparent) 45%,var(--accent) 100%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));animation:loader-spin .95s linear infinite;border-top-color:transparent}
+.loader-mark{position:relative;display:flex;align-items:flex-end;gap:4px;height:24px}
+.loader-mark i{display:block;width:6px;height:100%;border-radius:3px;background:var(--ink);transform-origin:50% 100%;animation:loader-bar 1.05s ease-in-out infinite}
+.loader-mark i:nth-child(2){animation-delay:.15s;background:var(--accent)}
+.loader-mark i:nth-child(3){animation-delay:.3s}
+.loader.lg .loader-label{font-size:13px;font-weight:650;letter-spacing:.04em;color:transparent;background:linear-gradient(90deg,var(--muted) 30%,var(--ink) 50%,var(--muted) 70%) 0 0/200% 100%;-webkit-background-clip:text;background-clip:text;animation:loader-shimmer 2s linear infinite}
+
+/* the progress line at the very top: a glowing gradient with a bright head */
+.toploader{height:3px}
+.toploader i{position:relative;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 30%,transparent),var(--accent) 70%,var(--ink));border-radius:0 3px 3px 0;box-shadow:0 0 12px color-mix(in srgb,var(--accent) 70%,transparent)}
+.toploader i::after{content:"";position:absolute;right:0;top:50%;width:46px;height:9px;transform:translateY(-50%);background:radial-gradient(closest-side,var(--accent),transparent);opacity:.85}
+
+@media (prefers-reduced-motion:reduce){.loader-orbit .loader-ring{animation-duration:2.4s}.loader-mark i,.loader-orbit::before{animation:none}.loader.lg .loader-label{animation:none;color:var(--muted);background:none}.busy,.busy .loader.lg{animation:none}}
