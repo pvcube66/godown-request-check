@@ -1464,4 +1464,21 @@ html.theme-switching .theme-toggle svg{animation:theme-icon-pop .6s cubic-bezier
 .toploader i{position:relative;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 30%,transparent),var(--accent) 70%,var(--ink));border-radius:0 3px 3px 0;box-shadow:0 0 12px color-mix(in srgb,var(--accent) 70%,transparent)}
 .toploader i::after{content:"";position:absolute;right:0;top:50%;width:46px;height:9px;transform:translateY(-50%);background:radial-gradient(closest-side,var(--accent),transparent);opacity:.85}
 
-@media (prefers-reduced-motion:reduce){.loader-orbit .loader-ring{animation-duration:2.4s}.loader-mark i,.loader-orbit::before{animation:none}.loader.lg .loader-label{animation:none;color:var(--muted);background:none}.busy,.busy .loader.lg{animation:none}}
+/* A loading animation is feedback the person needs. The site-wide 'reduce motion' rule switches every animation off, so the loaders are
+   put back here (gentle fades instead of big movement) and they keep moving. */
+@keyframes loader-bar-soft{0%,100%{opacity:.3;transform:scaleY(.82)}50%{opacity:1;transform:scaleY(1)}}
+@keyframes loader-glow-soft{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes loader-pop-soft{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .loader .loader-ring{animation:loader-spin .75s linear infinite!important}
+  .loader.lg .loader-orbit .loader-ring{animation:loader-spin .95s linear infinite!important}
+  .loader-orbit::before{animation:loader-glow-soft 1.6s ease-in-out infinite!important}
+  .loader-mark i{animation:loader-bar-soft 1.05s ease-in-out infinite!important}
+  .loader-mark i:nth-child(2){animation-delay:.15s!important}
+  .loader-mark i:nth-child(3){animation-delay:.3s!important}
+  .loader.lg .loader-label{animation:loader-shimmer 2s linear infinite!important}
+  .busy{animation:loader-fade .22s ease both!important}
+  .busy .loader.lg{animation:loader-pop-soft .3s ease both!important}
+  .toploader i{transition:width .25s ease!important}
+}
+}
