@@ -8,7 +8,7 @@ import { scopeFor } from '@/lib/viewer';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Supplier performance' };
+export const metadata = { title: 'Supplier Performance' };
 
 type SP = { by?: string; month?: string; focus?: string };
 const monthText = (ym: string) => new Date(`${ym}-01T12:00:00+05:30`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });

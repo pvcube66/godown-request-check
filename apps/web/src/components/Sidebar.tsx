@@ -16,12 +16,12 @@ export type SidebarProps = {
 };
 
 const LINKS = [
-  { href: '/', label: 'Unusual requests', icon: 'alert', admin: false },
-  { href: '/orders', label: 'Orders', icon: 'truck', admin: false },
-  { href: '/indents', label: 'Indents', icon: 'flag', admin: false },
-  { href: '/suppliers', label: 'Suppliers', icon: 'scale', admin: false },
+  { href: '/dashboards', label: 'Dashboard', icon: 'chart', admin: false },
+  { href: '/orders', label: 'Stage Wise', icon: 'truck', admin: false },
+  { href: '/', label: 'Unusual Requests', icon: 'alert', admin: false },
+  { href: '/suppliers', label: 'Supplier Performance', icon: 'scale', admin: false },
   { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
-  { href: '/dashboards', label: 'Dashboards', icon: 'chart', admin: false },
+  { href: '/indents', label: 'Indents', icon: 'flag', admin: false },
   { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
   { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
   { href: '/users', label: 'Users', icon: 'user', admin: true },

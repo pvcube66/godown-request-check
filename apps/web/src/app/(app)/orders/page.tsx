@@ -9,7 +9,7 @@ import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Orders' };
+export const metadata = { title: 'Stage Wise' };
 
 type SP = { stage?: string; q?: string; month?: string; p?: string; district?: string; account?: string; stuck?: string; ids?: string; hostel?: string };
 const PAGE_SIZE = 25;
