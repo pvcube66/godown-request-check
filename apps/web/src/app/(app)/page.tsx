@@ -17,7 +17,7 @@ import FilterSelect from './FilterSelect';
 import { scoped, canEdit, getWaitDays, type AnomalyDoc } from '@anomaly/core';
 
 export const dynamic = 'force-dynamic';
-type SP = { sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string; kind?: string };
+type SP = { godown?: string; sev?: string; month?: string; district?: string; view?: string; p?: string; all?: string; q?: string; kind?: string };
 /** The kinds of unusual request, as the screen names them. */
 const KIND_TABS = [
   { key: '', label: 'All types' },
@@ -56,6 +56,7 @@ async function HomeContent({ sp }: { sp: SP }) {
   const base0: Record<string, unknown> = { partOfOrder: { $ne: true } };
   if (sp.month) base0.month = sp.month;
   if (sp.district) base0.districtName = sp.district;
+  if (/^\d{1,9}$/.test(sp.godown ?? '')) base0.godownId = Number(sp.godown);
   const q = searchQuery(sp.q);
   const sf = searchFilter(q, ['hostelName', 'hostelCode', 'districtName']);
   if (sf) base0.$and = sf.$and;
@@ -70,12 +71,13 @@ async function HomeContent({ sp }: { sp: SP }) {
   // lookups that do not depend on the list start now and run alongside the main queries
   const sideLookups = Promise.all([loadUnits(c), loadItemNames(c), getWaitDays(c).then(async (w) => [w, await overdueCount(c, names, w)] as const), loadHealth(c)]);
   sideLookups.catch(() => { /* reported below, where it is awaited */ });
-  const [kindCounts, fetched, counts, months, districts, lastRun, requestMonths, allTypesRows, allSeverities] = await Promise.all([
+  const [kindCounts, fetched, counts, months, districts, godownIds, lastRun, requestMonths, allTypesRows, allSeverities] = await Promise.all([
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sevMatch } }, { $group: { _id: { k: '$kind', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.k', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
     c.anomalies.find({ ...scope, status: statusFilter, severity: sevMatch } as never).sort({ ratio: -1 }).limit(3000).toArray(),
     c.anomalies.aggregate<{ _id: string; n: number }>([{ $match: { ...scope, status: statusFilter } }, { $group: { _id: { s: '$severity', g: '$godownId', h: '$hostelCode' } } }, { $group: { _id: '$_id.s', n: { $sum: 1 } } }]).toArray(),   // hostels, like the cards below
     c.anomalies.distinct('month', scoped({}, names)),
     c.anomalies.distinct('districtName', scoped({}, names)),
+    c.anomalies.distinct('godownId', scoped({}, names)),
     c.runs.find().sort({ startedAt: -1 }).limit(1).next(),
     c.requests.distinct('month', scoped({}, names)),
     c.anomalies.aggregate<{ n: number }>([{ $match: { ...scopeAnyKind, status: statusFilter, severity: sevMatch } }, { $group: { _id: { g: '$godownId', h: '$hostelCode' } } }, { $count: 'n' }]).toArray(),
@@ -108,10 +110,11 @@ async function HomeContent({ sp }: { sp: SP }) {
     loadHostelPhones(c, shown.map((g) => ({ godownId: g[0]!.godownId, hostelCode: g[0]!.hostelCode }))),
   ]);
   const [units, itemNames, [waitDays, overdue], health] = await sideLookups;
+  const godownRows = godownIds.length > 1 ? await c.godowns.find({ godownId: { $in: godownIds } }, { projection: { godownId: 1, name: 1 } }).toArray() : [];
   const ctx = { history, months: allMonths, view, showActions: canEdit(viewer), issues, units, names: itemNames };
 
   const base = Object.fromEntries(Object.entries(sp).filter(([, v]) => v)) as Record<string, string>;
-  const reportQuery = new URLSearchParams(Object.entries({ month: sp.month ?? '', district: sp.district ?? '', q }).filter(([, v]) => v) as [string, string][]).toString();
+  const reportQuery = new URLSearchParams(Object.entries({ month: sp.month ?? '', district: sp.district ?? '', godown: sp.godown ?? '', sev, kind, view, q }).filter(([, v]) => v) as [string, string][]).toString();
   const hour = Number(new Date().toLocaleString('en-GB', { hour: '2-digit', hour12: false, timeZone: IST }));
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const dateLine = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', timeZone: IST });
@@ -155,7 +158,8 @@ async function HomeContent({ sp }: { sp: SP }) {
       <div className="filters">
         <FilterSelect label="Month" name="month" value={sp.month ?? ''} base={base} options={[{ value: '', label: 'All months' }, ...months.sort().reverse().map((m) => ({ value: m, label: monthLabel(m) }))]} />
         {districts.length > 1 && <FilterSelect label="District" name="district" value={sp.district ?? ''} base={base} options={[{ value: '', label: 'All districts' }, ...districts.sort().map((d) => ({ value: d, label: d }))]} />}
-        <Link href={`/report/csv${reportQuery ? `?${reportQuery}` : ''}`} className="link-arrow dl-link"><Icon name="download" size={16} />Excel</Link>
+        {godownRows.length > 1 && <FilterSelect label="Godown" name="godown" value={sp.godown ?? ''} base={base} options={[{ value: '', label: 'All godowns' }, ...godownRows.sort((a, b) => a.name.localeCompare(b.name)).map((g) => ({ value: String(g.godownId), label: g.name }))]} />}
+        <Link href={`/report/xlsx?${reportQuery}`} className="link-arrow dl-link"><Icon name="download" size={16} />Excel</Link>
         <div className="seg" role="group" aria-label="Which requests to show">
           {[['open', 'To check'], ['confirmed', 'Issues raised'], ['fine', 'Marked fine']].map(([v, l]) => (
             <Link key={v} href={qs(sp, { view: v === 'open' ? '' : v, p: '' })} className={view === v ? 'on' : ''} aria-current={view === v ? 'page' : undefined}>{l}</Link>

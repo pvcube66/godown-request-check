@@ -5,7 +5,7 @@ import { hostelLabel, num } from '@/lib/format';
 import { phonesByHostelCode } from '@/lib/history';
 import { daysSincePlaced, fmtDay, FLAG_TEXT, countOrders, hostelIssueTypes, loadOrdersPage, orderMonth, orderMonths, stageCells, STAGE_COLUMNS, stageCounts, STUCK_DAYS, TABS, urgency, type Urgency } from '@/lib/orders';
 import { godownLabels } from '@/lib/dashboard';
-import { daysInStage, OPEN_STAGES, STAGE_LABEL } from '@anomaly/core';
+import { daysInStage, OPEN_STAGES, scoped, STAGE_LABEL } from '@anomaly/core';
 import { Icon } from '@/components/Icons';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,7 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
   const offset = (pageNo - 1) * PAGE_SIZE;
   const base = Object.fromEntries(Object.entries(sp).filter(([k, v]) => v && k !== 'p')) as Record<string, string>;
   const [issueTypes, label, phones] = await Promise.all([hostelIssueTypes(c, names, shown.map((o) => ({ hostelCode: o.hostelCode, month: orderMonth(o.placedOn), requestId: o.requestId }))), godownLabels(c), phonesByHostelCode(c, shown.map((o) => o.hostelCode))]);
+  const accounts = (await c.orders.distinct('account', scoped({}, names) as never)).sort();
   const stuckDays = (STUCK_DAYS as readonly number[]).includes(Number(sp.stuck)) ? Number(sp.stuck) : 0;
 
   return (
@@ -60,7 +61,6 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
       <form className="filters" method="get" action="/orders">
         {sp.stage && <input type="hidden" name="stage" value={sp.stage} />}
         {sp.district && <input type="hidden" name="district" value={sp.district} />}
-        {sp.account && <input type="hidden" name="account" value={sp.account} />}
         {sp.stuck && <input type="hidden" name="stuck" value={sp.stuck} />}
         {sp.ids && <input type="hidden" name="ids" value={sp.ids} />}
         {sp.hostel && <input type="hidden" name="hostel" value={sp.hostel} />}
@@ -70,6 +70,14 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             {months.map((m) => <option key={m} value={m}>{monthText(m)}</option>)}
           </select>
         </label>
+        {accounts.length > 1 && (
+          <label className="select"><span>Godown</span>
+            <select name="account" defaultValue={sp.account ?? ''}>
+              <option value="">All godowns</option>
+              {accounts.map((a) => <option key={a} value={a}>{label(a)}</option>)}
+            </select>
+          </label>
+        )}
         <div className="search">
           <label htmlFor="order-q">Find an order or hostel</label>
           <div className="search-row">
@@ -78,7 +86,8 @@ export default async function Orders({ searchParams }: { searchParams: Promise<S
             {(sp.q || sp.month || sp.district || sp.account || sp.stuck) && <Link href={qs({ stage: sp.stage ?? '' }, {})} className="link-arrow">Clear</Link>}
           </div>
         </div>
-        <a className="btn" href={`/orders/csv?${new URLSearchParams(base)}`}><Icon name="download" size={16} /> Download Excel</a>
+        <a className="btn" href={`/orders/xlsx?${new URLSearchParams(base)}`}><Icon name="download" size={16} /> Download Excel</a>
+        <a className="link-arrow" href={`/orders/csv?${new URLSearchParams(base)}`}>CSV</a>
       </form>
 
       {total === 0 ? (
