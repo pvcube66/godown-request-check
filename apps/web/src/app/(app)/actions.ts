@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { addAccount, runCycle, scoped } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { requireMasterAdmin } from '@/lib/master-auth';
-import { actorOf, requireAccess, visibleDistricts } from '@/lib/viewer';
+import { actorOf, requireAccess, requireViewer, visibleDistricts } from '@/lib/viewer';
 
 const STATUSES = ['open', 'confirmed', 'ignored', 'expected'] as const;
 
@@ -34,5 +34,20 @@ export async function addAccountAction(_prev: unknown, formData: FormData): Prom
     return { ok: true, message: `Added ${r.username} (godowns: ${r.godowns.map((g) => g.name).join(', ')}). History loaded. Open Master data to assign its districts.` };
   } catch (e) {
     return { ok: false, message: `We could not add this login: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
+/** "Force refresh": any signed-in person can ask for a fresh pull from the portal right now. Only one check runs at a time. */
+export async function forceRefreshAction(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const viewer = await requireViewer();
+    const c = await getDb();
+    const run = await runCycle(c, 'manual', 'recent', { budgetMs: 120_000 });
+    if (!run) return { ok: false, message: 'A check is already running. Please try again in a few minutes.' };
+    await c.auditLog.insertOne({ actor: actorOf(viewer), action: 'refresh.force', target: 'portal', at: new Date(), details: { ok: run.ok } });
+    revalidatePath('/', 'layout');
+    return run.ok ? { ok: true, message: 'Data refreshed from the portal.' } : { ok: false, message: 'Refreshed, but some godowns could not be read. See Past checks.' };
+  } catch {
+    return { ok: false, message: 'Could not refresh. Please sign in again and retry.' };
   }
 }

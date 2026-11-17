@@ -1481,3 +1481,7 @@ html.theme-switching .theme-toggle svg{animation:theme-icon-pop .6s cubic-bezier
   .busy .loader.lg{animation:loader-pop-soft .3s ease both!important}
   .toploader i{transition:width .25s ease!important}
 }
+
+.force-refresh{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.force-refresh button{min-height:var(--control-height);padding:4px 10px;border:1px solid var(--ink);border-radius:var(--r1);background:var(--paper);color:var(--ink);cursor:pointer}
+.force-refresh button:disabled{opacity:.6;cursor:progress}

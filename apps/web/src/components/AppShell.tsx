@@ -5,8 +5,9 @@ import { useState, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { Logo, Icon } from '@/components/Icons';
+import ForceRefresh from '@/components/ForceRefresh';
 
-export default function AppShell({ children, user, waConnected = false }: { children: ReactNode; user: { name: string; role: 'admin' | 'operator' | 'viewer' }; waConnected?: boolean }) {
+export default function AppShell({ children, user, waConnected = false, lastUpdated = null }: { children: ReactNode; user: { name: string; role: 'admin' | 'operator' | 'viewer' }; waConnected?: boolean; lastUpdated?: string | null }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
     const [density, setDensity] = useState<'compact' | 'comfortable'>('compact');
@@ -72,6 +73,7 @@ export default function AppShell({ children, user, waConnected = false }: { chil
             <input id="global-query" name="q" type="search" maxLength={60} placeholder="Hostel name, code or request ID" autoComplete="off" />
             <button type="submit">Search</button>
           </form>
+          <ForceRefresh lastUpdated={lastUpdated} />
           <span className="desktop-only"><ThemeToggle /></span>   {/* phones already have one in the top bar */}
         </header>
 
