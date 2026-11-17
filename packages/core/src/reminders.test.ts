@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decide, type ReminderCandidate, type Rules } from './reminders.js';
 
 const rules: Rules = { firstAfterDays: 3, everyDays: 2, maxMessages: 4 };
+const unlimited: Rules = { ...rules, maxMessages: 0 };
 const NOON = new Date('2026-11-10T06:30:00Z');                   // 12:00 India
 const cand = (o: Partial<ReminderCandidate> = {}): ReminderCandidate => ({ requestId: 'R1', hostelCode: 'H1', hostelName: 'H', districtName: 'D', daysInTransit: 3, dispatchedOn: new Date('2026-11-07T00:00:00Z'), phone: '919876543210', optedOut: false, sentAt: [], hostelMessagedToday: false, ...o });
 const day = (s: string) => new Date(`${s}T06:30:00Z`);
@@ -21,6 +22,11 @@ describe('when a reminder goes out', () => {
     const four = [day('2026-11-01'), day('2026-11-03'), day('2026-11-05'), day('2026-11-07')];
     expect(decide(cand({ sentAt: four }), rules, NOON)).toEqual({ send: false, reason: 'max_reached' });
     expect(decide(cand({ sentAt: [day('2026-11-01')] }), { ...rules, maxMessages: 1 }, NOON)).toEqual({ send: false, reason: 'max_reached' });
+  });
+  it('with no limit (0) keeps sending every 2 days for as long as the order is in transit', () => {
+    const many = Array.from({ length: 9 }, (_, i) => day(`2026-10-${String(10 + i * 2).padStart(2, '0')}`));
+    expect(decide(cand({ sentAt: many }), unlimited, NOON)).toEqual({ send: true, reminderNo: 10 });
+    expect(decide(cand({ sentAt: [...many.slice(0, 8), day('2026-11-09')] }), unlimited, NOON)).toEqual({ send: false, reason: 'waiting_between' });
   });
   it('uses the changed numbers when an administrator changes them', () => {
     expect(decide(cand({ daysInTransit: 4 }), { ...rules, firstAfterDays: 5 }, NOON)).toEqual({ send: false, reason: 'too_early' });

@@ -18,11 +18,16 @@ export const REMINDER_LINES = [
   'This is the first reminder.',
   'This is the second reminder. Please acknowledge today.',
   'This is the third reminder. The godown is waiting for your acknowledgement.',
-  'This is the final reminder. Please contact the godown if there is a problem.',
 ] as const;
+/** The closing sentence for reminder number n. From the fourth on it repeats with its number, for as long as the order stays In-Transit. */
+export const reminderLine = (n: number): string => {
+  const k = Math.max(1, Math.floor(n));
+  return k <= REMINDER_LINES.length ? REMINDER_LINES[k - 1]! : `This is reminder number ${k}. Please acknowledge it, or contact the godown if there is a problem.`;
+};
 /** Meta needs sample values for each {{n}} when a template is submitted. */
 export const TEMPLATE_EXAMPLE = ['Govt BC Boys Hostel Kalwakurthy', 'IR202600009266', '06 Nov 2026', REMINDER_LINES[0]];
-export const MAX_REMINDERS = REMINDER_LINES.length;
+/** Largest fixed number of reminders an administrator can set. 0 means no limit: keep going until the order leaves In-Transit. */
+export const MAX_REMINDERS = 50;
 
 // ----- settings -----
 export type WhatsAppMode = 'off' | 'dry_run' | 'live';
@@ -43,7 +48,7 @@ export interface WhatsAppSettings {
 export const DEFAULT_SETTINGS = (): WhatsAppSettings => ({
   mode: 'dry_run', phoneNumberId: '', wabaId: '', appId: '', configId: '', displayPhone: null, verifiedName: null, connectedAt: null, accessTokenEnc: null, appSecretEnc: null, verifyToken: randomBytes(18).toString('hex'),
   templateName: TEMPLATE_NAME, language: TEMPLATE_LANGUAGE, templateStatus: null, templateReason: null, templateCheckedAt: null,
-  firstAfterDays: 3, everyDays: 2, maxMessages: 4,
+  firstAfterDays: 3, everyDays: 2, maxMessages: 0,
   lastError: null, lastErrorAt: null, updatedAt: new Date(),
 });
 
@@ -103,7 +108,7 @@ export async function saveWhatsAppSettings(c: SettingsC, patch: SettingsPatch, a
   if (patch.language !== undefined) { if (!/^[a-z]{2}(_[A-Z]{2})?$/.test(patch.language)) throw new WhatsAppInputError('Use a language code such as en or te.'); next.language = patch.language; }
   if (patch.firstAfterDays !== undefined) next.firstAfterDays = int(patch.firstAfterDays, 1, 30, 'Days before the first reminder');
   if (patch.everyDays !== undefined) next.everyDays = int(patch.everyDays, 1, 30, 'Days between reminders');
-  if (patch.maxMessages !== undefined) next.maxMessages = int(patch.maxMessages, 1, MAX_REMINDERS, `Number of reminders (one to ${MAX_REMINDERS})`);
+  if (patch.maxMessages !== undefined) next.maxMessages = int(patch.maxMessages, 0, MAX_REMINDERS, `Number of reminders (0 for no limit, or up to ${MAX_REMINDERS})`);
   if (patch.mode !== undefined) {
     if (!['off', 'dry_run', 'live'].includes(patch.mode)) throw new WhatsAppInputError('Choose off, preview only, or live.');
     next.mode = patch.mode as WhatsAppMode;
@@ -132,7 +137,7 @@ export async function noteWhatsAppError(c: Pick<Collections, 'settings'>, messag
 const clean = (v: string) => v.replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, 200);
 /** Meta rules: a value may not contain line breaks, tabs, or runs of spaces. */
 export function templateValues(o: { hostelName: string; requestId: string; dispatchedOn: Date }, reminderNo: number, hostelLabel: (n: string) => string): string[] {
-  const line = REMINDER_LINES[Math.min(Math.max(reminderNo, 1), MAX_REMINDERS) - 1]!;
+  const line = reminderLine(reminderNo);
   const day = o.dispatchedOn.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
   return [clean(hostelLabel(o.hostelName)) || 'Hostel', clean(o.requestId), day, line];
 }

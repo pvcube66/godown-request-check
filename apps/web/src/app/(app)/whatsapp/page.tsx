@@ -1,7 +1,7 @@
 import WaSettingsTabs from '@/components/WaSettingsTabs';
 import { headers } from 'next/headers';
 import Link from 'next/link';
-import { ensureWhatsAppSettings, failureText, hostelLabel, isConnected, planReminders, REMINDER_LINES, SKIP_TEXT, TEMPLATE_BODY, type SkipReason } from '@anomaly/core';
+import { ensureWhatsAppSettings, failureText, hostelLabel, isConnected, planReminders, REMINDER_LINES, reminderLine, SKIP_TEXT, TEMPLATE_BODY, type SkipReason } from '@anomaly/core';
 import { getDb } from '@/lib/db';
 import { when } from '@/lib/format';
 import { masterAdminAccess } from '@/lib/master-auth';
@@ -39,7 +39,7 @@ export default async function WhatsApp() {
         <ul>
           <li>Mode: <b>{MODE_TEXT[s.mode]}</b></li>
           <li>Reminder wording: <b>{s.templateName}</b> · approval: <b>{s.templateStatus ?? 'not submitted yet'}</b>{s.templateReason ? ` (${s.templateReason})` : ''}{s.templateCheckedAt ? <span className="mut small"> · checked {when(s.templateCheckedAt)}</span> : null}</li>
-          <li>Rules: first reminder after <b>{s.firstAfterDays}</b> days in transit, then every <b>{s.everyDays}</b> days, up to <b>{s.maxMessages}</b> reminders, one message per hostel per day.</li>
+          <li>Rules: first reminder after <b>{s.firstAfterDays}</b> days in transit, then every <b>{s.everyDays}</b> days, {s.maxMessages === 0 ? <>until the order leaves In-Transit</> : <>up to <b>{s.maxMessages}</b> reminders</>}, one message per hostel per day.</li>
         </ul>
         {error && <p className="master-message master-error" role="alert">{error}{s.lastErrorAt ? ` (${when(s.lastErrorAt)})` : ''}</p>}
         {isConnected(s)
@@ -57,7 +57,7 @@ export default async function WhatsApp() {
         <h2 id="wa-template">Reminder wording</h2>
         <p>This is the message hostels receive. Only the last sentence changes from one reminder to the next.</p>
         <blockquote className="wa-sample">{TEMPLATE_BODY}</blockquote>
-        <ol>{REMINDER_LINES.map((l, i) => <li key={i}>Reminder {i + 1}: {l}</li>)}</ol>
+        <ol>{[...REMINDER_LINES, reminderLine(REMINDER_LINES.length + 1)].map((l, i) => <li key={i}>{i < REMINDER_LINES.length ? `Reminder ${i + 1}` : `Reminder ${i + 1} and every one after`}: {l}</li>)}</ol>
         <div className="row-inline">
           <ActionButton action={submitTemplateAction} label="Send wording to WhatsApp for approval" pending="Sending…" />
           <ActionButton action={refreshTemplateAction} label="Check approval" pending="Checking…" />

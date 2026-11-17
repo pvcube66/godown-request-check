@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { getMetaFailureCopy, parseMetaCode } from './metaErrorCopy.js';
 import { createTemplate, GRAPH_URL, getTemplateStatus, sendTemplateMessage, WhatsAppApiError } from './whatsappApi.js';
-import { REMINDER_LINES, renderTemplate, saveWhatsAppSettings, TEMPLATE_BODY, templateValues, verifyChallenge, verifySignature, whatsappNumber, isStopMessage, applyDeliveryStatus, WhatsAppInputError, type WhatsAppMessageDoc } from './whatsapp.js';
+import { REMINDER_LINES, reminderLine, renderTemplate, saveWhatsAppSettings, TEMPLATE_BODY, templateValues, verifyChallenge, verifySignature, whatsappNumber, isStopMessage, applyDeliveryStatus, WhatsAppInputError, type WhatsAppMessageDoc } from './whatsapp.js';
 import { hostelLabel } from './hostelName.js';
 
 const cred = { phoneNumberId: '1234567890', wabaId: '9876543210', accessToken: 'TOKEN' };
@@ -65,9 +65,11 @@ describe('the message wording', () => {
     expect(v).toEqual(['KGBV Maldakal', 'IR202600009266', '06 Nov 2026', REMINDER_LINES[0]]);
     expect(renderTemplate(v)).toBe('Hello KGBV Maldakal, the delivery for request IR202600009266 was dispatched on 06 Nov 2026 and has not been acknowledged on the portal yet. Please log in and acknowledge it. This is the first reminder. Thank you.');
   });
-  it('changes only the last line for each reminder, never beyond the fourth', () => {
-    for (let n = 1; n <= 4; n++) expect(templateValues(o, n, hostelLabel)[3]).toBe(REMINDER_LINES[n - 1]);
-    expect(templateValues(o, 9, hostelLabel)[3]).toBe(REMINDER_LINES[3]);
+  it('changes only the last line for each reminder, and keeps numbering past the third', () => {
+    for (let n = 1; n <= 3; n++) expect(templateValues(o, n, hostelLabel)[3]).toBe(REMINDER_LINES[n - 1]);
+    expect(templateValues(o, 4, hostelLabel)[3]).toBe('This is reminder number 4. Please acknowledge it, or contact the godown if there is a problem.');
+    expect(templateValues(o, 9, hostelLabel)[3]).toBe(reminderLine(9));
+    expect(reminderLine(9)).toContain('number 9');
   });
   it('follows Meta’s rules: no line breaks, tabs or runs of spaces in a value', () => {
     const v = templateValues({ ...o, hostelName: 'Hostel\n\tName   Two', requestId: 'IR 1\r\n' }, 1, (n) => n);
@@ -144,7 +146,7 @@ describe('settings', () => {
   it('starts in preview mode with the approved rules and a stable setup token', async () => {
     const { c } = settingsDb();
     const a = await saveWhatsAppSettings(c, {}, 'admin');
-    expect(a).toMatchObject({ mode: 'dry_run', firstAfterDays: 3, everyDays: 2, maxMessages: 4 });
+    expect(a).toMatchObject({ mode: 'dry_run', firstAfterDays: 3, everyDays: 2, maxMessages: 0 });
     const b = await saveWhatsAppSettings(c, { everyDays: 3 }, 'admin');
     expect(b.verifyToken).toBe(a.verifyToken);
     expect(b.everyDays).toBe(3);
@@ -159,7 +161,7 @@ describe('settings', () => {
   });
   it('refuses bad numbers and odd values', async () => {
     const { c } = settingsDb();
-    for (const bad of [{ firstAfterDays: 0 }, { everyDays: 31 }, { maxMessages: 5 }, { maxMessages: 0 }, { phoneNumberId: 'abc' }, { templateName: 'Has Spaces' }, { language: 'english' }, { mode: 'sometimes' }]) {
+    for (const bad of [{ firstAfterDays: 0 }, { everyDays: 31 }, { maxMessages: 51 }, { maxMessages: -1 }, { phoneNumberId: 'abc' }, { templateName: 'Has Spaces' }, { language: 'english' }, { mode: 'sometimes' }]) {
       await expect(saveWhatsAppSettings(c, bad, 'admin')).rejects.toBeInstanceOf(WhatsAppInputError);
     }
   });

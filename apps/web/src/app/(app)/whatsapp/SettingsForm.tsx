@@ -8,7 +8,7 @@ export default function SettingsForm(p: { mode: string; firstAfterDays: number; 
       <div className="master-fields">
         <label className="master-field">First reminder after this many days in transit<input name="firstAfterDays" type="number" min={1} max={30} defaultValue={p.firstAfterDays} required /></label>
         <label className="master-field">Days between reminders<input name="everyDays" type="number" min={1} max={30} defaultValue={p.everyDays} required /></label>
-        <label className="master-field">Number of reminders (1 to 4)<input name="maxMessages" type="number" min={1} max={4} defaultValue={p.maxMessages} required /></label>
+        <label className="master-field">Number of reminders (0 = keep going until the order leaves In-Transit)<input name="maxMessages" type="number" min={0} max={50} defaultValue={p.maxMessages} required /></label>
         <label className="master-field master-span">What should happen
           <select name="mode" defaultValue={p.mode}>
             <option value="off">Off: do nothing</option>

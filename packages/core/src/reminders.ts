@@ -32,7 +32,7 @@ export type Decision = { send: true; reminderNo: number } | { send: false; reaso
 export function decide(c: ReminderCandidate, rules: Rules, now: Date): Decision {
   const n = c.sentAt.length;
   if (c.optedOut) return { send: false, reason: 'opted_out' };
-  if (n >= rules.maxMessages) return { send: false, reason: 'max_reached' };
+  if (rules.maxMessages > 0 && n >= rules.maxMessages) return { send: false, reason: 'max_reached' };
   if (n === 0 ? c.daysInTransit < rules.firstAfterDays : daysBetween(c.sentAt[n - 1]!, now) < rules.everyDays) return { send: false, reason: n === 0 ? 'too_early' : 'waiting_between' };
   if (!c.phone) return { send: false, reason: 'no_phone' };
   if (c.hostelMessagedToday) return { send: false, reason: 'hostel_cap' };
