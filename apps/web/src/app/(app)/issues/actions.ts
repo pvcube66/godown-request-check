@@ -15,7 +15,7 @@ function fail(e: unknown): { error: string } {
   if (e instanceof IssueInputError) return { error: e.message };
   return { error: 'Could not save this. Please sign in again if the page was left open, then try again. Nothing was changed on the portal.' };
 }
-const refresh = () => { for (const p of ['/', '/issues', '/orders']) revalidatePath(p); revalidatePath('/issues/[issueId]', 'page'); revalidatePath('/hostel/[code]', 'page'); revalidatePath('/orders/[requestId]', 'page'); };
+const refresh = () => { for (const p of ['/', '/issues', '/orders', '/indents', '/dashboards']) revalidatePath(p); revalidatePath('/issues/[issueId]', 'page'); revalidatePath('/hostel/[code]', 'page'); revalidatePath('/orders/[requestId]', 'page'); };
 
 /** From the flag cards: "Issue (reject this indent)". Records it here only; the operator rejects on the portal themselves. */
 export async function raiseIssueAction(keys: string[], reason: string): Promise<{ ok: boolean; message: string; issueId?: string }> {

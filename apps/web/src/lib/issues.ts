@@ -1,4 +1,4 @@
-import { isOverdue, scoped, type Collections, type IssueDoc } from '@anomaly/core';
+import { isOverdue, scoped, STAGE_LABEL, type Collections, type IssueDoc } from '@anomaly/core';
 
 export const ISSUE_TABS = [
   { key: 'waiting', label: 'Waiting for a new indent', states: ['rejected_on_portal'] },
@@ -25,4 +25,26 @@ export async function issueCounts(c: Collections, names: string[] | null): Promi
 export async function overdueCount(c: Collections, names: string[] | null, waitDays: number, now = new Date()): Promise<number> {
   const open = await c.issues.find(scoped({ state: 'rejected_on_portal' }, names), { projection: { rejectedAt: 1, state: 1 } }).toArray();
   return open.filter((i) => isOverdue(i, waitDays, now)).length;
+}
+
+export interface IssueIndent { status: string; placedOn: Date | null }
+
+/** The current portal status (and indent date) of the indent(s) each issue is about, in one query. A resolved issue shows its new indent. */
+export async function loadIssueIndents(c: Collections, issues: IssueDoc[]): Promise<Map<string, IssueIndent>> {
+  const idsOf = (i: IssueDoc) => (i.state === 'resolved' && i.newRequestId ? [i.newRequestId] : i.targetRequestIds.length ? i.targetRequestIds : i.requestIds);
+  const all = [...new Set(issues.flatMap(idsOf))];
+  const out = new Map<string, IssueIndent>();
+  if (!all.length) return out;
+  const rows = await c.orders.find({ requestId: { $in: all } }, { projection: { requestId: 1, stage: 1, placedOn: 1 } }).toArray();
+  const by = new Map(rows.map((r) => [r.requestId, r]));
+  for (const i of issues) {
+    const found = idsOf(i).map((id) => by.get(id)).filter((r): r is NonNullable<typeof r> => !!r);
+    if (!found.length) { out.set(i.issueId, { status: '—', placedOn: null }); continue; }
+    const counts = new Map<string, number>();
+    for (const r of found) counts.set(STAGE_LABEL[r.stage], (counts.get(STAGE_LABEL[r.stage]) ?? 0) + 1);
+    const status = [...counts].map(([label, n]) => (found.length > 1 ? `${label} (${n})` : label)).join(', ');
+    const dates = found.map((r) => r.placedOn).filter((d): d is Date => !!d).sort((a, b) => a.getTime() - b.getTime());
+    out.set(i.issueId, { status, placedOn: dates[0] ?? null });
+  }
+  return out;
 }

@@ -23,6 +23,9 @@ describe('moving an issue along', () => {
   it('also notices a rejection that only the orders feed shows', () => {
     expect(evaluateIssue(base, [req('R1', 'Pending')], new Set(['R1']), now)).toEqual({ state: 'rejected_on_portal', rejectedAt: now });
   });
+  it('treats a cancelled indent the same as a rejected one', () => {
+    expect(evaluateIssue(base, [req('R1', 'Cancelled'), req('R2', 'Pending')], new Set(), now)).toEqual({ state: 'rejected_on_portal', rejectedAt: now });
+  });
   it('ignores a rejection of a request that is not the target', () => {
     expect(evaluateIssue(base, [req('R1', 'Pending'), req('R2', 'Rejected')], new Set(), now)).toBeNull();
   });
