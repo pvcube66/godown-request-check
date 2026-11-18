@@ -21,7 +21,7 @@ const LINKS = [
   { href: '/', label: 'Unusual Requests', icon: 'alert', admin: false },
   { href: '/suppliers', label: 'Supplier Performance', icon: 'scale', admin: false },
   { href: '/issues', label: 'Issues', icon: 'flag', admin: false },
-  { href: '/indents', label: 'Indents', icon: 'flag', admin: false },
+  { href: '/indents', label: 'Indents', icon: 'file', admin: false },
   { href: '/accounts', label: 'Godowns', icon: 'warehouse', admin: true },
   { href: '/master', label: 'Master data', icon: 'pencil', admin: true },
   { href: '/users', label: 'Users', icon: 'user', admin: true },
